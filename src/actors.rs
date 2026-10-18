@@ -1021,7 +1021,89 @@ async fn wikidata_map(db: &SqlitePool) -> Result<HashMap<String, Value>> {
             .collect(),
     )
 }
-fn summary_json(a: &Actor, wd: Option<&Value>, counts: Option<&Value>) -> Value {
+/// Profiles without a Wikidata/Commons photo, for web image search (key figures and the most
+/// mentioned first).
+pub async fn image_subjects(db: &SqlitePool) -> Result<Vec<crate::images::Subject>> {
+    let actors = build_actors(load_records(db).await?);
+    let wd = wikidata_map(db).await?;
+    let mentions: HashMap<String, i64> =
+        sqlx::query("SELECT actor_id, count(*) AS n FROM actor_mentions GROUP BY actor_id")
+            .fetch_all(db)
+            .await?
+            .iter()
+            .map(|r| (r.get("actor_id"), r.get("n")))
+            .collect();
+    Ok(actors
+        .into_iter()
+        .filter(|a| wd.get(&a.id).is_none_or(|w| w["image"].is_null()))
+        .map(|a| {
+            let groups: Vec<String> = a
+                .groups
+                .iter()
+                .chain(&a.designation_groups)
+                .filter_map(|g| groups().iter().find(|x| &x.id == g).map(|x| x.en.clone()))
+                .collect();
+            let first = |f: fn(&Record) -> &Vec<String>| {
+                a.records
+                    .iter()
+                    .flat_map(f)
+                    .next()
+                    .cloned()
+                    .unwrap_or_default()
+            };
+            let lists: BTreeSet<&str> = a.records.iter().map(|r| r.list.as_str()).collect();
+            let context = format!(
+                "{}. {}. Roles: {}. Affiliation: {}. Nationality: {}. Born: {}. Sanctioned by: {}.",
+                if a.kind == "person" {
+                    "Person"
+                } else {
+                    "Organization"
+                },
+                wd.get(&a.id)
+                    .and_then(|w| w.pointer("/description/en"))
+                    .and_then(Value::as_str)
+                    .unwrap_or(""),
+                a.records
+                    .iter()
+                    .flat_map(|r| &r.titles)
+                    .take(3)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join("; "),
+                groups.join(", "),
+                first(|r| &r.nationality),
+                first(|r| &r.dob),
+                lists.into_iter().collect::<Vec<_>>().join(", "),
+            );
+            let names = std::iter::once(a.name.clone())
+                .chain(
+                    a.aliases
+                        .iter()
+                        .filter(|x| text::tokens(x).len() >= 2)
+                        .cloned(),
+                )
+                .collect();
+            crate::images::Subject {
+                kind: "actor",
+                priority: if a.curated.is_some() { 100_000 } else { 0 }
+                    + mentions.get(&a.id).copied().unwrap_or(0) * 10
+                    + i64::from(!a.records.is_empty()),
+                person: a.kind == "person",
+                id: a.id,
+                name: a.name,
+                context,
+                names,
+            }
+        })
+        .collect())
+}
+/// Image precedence: Wikidata/Commons, then a verified web-search image.
+fn summary_json(
+    a: &Actor,
+    wd: Option<&Value>,
+    web: Option<&Value>,
+    counts: Option<&Value>,
+) -> Value {
     let titles: Vec<&String> = a.records.iter().flat_map(|r| &r.titles).take(4).collect();
     json!({
         "id": a.id, "kind": a.kind, "name": a.name, "aliases": a.aliases, "curated": a.curated.is_some(),
@@ -1030,7 +1112,7 @@ fn summary_json(a: &Actor, wd: Option<&Value>, counts: Option<&Value>) -> Value 
         "sanctions": a.records.iter().map(|r| json!({"list":r.list,"reference":r.reference,"program":r.program,"listed_on":r.listed_on})).collect::<Vec<_>>(),
         "titles": titles,
         "description": wd.map(|w| w["description"].clone()),
-        "image": wd.map(|w| w["image"].clone()).filter(|i| !i.is_null()),
+        "image": wd.map(|w| w["image"].clone()).filter(|i| !i.is_null()).or_else(|| web.cloned()),
         "x_username": wd.and_then(|w| w["x_username"].as_str()),
         "mentions": counts.cloned().unwrap_or(json!({})),
     })
@@ -1038,6 +1120,7 @@ fn summary_json(a: &Actor, wd: Option<&Value>, counts: Option<&Value>) -> Value 
 pub async fn list(State(app): State<App>) -> ApiResult<Json<Value>> {
     let actors = build_actors(load_records(&app.db).await?);
     let wd = wikidata_map(&app.db).await?;
+    let web = crate::images::found(&app.db, "actor").await?;
     let week = (Utc::now() - chrono::Duration::days(7)).to_rfc3339();
     let mut counts: HashMap<String, serde_json::Map<String, Value>> = HashMap::new();
     for r in sqlx::query("SELECT actor_id, kind, count(*) AS n, sum(CASE WHEN at>=? THEN 1 ELSE 0 END) AS recent, max(at) AS latest FROM actor_mentions GROUP BY actor_id, kind")
@@ -1081,6 +1164,7 @@ pub async fn list(State(app): State<App>) -> ApiResult<Json<Value>> {
             summary_json(
                 a,
                 wd.get(&a.id),
+                web.get(&a.id),
                 counts.get(&a.id).map(|m| Value::Object(m.clone())).as_ref(),
             )
         })
@@ -1121,7 +1205,8 @@ pub async fn detail(State(app): State<App>, Path(id): Path<String>) -> ApiResult
         .iter()
         .map(|r| json!({"kind":r.get::<String,_>("kind"),"ref":r.get::<String,_>("ref"),"page":Some(r.get::<i64,_>("page")).filter(|p|*p>=0),"title":r.get::<Option<String>,_>("title"),"url":r.get::<Option<String>,_>("url"),"at":r.get::<Option<String>,_>("at"),"snippet":r.get::<Option<String>,_>("snippet"),"hits":r.get::<i64,_>("hits")}))
         .collect();
-    let mut out = summary_json(a, wd.as_ref(), None);
+    let web = crate::images::found(&app.db, "actor").await?;
+    let mut out = summary_json(a, wd.as_ref(), web.get(&a.id), None);
     out["sanctions"] = json!(a.records);
     out["wikidata"] = wd.unwrap_or(Value::Null);
     out["mentions"] = json!(mentions);

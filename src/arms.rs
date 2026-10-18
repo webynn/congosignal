@@ -378,6 +378,32 @@ pub async fn worker(db: SqlitePool) -> Result<()> {
     }
 }
 
+/// Equipment with neither a Wikidata image nor a 3D model, for web image search.
+pub async fn image_subjects(db: &SqlitePool) -> Result<Vec<crate::images::Subject>> {
+    let refs = references(db).await?;
+    Ok(CONFIG
+        .items
+        .iter()
+        .filter(|i| {
+            refs.get(&i.id).is_some_and(|(wd, model, _)| {
+                wd.as_ref().is_none_or(|w| w["image"].is_null()) && model.is_none()
+            })
+        })
+        .map(|i| crate::images::Subject {
+            kind: "equipment",
+            id: i.id.clone(),
+            name: i.name.clone(),
+            context: format!(
+                "Military equipment type. Also known as: {}.",
+                i.terms.join(", ")
+            ),
+            names: i.terms.clone(),
+            person: false,
+            priority: 0,
+        })
+        .collect())
+}
+
 // ---------------------------------------------------------------------------------------------
 // API
 
@@ -436,6 +462,7 @@ fn matches_item(item: &Item, row: &Value) -> bool {
 }
 pub async fn list(State(app): State<App>) -> ApiResult<Json<Value>> {
     let refs = references(&app.db).await?;
+    let web = crate::images::found(&app.db, "equipment").await?;
     let mut stats: HashMap<String, MentionStats> = HashMap::new();
     for r in sqlx::query("SELECT equipment_id, kind, groups, at FROM equipment_mentions")
         .fetch_all(&app.db)
@@ -467,7 +494,7 @@ pub async fn list(State(app): State<App>) -> ApiResult<Json<Value>> {
             json!({
                 "id": item.id, "name": item.name, "category": item.category, "terms": item.terms,
                 "description": wd.as_ref().map(|w| w["description"].clone()),
-                "image": wd.as_ref().map(|w| w["image"].clone()).filter(|i| !i.is_null()),
+                "image": wd.as_ref().map(|w| w["image"].clone()).filter(|i| !i.is_null()).or_else(|| web.get(&item.id).cloned()),
                 "origin": wd.as_ref().map(|w| w["origin"].clone()),
                 "operators": wd.as_ref().map(|w| w["operators"].clone()),
                 "model": model, "reference_error": error,
@@ -518,6 +545,9 @@ pub async fn detail(State(app): State<App>, Path(id): Path<String>) -> ApiResult
         .iter()
         .find(|i| i.id == id)
         .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "equipment not found".into()))?;
+    let web_image = crate::images::found(&app.db, "equipment")
+        .await?
+        .remove(&id);
     let (wd, model, error) = references(&app.db)
         .await?
         .remove(&item.id)
@@ -536,6 +566,7 @@ pub async fn detail(State(app): State<App>, Path(id): Path<String>) -> ApiResult
         .collect();
     Ok(Json(json!({
         "item": item, "category": CONFIG.categories.iter().find(|c| c.id == item.category),
+        "image": wd.as_ref().map(|w| w["image"].clone()).filter(|i| !i.is_null()).or(web_image),
         "wikidata": wd, "model": model, "reference_error": error,
         "mentions": mentions, "transfers": related,
     })))

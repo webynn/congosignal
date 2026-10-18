@@ -340,3 +340,21 @@ Public deployment that redistributes these data should keep the attributions sho
 - Submitting a Jeune Afrique URL to `POST /v1/jobs` returns `200 already_collected` with the article ID, or `422 feed_only` explaining that pages are not fetched. The feed carries no archive, so articles published before polling started are not available.
 
 Add another publisher by appending a feed (id, name, url, site, language, coverage, access_note); no code change is needed.
+
+## Web-search images (OpenAI)
+
+Profiles without a Wikidata/Commons photo, and equipment with neither an image nor a 3D model, get an image found by OpenAI web search (Responses API, `web_search` tool). Images that already exist are kept. Nothing is generated: the model must return an existing image URL and the page it appears on, and the server then checks independently that
+
+1. the URL is https and serves a raster image (JPEG, PNG, WebP or GIF; SVG refused) between 4 KB and 15 MB, and
+2. the source page names the subject (a full name or, for people, at least two name tokens including the surname).
+
+Images passing both checks are `verified`; if the source page cannot be fetched they are `unverified` and labelled as such; otherwise they are `rejected_auto` and never shown. Only links are stored (`web_images` table). The dashboard credits the source domain and verification state and offers **Reject**, which hides the image permanently (`POST /v1/images/{actor|equipment}/{id}/reject`). `GET /v1/images` reports budget and counts. Key figures and the most-mentioned profiles are searched first; "not found" results are retried after 30 days, errors after a day.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | unset | Enables image search (server-side only) |
+| `OPENAI_IMAGE_MODEL` | `gpt-5-mini` | Model used with the web search tool |
+| `IMAGE_SEARCH_DAILY_LIMIT` | `40` | Searches per UTC day (0–500), reserved before each call |
+| `IMAGE_SEARCH_ENABLED` | enabled | `0` disables; also off when `REFERENCE_SYNC=0` |
+
+Rights: web images are third-party works whose reuse rights are not cleared. They are hotlinked for internal research display with their source; do not republish them. Subject names and short context (role, affiliation, nationality, birth year from the sanctions lists) are sent to OpenAI.
