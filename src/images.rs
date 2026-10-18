@@ -141,6 +141,7 @@ async fn ask(client: &reqwest::Client, key: &str, s: &Subject) -> Result<Value> 
         "input": format!("Subject: {}\nContext: {}", s.name, s.context),
         "text": {"format": {"type": "json_schema", "name": "image_result", "strict": true, "schema": schema()}},
     });
+    let reservation = crate::costs::reserve("openai", "image_web_research").await?;
     let r = client
         .post(api_url())
         .bearer_auth(key)
@@ -150,6 +151,12 @@ async fn ask(client: &reqwest::Client, key: &str, s: &Subject) -> Result<Value> 
         .context("OpenAI connection failed")?;
     let status = r.status();
     let body: Value = r.json().await.unwrap_or_default();
+    crate::costs::finish(
+        reservation,
+        &format!("http_{}", status.as_u16()),
+        body["usage"].clone(),
+    )
+    .await?;
     if !status.is_success() {
         let msg: String = body
             .pointer("/error/message")

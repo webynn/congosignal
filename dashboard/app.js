@@ -55,7 +55,7 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 // ---------------------------------------------------------------------------------------------
 // State
 
-const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method'];
+const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
 const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
@@ -69,6 +69,7 @@ const state = {
   sf: { topic: '', lang: '', kind: '', q: '', sort: 'latest', accountQ: '', visible: 40 },
   af: { kind: 'all', group: '', q: '', sort: 'mentions', visible: 48 }, wf: { category: '', q: '', sort: 'mentions' },
   actors: null, arms: null, actor: null, weapon: null, hud: {}, enter: false,
+  agreements:null, agDetail:null, agSearch:'', agCategory:'', agTerm:'', agDrafts:false,
   evQuery: '', evRegional: false,
   modal: null, detail: null, detailId: null, detailTab: 'brief', dossier: null, palette: null,
 };
@@ -163,7 +164,7 @@ const activeTasks = () => state.status.tasks?.filter(x => ['pending', 'running']
 
 async function api(path, data) {
   const token = sessionStorage.getItem('congo-token');
-  const r = await fetch(path, { method: data ? 'POST' : 'GET', headers: { ...(data ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
+  const r = await fetch(path, { method: data ? 'POST' : 'GET', headers: { ...(data ? { 'Content-Type': 'application/json', ...(state.auth?.csrf ? {'X-CSRF-Token':state.auth.csrf} : {}) } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
   if (!r.ok) {
     let e; try { e = await r.json() } catch {}
     const err = Error(r.status === 401 ? L('This API requires a token. Open connection settings.', 'Cette API nécessite un jeton. Ouvrez les paramètres de connexion.') : (e?.error || `${L('Unable to connect to the API.', 'Impossible de joindre l’API.')} (${r.status})`));
@@ -174,7 +175,11 @@ async function api(path, data) {
 }
 async function load() {
   try {
-    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds] = await Promise.all([
+    state.authConfig=await fetch('/auth/config').then(r=>r.json());
+    state.auth=await api('/v1/auth/me');state.loginRequired=false;
+  } catch(e) {if(state.authConfig?.mode==='oidc'){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
+  try {
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -186,8 +191,12 @@ async function load() {
       api('/v1/actors').catch(() => null),
       api('/v1/arms').catch(() => null),
       api('/v1/feeds').catch(() => null),
+      api('/v1/agreements').catch(() => null),
+      api('/v1/costs').catch(() => null),
+      api('/v1/team').catch(() => null),
     ]);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, error: '' });
+    if (state.agDetail?.assessment?.status === 'running') state.agDetail = await api('/v1/agreements/'+state.agDetail.id);
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, error: '' });
   } catch (e) { state.error = e.message }
   state.loaded = true;
   render();
@@ -234,6 +243,9 @@ const NAV = () => [
   ['actors', 'flag', L('Key figures & sanctions', 'Acteurs et sanctions'), state.actors?.items?.filter(a => a.sanctioned).length],
   ['arms', 'target', L('Arms & equipment', 'Armes et équipements'), state.arms?.items?.filter(i => i.mentions?.total).length],
   ['saved', 'bookmark', L('Saved', 'Sauvegardés'), state.items.filter(a => a.analyst.saved).length],
+  ['agreements', 'history', L('Agreements', 'Accords'), state.agreements?.items?.length],
+  ['team', 'shield', L('Team & access', 'Équipe et accès')],
+  ['costs', 'layers', L('Costs & budgets', 'Coûts et budgets')],
   ['method', 'shield', L('Methodology', 'Méthodologie')],
 ];
 const viewLabel = v => NAV().find(n => n[0] === v)?.[2] || v;
@@ -262,11 +274,11 @@ function wire() {
   return `<div class="wire" aria-label="${L('Priority wire', 'Fil prioritaire')}"><div class="wire-label"><i class="dot bad live"></i>${L('PRIORITY WIRE', 'FIL PRIORITAIRE')}</div><div class="wire-track"><div class="wire-run">${row}<i class="wire-sep" aria-hidden="true">◆</i>${row}</div></div></div>`;
 }
 function shell(content) {
-  const nav = NAV();
+  const nav = NAV().filter(([v])=>v!=='costs'||state.auth?.user?.role==='owner');
   return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
     <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC situational awareness', 'Veille de situation · RDC')}</small></div></a>
     <nav>${nav.map(([id, ic, label, count, hot], i) => `${i === 4 ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)} · ${i + 1}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : `<kbd class="nav-key">${i + 1}</kbd>`}</button>`).join('')}</nav>
-    <div class="rail-bottom"><div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
+    <div class="rail-bottom"><p>${esc(state.auth?.user?.email||'')} · ${esc(state.auth?.user?.role||'')}</p>${state.auth?.mode==='oidc'?`<button class="btn" data-act="logout">${L('Sign out','Déconnexion')}</button>`:''}<div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
   </aside><div class="workspace"><div class="chrome">
     <div class="classbar"><span>${L('UNCLASSIFIED // OPEN SOURCE', 'NON CLASSIFIÉ // SOURCES OUVERTES')}</span><span class="classbar-mid">CONGO SIGNAL · ${L('DRC SITUATIONAL AWARENESS', 'VEILLE DE SITUATION RDC')}</span><span>${L('ATTRIBUTED · UNVERIFIED UNLESS STATED', 'ATTRIBUÉ · NON VÉRIFIÉ SAUF MENTION')}</span></div>
     <header class="topbar">
@@ -290,12 +302,13 @@ const btnBatch = () => `<button class="btn primary" data-act="batch">${icon('spa
 
 function render() {
   if (!state.loaded) return;
+  if(state.loginRequired){mapHost?.remove();$('#app').innerHTML=`<main class="panel" style="max-width:560px;margin:12vh auto;padding:32px"><h1>Congo Signal</h1><p>${L('Sign in with your invited email to access your workspace.','Connectez-vous avec votre adresse invitée pour accéder à votre espace.')}</p><a class="btn primary" href="/auth/login">${L('Sign in','Se connecter')}</a></main>`;return}
   const active = document.activeElement;
   const keep = active?.id && !active.closest('#overlay') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
   const scrolls = $$('#app [data-scroll]').map(el => [el.dataset.scroll, el.scrollTop]);
   document.documentElement.lang = state.lang;
   mapHost?.remove();
-  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView };
+  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView };
   $('#app').innerHTML = shell(views[state.view]());
   for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
   if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.start, keep.end) } catch {} } }
@@ -574,6 +587,108 @@ function renderDossier() {
 // ---------------------------------------------------------------------------------------------
 // Situation room (map-first)
 
+// Versioned, attributed reference data; independent of the report time window.
+state.geology = null; state.mineralLayers = ['IPIS', 'USGS']; state.mineralQuery = '';
+state.mineralSearch = ''; state.mineralProvince = ''; state.mineralKind = ''; state.mineralSelected = ''; state.mineralVisible = 15; state.nearbyRadius = '25'; state.mapFocus = false;
+function mineralFeatures() {
+  const q = norm(state.mineralSearch.trim());
+  return (state.geology?.features || []).filter(({properties:p}) => state.mineralLayers.includes(p.dataset) &&
+    (!state.mineralQuery || p.minerals.includes(state.mineralQuery)) &&
+    (!state.mineralProvince || p.province === state.mineralProvince) &&
+    (!state.mineralKind || p.kind === state.mineralKind) &&
+    (!q || norm([p.name,p.province,...p.minerals].join(' ')).includes(q)));
+}
+const mineralKindLabel = k => ({artisanal:L('Artisanal site','Site artisanal'),facility:L('Facility','Installation'),deposit:L('Deposit / occurrence','Gisement / indice'),exploration:L('Exploration record','Référence d’exploration')})[k] || k;
+function distanceKm(a, b) {
+  const rad = Math.PI / 180, dlat = (b[1]-a[1])*rad, dlon = (b[0]-a[0])*rad;
+  const h = Math.sin(dlat/2)**2 + Math.cos(a[1]*rad)*Math.cos(b[1]*rad)*Math.sin(dlon/2)**2;
+  return 6371 * 2 * Math.asin(Math.sqrt(Math.min(1,Math.max(0,h))));
+}
+function nearbyMineralReports(f) {
+  return situationItems(true).map(a => {
+    const places = a.places.filter(p => Number.isFinite(p.lon) && Number.isFinite(p.lat)).map(p => ({...p,km:distanceKm(f.geometry.coordinates,[p.lon,p.lat])})).sort((a,b)=>a.km-b.km);
+    return {article:a,place:places[0]};
+  }).filter(r => r.place && r.place.km <= Number(state.nearbyRadius)).sort((a,b)=>a.place.km-b.place.km);
+}
+function selectedMineral() { return mineralFeatures().find(f=>f.id===state.mineralSelected) }
+function selectMineral(id) {
+  const f = mineralFeatures().find(f=>f.id===id); if (!f) return;
+  state.mineralSelected=id; state.mapFocus=false; render();
+  mapInstance?.flyTo({center:f.geometry.coordinates,zoom:13,duration:700});
+}
+function fitMinerals() {
+  const fs=mineralFeatures(); if (!fs.length) return;
+  if (!mapInstance) { toast(L('Interactive map unavailable; use the site list.', 'Carte interactive indisponible ; utilisez la liste.')); return }
+  const xs=fs.map(f=>f.geometry.coordinates[0]),ys=fs.map(f=>f.geometry.coordinates[1]);
+  mapInstance.fitBounds([[Math.min(...xs),Math.min(...ys)],[Math.max(...xs),Math.max(...ys)]],{padding:70,maxZoom:13,duration:650});
+}
+function mineralInspector() {
+  const f=selectedMineral(); if (!f) return '';
+  const p=f.properties, nearby=nearbyMineralReports(f);
+  return `<section class="mineral-inspector" aria-label="${L('Selected mineral record','Référence minière sélectionnée')}"><div class="actions"><span class="badge">${esc(p.dataset)} · ${esc(mineralKindLabel(p.kind))}</span><button class="linkbtn" data-act="mineral-close">${L('Close','Fermer')} ×</button></div>
+    <h2>${esc(p.name)}</h2><p>${esc(p.province)} · ${esc(p.minerals.join(' · '))}</p>
+    <dl><dt>${L('Reference date','Date de référence')}</dt><dd>${esc(p.date || L('Unknown (2021 compilation)','Inconnue (compilation 2021)'))}</dd><dt>${L('Coordinates','Coordonnées')}</dt><dd>${f.geometry.coordinates[1].toFixed(5)}, ${f.geometry.coordinates[0].toFixed(5)}</dd></dl>
+    <p class="muted">${esc(p.source)} · ${esc(p.license)}${p.observations ? ` · ${p.observations} ${L('visits recorded','visites enregistrées')}` : ''}</p>
+    <div class="actions"><button class="btn sm" data-act="mineral-select" data-arg="${esc(f.id)}">${L('Centre map','Centrer')}</button><button class="btn sm" data-act="mineral-export">JSON ↓</button><a class="btn sm" href="${esc(p.reference)}" target="_blank" rel="noopener">Source ↗</a></div>
+    <label class="nearby-label">${L('Nearby news mentions','Lieux cités à proximité')}<select class="select" data-model="nearbyRadius">${[10,25,50,100].map(n=>`<option value="${n}" ${Number(state.nearbyRadius)===n?'selected':''}>${n} km</option>`).join('')}</select></label>
+    <p class="muted">${L('Matches loaded reports and news filters. Distance to an approximate place mention does not establish a connection to this site.','Selon les articles chargés et les filtres. La proximité d’un lieu cité approximatif ne prouve pas un lien avec ce site.')}</p>
+    <div class="nearby-reports">${nearby.slice(0,8).map(({article:a,place:p})=>`<button class="mineral-result" data-act="report" data-arg="${esc(a.id)}"><strong>${esc(title(a))}</strong><small>${esc(p.name)} · ${p.km.toFixed(1)} km · ${esc(a.source || '')}</small></button>`).join('') || `<p>${L('No matching loaded reports in this radius.','Aucun article chargé correspondant dans ce rayon.')}</p>`}</div>
+    <small>${nf(nearby.length)} ${L('matching reports · historical mineral record; current status unverified.','articles correspondants · référence minière historique ; état actuel non vérifié.')}</small></section>`;
+}
+function geologyPanel() {
+  const all = state.geology?.features || [];
+  const minerals = [...new Set(all.flatMap(f => f.properties.minerals))].filter(Boolean).sort();
+  const provinces=[...new Set(all.map(f=>f.properties.province))].filter(Boolean).sort();
+  const results=mineralFeatures().sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
+  return `<div class="pane-section"><h2>${L('Minerals & geology', 'Minerais et géologie')}</h2>
+    ${!state.geology ? `<p>${L('Reference dataset unavailable. Reload to retry.', 'Données de référence indisponibles. Rechargez pour réessayer.')}</p>` : ['IPIS','USGS'].map(d => `<label class="layer-row"><input type="checkbox" data-act="mineral-layer" data-arg="${d}" ${state.mineralLayers.includes(d) ? 'checked' : ''}><i class="swatch" style="background:${d === 'IPIS' ? '#d9a441' : '#9b8afb'}"></i><span>${d}</span><b>${nf(all.filter(f => f.properties.dataset === d).length)}</b></label>`).join('')}
+    <select class="select" data-model="mineralQuery" aria-label="${L('Mineral', 'Minerai')}"><option value="">${L('All minerals', 'Tous les minerais')}</option>${minerals.map(m => `<option value="${esc(m)}" ${state.mineralQuery === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+    <input id="mineral-search" class="input" type="search" data-model="mineralSearch" value="${esc(state.mineralSearch)}" placeholder="${L('Find a site or mineral…','Chercher un site ou minerai…')}" aria-label="${L('Find a mining site','Rechercher un site minier')}">
+    <select class="select" data-model="mineralProvince" aria-label="${L('Province','Province')}"><option value="">${L('All provinces','Toutes les provinces')}</option>${provinces.map(p=>`<option ${state.mineralProvince===p?'selected':''} value="${esc(p)}">${esc(p)}</option>`).join('')}</select>
+    <select class="select" data-model="mineralKind" aria-label="${L('Record type','Type de référence')}"><option value="">${L('All record types','Tous les types')}</option>${['artisanal','facility','deposit','exploration'].map(k=>`<option ${state.mineralKind===k?'selected':''} value="${k}">${mineralKindLabel(k)}</option>`).join('')}</select>
+    <div class="actions"><button class="btn sm" data-act="mineral-fit" ${results.length?'':'disabled'}>${L('Zoom to results','Voir les résultats')}</button><button class="linkbtn" data-act="mineral-reset">${L('Clear filters','Effacer les filtres')}</button></div>
+    <details class="mineral-directory" ${state.mineralSearch ? 'open' : ''}><summary>${L('Browse sites','Parcourir les sites')} · ${nf(results.length)}</summary><div class="mineral-results">${results.slice(0,state.mineralVisible).map(f=>`<button class="mineral-result ${state.mineralSelected===f.id?'selected':''}" data-act="mineral-select" data-arg="${esc(f.id)}"><strong>${esc(f.properties.name)}</strong><small>${esc(f.properties.province)} · ${esc(f.properties.dataset)}<br>${esc(f.properties.minerals.join(' · '))}</small></button>`).join('') || `<p>${L('No matches. Clear a filter to broaden your search.','Aucun résultat. Effacez un filtre pour élargir la recherche.')}</p>`}</div>${results.length>state.mineralVisible?`<button class="linkbtn" data-act="mineral-more">${L('Show more','Afficher plus')}</button>`:''}</details>
+    <p class="muted">${nf(mineralFeatures().length)} ${L('reference records. Click a point for its date and source. Independent of the news timeline.', 'références. Cliquez sur un point pour sa date et sa source. Indépendantes de la chronologie des actualités.')}</p>
+    <p class="muted">${L('Historical observations, not proven reserves or current control.', 'Observations historiques, pas des réserves prouvées ni un contrôle actuel.')}</p>
+    <small>© <a href="https://ipisresearch.be/home/maps-data/open-data/" target="_blank" rel="noopener">IPIS</a> · ODC-BY 1.0<br>USGS · CC0 · 2021</small>
+    <div class="actions"><button class="btn sm" data-act="geology-archive">${L('1931 geological map', 'Carte géologique de 1931')}</button><button class="btn sm" data-act="geology-export">GeoJSON ↓</button></div></div>`;
+}
+function geologyArchive() {
+  state.modal = 'geology'; document.body.style.overflow = 'hidden';
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" style="width:min(100vw,1100px)" role="dialog" aria-modal="true" aria-label="${L('Historical geological map', 'Carte géologique historique')}"><div class="drawer-top"><strong>Congo belge · Carte géologique · Mai 1931</strong><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div><div class="drawer-body"><p>${L('Belgian Ministry of Colonies, geographical service. Scale 1:5,000,000. BnF / Gallica, GE C-15047. Geological formations, not a modern mineral-reserve inventory. Scan is not georeferenced.', 'Ministère belge des Colonies, Service géographique. Échelle 1:5 000 000. BnF / Gallica, GE C-15047. Formations géologiques, pas un inventaire actuel des réserves. Scan non géoréférencé.')}</p><p>${L('Commons marks this work public domain in France. Original attribution preserved.', 'Commons indique le domaine public en France. Attribution originale conservée.')} <a href="https://commons.wikimedia.org/wiki/File:Congo_belge._Carte_g%C3%A9ologique_-_btv1b531215222_(2_of_2).jpg" target="_blank" rel="noopener">${L('Source and rights', 'Source et droits')} ↗</a></p><a class="btn sm" href="/geology/congo-1931.jpg" download="congo-geological-map-1931.jpg">${L('Download original scan', 'Télécharger le scan original')} · 6.83 MB</a><details><summary>${L('Inspect at full resolution (scroll)', 'Examiner en pleine résolution (défilement)')}</summary><div style="overflow:auto;max-height:65vh"><img src="/geology/congo-1931.jpg" style="max-width:none;width:7330px" alt="Congo belge, carte géologique, mai 1931"></div></details><img src="/geology/congo-1931.jpg" style="width:100%;height:auto" alt="Congo belge, carte géologique, mai 1931"></div></section></div>`;
+  $('#overlay [data-act="close"]')?.focus();
+}
+function mountMinerals() {
+  if (!mapInstance?.isStyleLoaded() || !state.geology) return;
+  const fs=mineralFeatures(), signature=JSON.stringify([state.mineralLayers,state.mineralQuery,state.mineralSearch,state.mineralProvince,state.mineralKind]);
+  const data={type:'FeatureCollection',features:fs.map(f=>({...f,properties:{id:f.id,name:f.properties.name,dataset:f.properties.dataset}}))};
+  if (mapInstance.getSource('mineral-sites')) {
+    if (mapInstance.__mineralSignature!==signature) mapInstance.getSource('mineral-sites').setData(data);
+  } else {
+    mapInstance.addSource('mineral-sites',{type:'geojson',data,cluster:true,clusterMaxZoom:11,clusterRadius:42,attribution:'IPIS (ODC-BY 1.0) | USGS (CC0, 2021)'});
+    mapInstance.addLayer({id:'mineral-clusters',type:'circle',source:'mineral-sites',filter:['has','point_count'],paint:{'circle-radius':['step',['get','point_count'],16,50,22,250,29],'circle-color':'#d9a441','circle-stroke-color':'#172c2c','circle-stroke-width':2}});
+    mapInstance.addLayer({id:'mineral-counts',type:'symbol',source:'mineral-sites',filter:['has','point_count'],layout:{'text-field':['get','point_count_abbreviated'],'text-size':12},paint:{'text-color':'#172c2c'}});
+    mapInstance.addLayer({id:'mineral-sites',type:'circle',source:'mineral-sites',filter:['!', ['has','point_count']],paint:{'circle-radius':['interpolate',['linear'],['zoom'],3,3,12,7], 'circle-color':['match',['get','dataset'],'IPIS','#d9a441','#9b8afb'],'circle-stroke-width':1,'circle-stroke-color':'#172c2c','circle-opacity':0.9}});
+  }
+  mapInstance.__mineralSignature=signature;
+  const selected=selectedMineral(), selection={type:'FeatureCollection',features:selected?[selected]:[]};
+  if (mapInstance.getSource('mineral-selection')) {
+    if (mapInstance.__selectionId !== (selected?.id || '')) mapInstance.getSource('mineral-selection').setData(selection);
+  }
+  else {
+    mapInstance.addSource('mineral-selection',{type:'geojson',data:selection});
+    mapInstance.addLayer({id:'mineral-selection',type:'circle',source:'mineral-selection',paint:{'circle-radius':12,'circle-color':'transparent','circle-stroke-color':'#00c9bf','circle-stroke-width':3}});
+  }
+  mapInstance.__selectionId=selected?.id || '';
+}
+function mineralPopup(e) { const id=e.features?.[0]?.properties.id; if (id) selectMineral(id) }
+function mineralCluster(e) {
+  const f=e.features?.[0], map=mapInstance; if (!f || !map) return;
+  map.getSource('mineral-sites').getClusterExpansionZoom(f.properties.cluster_id,(err,zoom)=>{
+    if (!err && map===mapInstance) map.easeTo({center:f.geometry.coordinates,zoom,duration:550});
+  });
+}
+
 function situationView() {
   const items = situationItems(), ps = placesList(situationItems(true));
   const timeline = (() => {
@@ -581,10 +696,11 @@ function situationView() {
     const days = [...counts.keys()].sort(); const max = Math.max(1, ...counts.values());
     return `<div class="timeline-head"><strong>${L('Publication timeline', 'Chronologie des publications')}</strong><span>${L('Kinshasa dates (UTC+1)', 'Dates de Kinshasa (UTC+1)')}</span>${state.selectedDay ? `<button class="linkbtn" data-act="all-days">${L('All days', 'Tous les jours')}</button>` : ''}</div><div class="day-bars">${days.map(d => `<button class="day-bar ${state.selectedDay === d ? 'active' : ''}" data-act="day" data-arg="${d}" aria-pressed="${state.selectedDay === d}" data-tip="${esc(`${dayLabel(d)} · ${counts.get(d)} ${L('reports', 'articles')}`)}"><i style="height:${Math.max(6, counts.get(d) / max * 100)}%"></i></button>`).join('') || `<small class="muted">${L('No dated reports in this window.', 'Aucun article daté dans cette période.')}</small>`}</div>`;
   })();
-  return `<div class="situation">
+  return `<div class="situation ${state.mapFocus ? 'map-focus' : ''}">
     <aside class="filters-pane" data-scroll="filters">
       <div class="pane-section"><div class="eyebrow">DRC · ${L('SITUATION ROOM', 'VUE DE SITUATION')}</div><div style="font-size:13px;color:var(--text-2)"><b class="num" style="color:var(--text)">${nf(items.length)}</b> ${L('reports in view', 'articles affichés')} · ${nf(state.items.length)} ${L('loaded', 'chargés')}</div><label class="search">${icon('search')}<input id="sit-q" class="input" data-model="q" value="${esc(state.q)}" placeholder="${L('Filter reports…', 'Filtrer les articles…')}" aria-label="${L('Filter reports', 'Filtrer les articles')}"></label></div>
       <div class="pane-section"><h2>${L('Layers', 'Couches')}<button class="linkbtn" data-act="all-layers">${L('All', 'Toutes')}</button></h2>${LAYERS.map(k => `<label class="layer-row"><input type="checkbox" data-act="layer" data-arg="${k}" ${state.layers.includes(k) ? 'checked' : ''}><i class="swatch" style="background:${layerColor(k)}"></i><span>${layerName(k)}</span><b>${state.items.filter(a => reportLayer(a) === k).length}</b></label>`).join('')}<label class="check"><input type="checkbox" data-model="highOnly" ${state.highOnly ? 'checked' : ''}>${L('High priority only', 'Priorité élevée uniquement')}</label></div>
+      ${geologyPanel()}
       <div class="pane-section"><h2>${L('Window', 'Période')}</h2><div class="seg" style="width:max-content">${[0, 1, 7, 30].map(n => `<button class="${state.windowDays === n ? 'active' : ''}" data-act="window" data-arg="${n}">${n ? n === 1 ? '24 h' : `${n} ${L('d', 'j')}` : L('All', 'Tout')}</button>`).join('')}</div></div>
       <div class="pane-section"><h2>${L('Hotspots', 'Points chauds')}</h2>${placeRanking(ps, 8)}</div>
       <div class="pane-section"><h2>${L('Collection', 'Collecte')}</h2>${feedStatuses().map(([c, label, v]) => `<div class="feed-status" style="padding:0"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}<div class="actions">${btnCollect()}</div></div>
@@ -593,10 +709,10 @@ function situationView() {
       <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i><i class="hud-reticle"></i></div>
       <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
       <div class="map-float tl glass"><strong>${state.place ? esc(state.place) : L('Democratic Republic of the Congo', 'République démocratique du Congo')}</strong>${nf(ps.reduce((n, p) => n + p.count, 0))} ${L('place mentions', 'lieux cités')} · ${nf(items.filter(a => !a.places.length).length)} ${L('unmapped', 'non cartographiés')}</div>
-      <div class="map-float tr"><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      <div class="map-float tr"><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels','Afficher les panneaux') : L('Expand map','Agrandir')}</button><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
       <div class="map-float bl glass">${mapFailed ? L('Interactive map unavailable; showing outline.', 'Carte interactive indisponible ; contour affiché.') : L('Markers are approximate place mentions, not verified incident locations.', 'Les repères sont des lieux cités approximatifs, pas des incidents vérifiés.')}${state.basemap === 'satellite' ? ` ${L('Imagery is not live.', 'Imagerie non en direct.')}` : ''}</div>
     </div><div class="timeline">${timeline}</div></section>
-    <aside class="rail-pane"><div class="rail-head"><div class="eyebrow">${state.place ? esc(state.place) : L('Matching reports', 'Articles de la sélection')}</div><div style="display:flex;gap:8px"><select class="select" data-model="sort" style="flex:1" aria-label="${L('Sort', 'Tri')}"><option value="priority" ${state.sort === 'priority' ? 'selected' : ''}>${L('Priority', 'Priorité')}</option><option value="latest" ${state.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récents')}</option></select><button class="iconbtn" data-act="export" aria-label="${L('Export JSON', 'Exporter JSON')}" title="${L('Export JSON', 'Exporter JSON')}">${icon('download')}</button></div>${state.place || state.selectedDay ? `<div class="chips"><button class="chip active" data-act="clear-situation">${esc([state.place, state.selectedDay && dayLabel(state.selectedDay)].filter(Boolean).join(' · '))} ×</button></div>` : ''}${state.error ? `<div class="errorbar" style="margin:0">${esc(state.error)}</div>` : ''}</div>
+    <aside class="rail-pane">${mineralInspector()}<div class="rail-head"><div class="eyebrow">${state.place ? esc(state.place) : L('Matching reports', 'Articles de la sélection')}</div><div style="display:flex;gap:8px"><select class="select" data-model="sort" style="flex:1" aria-label="${L('Sort', 'Tri')}"><option value="priority" ${state.sort === 'priority' ? 'selected' : ''}>${L('Priority', 'Priorité')}</option><option value="latest" ${state.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récents')}</option></select><button class="iconbtn" data-act="export" aria-label="${L('Export JSON', 'Exporter JSON')}" title="${L('Export JSON', 'Exporter JSON')}">${icon('download')}</button></div>${state.place || state.selectedDay ? `<div class="chips"><button class="chip active" data-act="clear-situation">${esc([state.place, state.selectedDay && dayLabel(state.selectedDay)].filter(Boolean).join(' · '))} ×</button></div>` : ''}${state.error ? `<div class="errorbar" style="margin:0">${esc(state.error)}</div>` : ''}</div>
       <div class="rail-list compact report-list" data-scroll="rail">${items.slice(0, state.visible).map(a => reportRow(a, true)).join('') || emptyState(L('No reports', 'Aucun article'), L('Select a layer or widen the window.', 'Sélectionnez une couche ou élargissez la période.'))}${items.length > state.visible ? `<div class="loadmore"><button class="btn sm" data-act="more">${L('Load more', 'Charger plus')}</button></div>` : ''}</div>
       <div class="rail-foot"><span>${L('Single source · unverified', 'Source unique · non corroboré')}</span><span class="num">${nf(items.length)}</span></div></aside>
   </div>`;
@@ -605,7 +721,7 @@ function mapSVG(ps) {
   if (state.config?.mapbox_public_token && window.mapboxgl && !mapFailed) return '<div id="map-slot"></div>';
   const xy = (lon, lat) => [25 + (lon - 12) * 18, 25 + (5.5 - lat) * 13.8];
   const path = state.geometry ? state.geometry.features[0].geometry.coordinates.map(r => r.map((p, i) => `${i ? 'L' : 'M'}${xy(...p).join(',')}`).join(' ') + 'Z').join(' ') : '';
-  return `<div class="static-map"><svg viewBox="0 0 405 290" role="img" aria-label="${L('Map of place mentions', 'Carte des lieux cités')}"><path class="map-country" d="${path}"/>${ps.map(p => { const [x, y] = xy(p.lon, p.lat); return `<g class="map-place ${state.place === p.name ? 'active' : ''}" data-act="place" data-arg="${esc(p.name)}" tabindex="0" role="button" aria-label="${esc(p.name)}, ${p.count}"><title>${esc(p.name)} · ${p.count}</title><circle cx="${x}" cy="${y}" r="${Math.min(4 + Math.sqrt(p.count), 10)}"/><text x="${x + 9}" y="${y - 7}">${esc(p.name)}</text></g>` }).join('')}</svg></div>`;
+  return `<div class="static-map"><svg viewBox="0 0 405 290" role="img" aria-label="${L('Map of place mentions', 'Carte des lieux cités')}"><path class="map-country" d="${path}"/>${mineralFeatures().map(f => { const [x,y] = xy(...f.geometry.coordinates); return `<circle data-act="mineral-select" data-arg="${esc(f.id)}" role="button" aria-label="${esc(f.properties.name)}" cx="${x}" cy="${y}" r="${state.mineralSelected === f.id ? 3 : 1.2}" fill="${f.properties.dataset === 'IPIS' ? '#d9a441' : '#9b8afb'}"><title>${esc(f.properties.name)} · ${esc(f.properties.minerals.join(' · '))} · ${esc(f.properties.date || '2021 compilation')} · ${esc(f.properties.dataset)}</title></circle>` }).join('')}${ps.map(p => { const [x, y] = xy(p.lon, p.lat); return `<g class="map-place ${state.place === p.name ? 'active' : ''}" data-act="place" data-arg="${esc(p.name)}" tabindex="0" role="button" aria-label="${esc(p.name)}, ${p.count}"><title>${esc(p.name)} · ${p.count}</title><circle cx="${x}" cy="${y}" r="${Math.min(4 + Math.sqrt(p.count), 10)}"/><text x="${x + 9}" y="${y - 7}">${esc(p.name)}</text></g>` }).join('')}</svg></div>`;
 }
 // Preserve one map instance through re-renders.
 let mapHost = null, mapInstance = null, mapMarkers = [], mapFailed = false, markerSignature = '';
@@ -621,14 +737,23 @@ function mountMap() {
   slot.append(mapHost);
   if (!mapInstance) {
     try {
-      mapInstance = new mapboxgl.Map({ container: mapHost, accessToken: state.config.mapbox_public_token, style: mapStyle(), bounds: [[12, -13.6], [31.4, 5.5]], fitBoundsOptions: { padding: 40 }, minZoom: 2, maxZoom: 12, attributionControl: true });
+      mapInstance = new mapboxgl.Map({ container: mapHost, accessToken: state.config.mapbox_public_token, style: mapStyle(), bounds: [[12, -13.6], [31.4, 5.5]], fitBoundsOptions: { padding: 40 }, minZoom: 2, maxZoom: 16, attributionControl: true });
       mapInstance.__style = mapStyle();
-      mapInstance.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+      mapInstance.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
+      mapInstance.addControl(new mapboxgl.ScaleControl({unit:'metric'}), 'bottom-right');
       const readout = () => { const el = $('#hud-coords'); if (el) el.textContent = hudText(state.hud) };
       mapInstance.on('mousemove', e => { state.hud = { ...state.hud, lat: e.lngLat.lat, lon: e.lngLat.lng }; readout() });
       mapInstance.on('move', () => { state.hud = { ...state.hud, zoom: mapInstance.getZoom(), pitch: mapInstance.getPitch() }; readout() });
       mapInstance.on('error', () => { if (!mapInstance?.isStyleLoaded()) { mapFailed = true; mapInstance?.remove(); mapInstance = null; mapHost = null; render() } });
+      mapInstance.on('idle', mountMinerals);
+      mapInstance.on('click', 'mineral-sites', mineralPopup);
+      mapInstance.on('click', 'mineral-clusters', mineralCluster);
+      for (const layer of ['mineral-sites','mineral-clusters']) {
+        mapInstance.on('mouseenter',layer,()=>{ mapInstance.getCanvas().style.cursor='pointer' });
+        mapInstance.on('mouseleave',layer,()=>{ mapInstance.getCanvas().style.cursor='' });
+      }
       mapInstance.on('style.load', () => {
+        mountMinerals();
         if (state.geometry && !mapInstance.getSource('drc-outline')) {
           const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c8dd91';
           mapInstance.addSource('drc-outline', { type: 'geojson', data: state.geometry });
@@ -640,6 +765,7 @@ function mountMap() {
   }
   if (mapInstance.__style !== mapStyle()) { mapInstance.__style = mapStyle(); mapInstance.setStyle(mapStyle()) }
   requestAnimationFrame(() => mapInstance?.resize());
+  mountMinerals();
   const linked = situationItems(true);
   const places = placesList(linked);
   const signature = JSON.stringify([places, state.lang, state.place, state.layers]);
@@ -669,6 +795,57 @@ function selectPlace(name) {
 
 // ---------------------------------------------------------------------------------------------
 // Primary sources
+
+// Agreement explorer: coverage is not a performance score.
+const agreementStatus=k=>({needs_review:L('Signature unverified','Signature non vérifiée'),reported_signed:L('Signing reported','Signature annoncée'),not_requested:L('Not analyzed','Non analysé'),running:L('Analyzing','Analyse en cours'),completed:L('AI draft ready','Brouillon IA prêt'),stale:L('Source changed','Source modifiée'),failed:L('Analysis failed','Échec de l’analyse'),available:L('Text available','Texte disponible'),unavailable:L('Unavailable','Indisponible'),ocr_required:L('OCR needed','Reconnaissance de texte requise')})[k]||k;
+const agreementRole=k=>({agreement:L('Agreement text','Texte de l’accord'),historical_context:L('Historical context','Contexte historique'),implementation_report:L('Implementation evidence','Preuves de mise en œuvre'),official_announcement:L('Official announcement—not executed text','Annonce officielle — pas le texte signé'),project_document:L('Project document—not executed text','Document de projet — pas le texte signé')})[k]||k;
+const AGREEMENT_DIMS=['security','revenue','services','sovereignty','accountability'];
+const dimName=k=>({security:L('Security','Sécurité'),revenue:L('Revenue','Recettes'),services:L('Services','Services'),sovereignty:L('Sovereignty','Souveraineté'),accountability:L('Accountability','Redevabilité')})[k];
+function agreementRows() {return (state.agreements?.items||[]).filter(i=>(!state.agCategory||i.categories.includes(state.agCategory))&&(!state.agTerm||i.signed_term===state.agTerm)&&(!state.agSearch||norm(i.title+' '+i.parties).includes(norm(state.agSearch)))).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))}
+const agreementScore=n=>n==null?'—':(n>0?'+':'')+Number(n).toFixed(1);
+function teamView(){
+ const roles=['owner','administrator','analyst','reviewer','viewer'];const owner=state.auth?.user?.role==='owner';
+ const form=(m={email:'',role:'viewer',active:true,daily_requests:0,daily_usd:0,monthly_usd:0})=>`<form class="panel" style="padding:20px;margin:12px 0" data-form="team"><div class="toolbar"><label>${L('Email','Adresse email')}<input class="input" name="email" value="${esc(m.email)}" ${m.email?'readonly':''} required></label><label>${L('Role','Rôle')}<select class="select" name="role">${(m.email==='worker'?['worker']:roles.filter(r=>owner||r!=='owner')).map(r=>`<option ${m.role===r?'selected':''}>${r}</option>`).join('')}</select></label>${[['daily_requests',L('Daily requests','Requêtes / jour')],['daily_usd',L('Daily USD allowance','Provision USD / jour')],['monthly_usd',L('Monthly USD allowance','Provision USD / mois')]].map(([k,l])=>`<label>${l}<input class="input" name="${k}" type="number" min="0" step="${k==='daily_requests'?1:0.01}" value="${m[k]}" ${owner?'':'readonly'}></label>`).join('')}<label><input name="active" type="checkbox" ${m.active?'checked':''}>${L('Active','Actif')}</label><button class="btn primary" type="submit">${m.email?L('Update member','Modifier le membre'):L('Invite member','Inviter un membre')}</button></div></form>`;
+ return pageHead(L('WORKSPACE ACCESS','ACCÈS À L’ESPACE'),L('Team & access','Équipe et accès'),L('Invite-only membership. Notes and bookmarks are private to each user.','Accès sur invitation. Notes et favoris privés pour chaque utilisateur.'))+
+ `<p class="panel">${state.authConfig?.mode==='oidc'?L('ZITADEL sign-in enabled. Share the site address with invited members; no invitation email is sent automatically. Role changes revoke existing sessions.','Connexion ZITADEL activée. Partagez l’adresse du site avec les membres invités ; aucun email automatique. Un changement révoque les sessions.'):L('Local mode: ZITADEL is not connected yet. Configure OIDC before inviting real users or publishing the site.','Mode local : ZITADEL n’est pas encore connecté. Configurez OIDC avant d’inviter des utilisateurs ou de publier le site.')}</p>`+
+ (state.team?`<h2>${L('Invite a member','Inviter un membre')}</h2>${form()}<h2>${L('Members and background worker','Membres et worker')}</h2>${state.team.members.map(form).join('')}<h2>${L('Audit log','Journal d’audit')}</h2>${state.team.audit.map(e=>`<p>${esc(e.at)} · ${esc(e.action)} · ${esc(e.target)} · ${esc(e.user_id)}</p>`).join('')}`:`<p>${L('Only owners and administrators can manage members.','Seuls les propriétaires et administrateurs peuvent gérer les membres.')}</p>`);
+}
+function costsView(){
+ const c=state.costs;
+ return pageHead(L('API OPERATIONS','OPÉRATIONS API'),L('Costs & budgets','Coûts et budgets'),L('Persistent controls for Claude, OpenAI research and X. Periods reset in UTC.','Contrôles persistants pour Claude, la recherche OpenAI et X. Périodes en UTC.'))+
+ `<p class="panel">${L('These are your planning allowances, not provider invoices. Set an allowance per request and daily/monthly limits before enabling. Actual charges may differ; configure billing limits with each provider too. Historical spend, Mapbox browser usage, hosting and other applications are excluded. Existing X limits also apply. Pausing affects new requests, not requests already sent.','Ces montants sont vos provisions, pas les factures des fournisseurs. Définissez une provision par requête et des limites journalières/mensuelles avant activation. Les frais réels peuvent différer ; configurez aussi les limites des fournisseurs. Historique, Mapbox du navigateur, hébergement et autres applications exclus. Les limites X existantes restent actives. La pause concerne les nouvelles requêtes.')}</p>`+
+ (c?.items||[]).map(p=>`<section class="panel" style="padding:20px;margin-bottom:16px" id="cost-${p.provider}"><h2>${esc(p.provider)} · ${p.paused?L('Paused','En pause'):L('Enabled','Activé')}</h2><p>${p.requests_today}/${p.daily_requests} ${L('requests today','requêtes aujourd’hui')} · $${p.allocated_today_usd.toFixed(4)} / $${p.daily_usd.toFixed(2)} ${L('allocated today','provisionnés aujourd’hui')} · $${p.allocated_month_usd.toFixed(4)} / $${p.monthly_usd.toFixed(2)} ${L('this month','ce mois')}</p><div class="toolbar">${[['request_usd',L('USD allowance / request','Provision USD / requête')],['daily_usd',L('Daily USD limit','Limite USD / jour')],['monthly_usd',L('Monthly USD limit','Limite USD / mois')],['daily_requests',L('Daily request cap','Requêtes max / jour')]].map(([key,label])=>`<label>${label}<input class="input" name="${key}" type="number" min="0" step="${key==='daily_requests'?'1':'0.000001'}" value="${p[key]}"></label>`).join('')}<label><input name="paused" type="checkbox" ${p.paused?'checked':''}> ${L('Pause paid requests','Suspendre les requêtes payantes')}</label><button class="btn" data-act="cost-save" data-arg="${p.provider}">${L('Save limits','Enregistrer')}</button></div></section>`).join('')+
+ `<section class="panel" style="padding:20px"><h2>${L('Recent request ledger','Journal récent des requêtes')}</h2><p>${L('Failed or uncertain requests keep their allocation. No costs are reconstructed from old activity.','Les requêtes en échec ou incertaines conservent leur provision. Aucun coût historique n’est reconstitué.')}</p><button class="btn" data-act="cost-export">JSON ↓</button>${(c?.events||[]).map(e=>`<p>${esc(e.at)} · ${esc(e.provider)} · ${esc(e.user_id||'legacy')} · ${esc(e.operation)} · $${e.allocated_usd.toFixed(6)} · ${esc(e.status)}</p>`).join('')||L('No metered requests yet.','Aucune requête comptabilisée.')}</section>`;
+}
+function agreementsView(){
+ const rows=agreementRows(),terms=[...new Set((state.agreements?.items||[]).map(i=>i.signed_term))].sort();
+ const detail=state.agDetail, a=detail?.assessment?.data;
+ const counts=terms.map(term=>({term,items:rows.filter(i=>i.signed_term===term)}));
+ return pageHead(L('AGREEMENTS & PUBLIC OUTCOMES','ACCORDS ET RÉSULTATS PUBLICS'),L('Agreements observatory','Observatoire des accords'),L('Peace, minerals and infrastructure: commitments, evidence and implementation. Initial register—not an exhaustive treaty inventory.','Paix, minerais et infrastructures : engagements, preuves et mise en œuvre. Registre initial, non exhaustif.'))+
+ `<details class="panel"><summary>${L('Automatic agreement discovery — every 6 hours','Découverte automatique des accords — toutes les 6 heures')}</summary><p>${L('Configured source indexes only. New findings require signature and document verification.','Index des sources configurées uniquement. Les découvertes nécessitent une vérification des signatures et documents.')}</p>${(state.agreements?.discovery?.sources||[]).map(s=>`<p><strong>${esc(s.id)}</strong> · ${esc(s.checked_at||L('Awaiting first check','Premier contrôle en attente'))} ${s.error?' · '+esc(s.error):''}</p>`).join('')}<p>${state.agreements?.discovery?.pending||0} ${L('pending or failed documents','documents en attente ou en échec')}</p></details>
+ <div class="toolbar"><input id="agreement-search" class="input" type="search" data-model="agSearch" value="${esc(state.agSearch)}" placeholder="${L('Search agreements or parties…','Chercher un accord ou une partie…')}" aria-label="${L('Search agreements','Rechercher des accords')}"><select class="select" data-model="agCategory" aria-label="${L('Sector','Secteur')}"><option value="">${L('All sectors','Tous les secteurs')}</option>${[['peace','Peace','Paix'],['minerals','Minerals','Minerais'],['infrastructure','Infrastructure','Infrastructures']].map(([k,en,fr])=>`<option value="${k}" ${state.agCategory===k?'selected':''}>${L(en,fr)}</option>`).join('')}</select><select class="select" data-model="agTerm" aria-label="${L('Signing administration','Mandat à la date de l’accord')}"><option value="">${L('All signing administrations','Tous les mandats')}</option>${terms.map(t=>`<option value="${esc(t)}" ${state.agTerm===t?'selected':''}>${esc(t)}</option>`).join('')}</select><button class="btn" data-act="agreement-export">JSON ↓</button></div>
+ <div class="agreement-charts panel"><label class="check"><input type="checkbox" data-model="agDrafts" ${state.agDrafts?'checked':''}>${L('Include unreviewed AI drafts (provisional)','Inclure les brouillons IA non relus (provisoire)')}</label><h2>${L('Observed outcomes by signing administration','Résultats observés par mandat de signature')}</h2><p class="muted">${L('Reviewed drafts appear by default; the checkbox includes provisional AI drafts. −2 adverse → +2 beneficial; — means insufficient evidence. Means are qualitative, show sample sizes, and are not causal rankings of presidents. Later implementation can fall under another government.','Les analyses relues apparaissent par défaut ; la case ajoute les brouillons IA provisoires. −2 défavorable → +2 bénéfique ; — signifie preuves insuffisantes. Moyennes qualitatives avec effectifs, pas un classement causal des présidents. La mise en œuvre peut relever d’un autre gouvernement.')}</p><div class="table-scroll"><table class="agreement-table"><thead><tr><th>${L('Signing administration','Mandat')}</th><th>${L('Records','Références')}</th>${AGREEMENT_DIMS.map(d=>`<th>${dimName(d)}</th>`).join('')}</tr></thead><tbody>${counts.filter(c=>c.items.length).map(c=>`<tr><th>${esc(c.term)}</th><td>${c.items.length}</td>${AGREEMENT_DIMS.map(dim=>{const vals=c.items.filter(i=>i.assessment?.reviewed || (state.agDrafts && i.assessment?.status==='completed')).flatMap(i=>(i.assessment.data?.outcomes||[]).filter(s=>s.dimension===dim&&s.score!=null).map(s=>s.score));const mean=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;return `<td><span class="score-cell ${mean==null?'unknown':mean>0?'positive':mean<0?'negative':'neutral'}">${agreementScore(mean)}</span><small> n=${vals.length}</small></td>`}).join('')}</tr>`).join('')}</tbody></table></div><p>${nf(rows.length)} ${L('records in this selection. Counts include statements, amendments and unverified signatures.','références dans cette sélection. Comprend déclarations, avenants et signatures non vérifiées.')}</p></div>
+ <div class="agreement-layout"><section class="panel agreement-list" aria-label="${L('Agreement list','Liste des accords')}">${rows.map(i=>`<button class="mineral-result ${detail?.id===i.id?'selected':''}" data-act="agreement-open" data-arg="${esc(i.id)}"><strong>${esc(i.title)}</strong><small>${esc(i.date||L('Date unverified','Date non vérifiée'))} · ${esc(i.publisher)}<br>${esc(agreementStatus(i.signature_status))} · ${esc(agreementStatus(i.assessment?.status||'not_requested'))} · ${i.documents.filter(d=>d.status==='available').length}/${i.documents.length} ${L('readable','lisibles')}</small></button>`).join('')||emptyState(L('No matching records','Aucune référence'),L('Broaden your filters.','Élargissez les filtres.'))}</section><section class="panel agreement-detail">${detail ? agreementDetail(detail,a) : emptyState(L('Select an agreement','Sélectionnez un accord'),L('Read its source, examine obligations, then request an AI assessment.','Lisez la source, examinez les obligations, puis demandez une analyse IA.'))}</section></div>
+ <details class="panel" style="padding:16px"><summary>${L('Coverage, rights and methodology','Couverture, droits et méthode')}</summary><p>${esc(state.agreements?.metadata.coverage)}</p><p>${esc(state.agreements?.metadata.methodology)}</p><p>${esc(state.agreements?.metadata.pax_license)}</p><p>${L('State signatures, SOE contracts and local accords require separate verification. Date-based term assignment does not establish who negotiated, ratified or implemented an agreement. Scanned documents may require OCR.','Les signatures étatiques, contrats d’entreprises publiques et accords locaux nécessitent des vérifications distinctes. Le mandat associé à une date ne détermine pas qui a négocié, ratifié ou exécuté un accord. Les scans peuvent nécessiter une reconnaissance de texte.')}</p></details>`;
+}
+function agreementDetail(d,a){
+ const bilingual=k=>a?.[k+'_'+state.lang]||a?.[k+'_en'];
+ return `<h2>${esc(d.title)}</h2><p>${esc(d.date||L('Date unverified','Date non vérifiée'))} · ${esc(d.signed_term)} · ${esc(agreementStatus(d.signature_status))}</p><details><summary>${L('Parties and date verification','Parties et vérification de la date')}</summary><p>${esc(d.parties)}</p><p>${esc(d.date_basis)}</p>${d.date_source_url?`<a href="${esc(d.date_source_url)}" target="_blank" rel="noopener">${L('Date source','Source de la date')} ↗</a>`:''}</details>
+ <div class="actions"><button class="btn primary" data-act="agreement-analyze" data-arg="${esc(d.id)}" ${['running','completed'].includes(d.assessment?.status)?'disabled':''}>${d.assessment?.status==='running'?L('Analyzing…','Analyse…'):a?L('Analysis saved','Analyse enregistrée'):L('Analyze with AI','Analyser avec IA')}</button><button class="btn" data-act="agreement-open" data-arg="${esc(d.id)}">${L('Refresh','Actualiser')}</button>${a&&!d.assessment.reviewed?`<button class="btn" data-act="agreement-review" data-arg="${esc(d.id)}">${L('I reviewed the evidence · include in charts','Preuves relues · inclure aux graphiques')}</button>`:''}</div>
+ ${d.assessment?.error?`<p class="errorbar">${esc(d.assessment.error)}</p>`:''}
+ ${a?`<h3>${d.assessment.reviewed?L('Human-reviewed assessment','Analyse relue'):L('AI draft · not included in charts','Brouillon IA · exclu des graphiques')}</h3><p>${esc(bilingual('summary'))}</p><ul>${(bilingual('commitments')||[]).map(c=>`<li>${esc(c)}</li>`).join('')}</ul>${['design','outcomes'].map(section=>`<h3>${section==='design'?L('Institutional potential—not delivered results','Potentiel institutionnel — pas des résultats livrés'):L('Observed effectiveness','Efficacité observée')}</h3><div class="agreement-scores">${(a[section]||[]).map(s=>`<details><summary><span>${dimName(s.dimension)}</span><b class="score-cell ${s.score==null?'unknown':s.score>0?'positive':s.score<0?'negative':'neutral'}">${agreementScore(s.score)}</b></summary><p>${esc(s['rationale_'+state.lang]||s.rationale_en)}</p>${s.quote && s.quote_verified?`<blockquote>${esc(s.quote)}</blockquote><small>${esc(s.document_id)}</small>`:''}${s.validation_note?`<p>${esc(s.validation_note)}</p>`:''}</details>`).join('')}</div>`).join('')}<p class="muted">${esc(bilingual('limitations'))}</p><small>${esc(a.model)} · ${esc(a.generated_at)} · ${esc(a.method_version)}</small>`:''}
+ <h3>${L('Source documents','Documents sources')}</h3>${d.documents.map(doc=>`<details class="agreement-document"><summary>${esc(agreementRole(doc.role))} · ${esc(agreementStatus(doc.status))} ${doc.report_date?' · '+esc(doc.report_date):''} ${doc.extraction?'· OCR':''}</summary><p><a href="${esc(doc.url)}" target="_blank" rel="noopener">${L('Original source','Source originale')} ↗</a> ${doc.format==='pdf'&&doc.status!=='unavailable'?`<button class="btn sm" data-act="agreement-pdf" data-arg="${esc(d.id+'|'+doc.id)}">${L('Read PDF here','Lire le PDF ici')}</button>`:''}</p><small>SHA-256: ${esc(doc.sha256||'—')}</small><pre class="agreement-text">${esc(doc.text||L('No extracted text. Scan requires OCR or source is unavailable.','Pas de texte extrait. Scan à reconnaître ou source indisponible.'))}</pre></details>`).join('')}`;
+}
+async function openAgreement(id){state.agDetail=await api('/v1/agreements/'+encodeURIComponent(id));render()}
+async function agreementPdf(arg){
+ const [id,doc]=arg.split('|'), token=sessionStorage.getItem('congo-token');
+ const r=await fetch(`/v1/agreements/${encodeURIComponent(id)}/documents/${encodeURIComponent(doc)}/pdf`,{headers:token?{Authorization:'Bearer '+token}:{}});
+ if(!r.ok)throw Error(L('PDF unavailable locally; use original source.','PDF indisponible localement ; utilisez la source originale.'));
+ closeOverlay();evidenceBlob=URL.createObjectURL(await r.blob());state.modal='agreement-pdf';
+ $('#overlay').innerHTML=`<div class="shade" data-close><section class="drawer" style="width:95vw" role="dialog" aria-modal="true" aria-label="PDF"><div class="drawer-top"><strong>${L('Agreement source','Source de l’accord')}</strong><button class="btn" data-act="close">${L('Close','Fermer')}</button></div><iframe src="${evidenceBlob}" title="${L('Source PDF','PDF source')}" style="border:0;width:100%;height:85vh"></iframe></section></div>`;
+ $('#overlay button')?.focus();
+}
+
 
 function sourcesView() {
   const q = norm(state.evQuery);
@@ -1030,11 +1207,29 @@ document.addEventListener('mousemove', e => {
 // Events (delegated: survive re-renders)
 
 const ACTIONS = {
+  'agreement-open': id => openAgreement(id),
+  'logout': async () => {await api('/v1/auth/logout',{});sessionStorage.removeItem('congo-token');location.reload()},
+  'cost-export': () => download('congo-signal-costs.json',state.costs),
+  'cost-save': async provider => {const root=document.getElementById('cost-'+provider);const body={provider,paused:root.querySelector('[name=paused]').checked};for(const key of ['request_usd','daily_usd','monthly_usd','daily_requests'])body[key]=Number(root.querySelector('[name='+key+']').value);state.costs=await api('/v1/costs',body);render()},
+  'agreement-analyze': async id => {await api(`/v1/agreements/${id}/analyze`,{});await openAgreement(id)},
+  'agreement-review': async id => {await api(`/v1/agreements/${id}/review`,{});await load();await openAgreement(id)},
+  'agreement-pdf': arg => agreementPdf(arg),
+  'agreement-export': () => download('congo-signal-agreements.json',{metadata:state.agreements?.metadata,items:agreementRows()}),
   nav: v => go(v),
   lang: v => { state.lang = v; store.set('congo-lang', v); markerSignature = ''; render(); if (state.modal === 'detail') renderDetail(); if (state.modal === 'dossier') renderDossier() },
   theme: () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = state.theme; store.set('congo-theme', state.theme); render() },
   settings, palette: openPalette, close: closeOverlay,
   reload: () => load(),
+  'mineral-layer': d => { state.mineralLayers = state.mineralLayers.includes(d) ? state.mineralLayers.filter(x => x !== d) : [...state.mineralLayers,d]; render() },
+  'mineral-select': id => selectMineral(id),
+  'mineral-close': () => {state.mineralSelected='';render()},
+  'mineral-fit': () => fitMinerals(),
+  'mineral-more': () => {state.mineralVisible+=30;render();$('.mineral-directory')?.setAttribute('open','')},
+  'mineral-reset': () => {Object.assign(state,{mineralSearch:'',mineralQuery:'',mineralProvince:'',mineralKind:'',mineralSelected:'',mineralVisible:15,mineralLayers:['IPIS','USGS']});render()},
+  'mineral-export': () => {const f=selectedMineral();if(f) download('congo-signal-site.json',{...f,metadata:state.geology.metadata})},
+  'map-focus': () => {state.mapFocus=!state.mapFocus;render()},
+  'geology-archive': () => geologyArchive(),
+  'geology-export': () => download('congo-signal-minerals.geojson', {type:'FeatureCollection',metadata:state.geology?.metadata,features:mineralFeatures()}),
   report: id => openDetail(id),
   save: async id => { const a = state.items.find(a => a.id === id); try { a.analyst = await api(`/v1/intelligence/${id}/notes`, { ...a.analyst, saved: !a.analyst.saved }); render() } catch (e) { toast(e.message) } },
   category: k => { state.category = k; state.visible = 20; render() },
@@ -1118,6 +1313,7 @@ function setModel(path, value) {
   const [a, b] = path.split('.');
   if (b) state[a][b] = value; else state[a] = value;
   state.visible = 20; state.sf.visible = 40;
+  if (path.startsWith('mineral')) state.mineralVisible=15;
   if (path === 'includeRegional') { state.publisher = ''; load(); return }
   render();
 }
@@ -1134,6 +1330,7 @@ document.addEventListener('submit', async e => {
   const form = e.target.closest('[data-form]'); if (!form) return;
   e.preventDefault();
   const kind = form.dataset.form;
+  if(kind==='team'){const f=new FormData(form),body={email:f.get('email'),role:f.get('role'),active:f.has('active'),daily_requests:Number(f.get('daily_requests')),daily_usd:Number(f.get('daily_usd')),monthly_usd:Number(f.get('monthly_usd'))};try{state.team=await api('/v1/team',body);toast(L('Membership saved','Membre enregistré'));await load()}catch(err){toast(err.message)}return}
   if (kind === 'lookup') return openDossier($('#lookup-handle').value);
   if (kind === 'settings') { sessionStorage.setItem('congo-token', $('#token').value.trim()); state.config = null; closeOverlay(); return load() }
   if (kind === 'notes') {
@@ -1164,6 +1361,7 @@ window.addEventListener('popstate', () => { const v = viewFromHash(); if (v !== 
 // Boot
 
 try { state.geometry = await fetch('/drc.geo.json').then(r => r.json()) } catch {}
+try { state.geology = await fetch('/v1/geology/sites').then(r => { if (!r.ok) throw Error(r.status); return r.json() }) } catch {}
 state.enter = true;
 await load();
 openFromHash();

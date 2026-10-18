@@ -2,6 +2,10 @@
 
 Rust/Axum API and background collector for public Actualite.cd articles. SQLite keeps the job queue, article records, and editorial revisions with source HTML. This is an ingestion foundation for DRC research; collected reporting is source material, not independently verified intelligence.
 
+## Multi-user authentication
+
+See [authentication setup](docs/authentication.txt) and [environment template](config/authentication.env.example). ZITADEL OIDC must be configured before public deployment. The default loopback development mode is a local owner, not a multi-user login. Non-loopback binding requires `AUTH_MODE=oidc`. Provider budgets and per-member allowances are separate.
+
 ## Run
 
 With Rust 1.99+ installed:
@@ -21,7 +25,7 @@ export PATH="$CARGO_HOME/bin:$PATH"
 cargo run --locked
 ```
 
-The API binds to `127.0.0.1:8080`. Configuration uses environment variables (a `.env` file is not automatically loaded):
+The API binds to `127.0.0.1:8080`. Configuration uses environment variables (`.env` is loaded unless `LOAD_DOTENV=0`):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

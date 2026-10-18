@@ -42,6 +42,17 @@ fn sources() -> Vec<Source> {
 pub async fn init(db: &SqlitePool) -> Result<()> {
     sqlx::raw_sql("CREATE TABLE IF NOT EXISTS evidence_sources(id TEXT PRIMARY KEY,status TEXT NOT NULL DEFAULT 'not_requested',checked_at TEXT,last_success_at TEXT,error TEXT);CREATE TABLE IF NOT EXISTS evidence_snapshots(id TEXT PRIMARY KEY,source_id TEXT NOT NULL,sha256 TEXT NOT NULL,fetched_at TEXT NOT NULL,fetched_url TEXT NOT NULL,media_type TEXT NOT NULL,data TEXT NOT NULL,UNIQUE(source_id,sha256));CREATE INDEX IF NOT EXISTS evidence_source_snapshots ON evidence_snapshots(source_id,fetched_at);").execute(db).await?;
     sqlx::raw_sql("CREATE TABLE IF NOT EXISTS evidence_registry(id TEXT PRIMARY KEY,data TEXT NOT NULL);CREATE TABLE IF NOT EXISTS evidence_briefs(id TEXT PRIMARY KEY,status TEXT NOT NULL,data TEXT,error TEXT);").execute(db).await?;
+    let cols = sqlx::query("PRAGMA table_info(evidence_briefs)")
+        .fetch_all(db)
+        .await?;
+    if !cols
+        .iter()
+        .any(|r| r.get::<String, _>("name") == "requested_by")
+    {
+        sqlx::query("ALTER TABLE evidence_briefs ADD COLUMN requested_by TEXT")
+            .execute(db)
+            .await?;
+    }
     for s in sources() {
         sqlx::query("INSERT OR IGNORE INTO evidence_sources(id) VALUES(?)")
             .bind(&s.id)
@@ -158,7 +169,11 @@ fn allowed(u: &Url) -> bool {
         && matches!(
             u.host_str(),
             Some(
-                "documents.un.org"
+                "congomines.org"
+                    | "wpstorage7ceb827ed5.blob.core.windows.net"
+                    | "economie.gouv.cd"
+                    | "www.apcsc.gouv.cd"
+                    | "documents.un.org"
                     | "digitallibrary.un.org"
                     | "docs.un.org"
                     | "main.un.org"
@@ -169,13 +184,13 @@ fn allowed(u: &Url) -> bool {
             )
         )
 }
-struct Fetcher {
+pub(crate) struct Fetcher {
     client: reqwest::Client,
     robots: HashMap<String, (String, Duration)>,
     last: Instant,
 }
 impl Fetcher {
-    fn new() -> Result<Self> {
+    pub(crate) fn new() -> Result<Self> {
         Ok(Self {
             client: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -243,7 +258,7 @@ impl Fetcher {
         );
         Ok(*delay)
     }
-    async fn get(&mut self, input: &str) -> Result<(Url, Vec<u8>, String)> {
+    pub(crate) async fn get(&mut self, input: &str) -> Result<(Url, Vec<u8>, String)> {
         let mut u = Url::parse(input)?;
         for _ in 0..6 {
             ensure!(allowed(&u), "source origin is not allowlisted");
@@ -784,11 +799,11 @@ pub async fn analyze(
     if exists == 0 {
         return Err(ApiError(StatusCode::NOT_FOUND, "document not found".into()));
     }
-    sqlx::query("INSERT INTO evidence_briefs(id,status) VALUES(?,'pending') ON CONFLICT(id) DO UPDATE SET status='pending',error=NULL WHERE status='failed'").bind(&id).execute(&app.db).await?;
+    sqlx::query("INSERT INTO evidence_briefs(id,status,requested_by) VALUES(?,'pending',?) ON CONFLICT(id) DO UPDATE SET status='pending',error=NULL,requested_by=excluded.requested_by WHERE status='failed'").bind(&id).bind(serde_json::to_string(&crate::authentication::actor()).map_err(anyhow::Error::from)?).execute(&app.db).await?;
     Ok((StatusCode::ACCEPTED, Json(json!({"id":id}))))
 }
 async fn run_brief(db: &SqlitePool) -> Result<()> {
-    let row=sqlx::query("SELECT b.id,e.data FROM evidence_briefs b JOIN evidence_snapshots e ON e.id=b.id WHERE b.status='pending' LIMIT 1").fetch_optional(db).await?;
+    let row=sqlx::query("SELECT b.id,e.data,b.requested_by FROM evidence_briefs b JOIN evidence_snapshots e ON e.id=b.id WHERE b.status='pending' LIMIT 1").fetch_optional(db).await?;
     let Some(r) = row else { return Ok(()) };
     let id: String = r.get("id");
     sqlx::query("UPDATE evidence_briefs SET status='running' WHERE id=?")
@@ -797,7 +812,14 @@ async fn run_brief(db: &SqlitePool) -> Result<()> {
         .await?;
     let result = async {
         let data: Value = serde_json::from_str(r.get("data"))?;
-        crate::intelligence::evidence_brief(&data).await
+        crate::authentication::ACTOR
+            .scope(
+                r.get::<Option<String>, _>("requested_by")
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_else(crate::authentication::actor),
+                crate::intelligence::evidence_brief(&data),
+            )
+            .await
     }
     .await;
     match result {

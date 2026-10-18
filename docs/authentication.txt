@@ -1,0 +1,83 @@
+Congo Signal: multi-user access
+
+Implementation status
+The code supports ZITADEL OIDC, but no live issuer/application has been configured
+or authenticated in this session. The local site stays in explicitly labelled
+local-owner mode until setup below is complete. Do not publish local mode through
+a reverse proxy. Binding directly to a non-loopback address requires OIDC mode.
+There is one workspace, congo-signal. Shared public datasets/research remain
+workspace-wide; this release does not claim separate-organization isolation.
+
+ZITADEL setup
+1. Create a ZITADEL project and application with Authorization Code flow and
+   authentication method none (PKCE). This implementation needs no client secret.
+   Use RS256 ID-token signing. Scope requested: openid email profile.
+2. Register the exact redirect URI: https://YOUR-DOMAIN/auth/callback.
+   For local testing only: http://127.0.0.1:8080/auth/callback. Enable the provider's
+   development settings if needed for the local HTTP redirect.
+3. Require verified email and configure MFA/passkeys in ZITADEL's authentication
+   policy, particularly for owners/admins. The app does not independently certify
+   MFA from claims. Disable public signup if appropriate for the organization;
+   Congo Signal itself always requires a pre-approved workspace email.
+4. Configure these environment variables (template: config/authentication.env.example):
+   AUTH_MODE=oidc
+   OIDC_ISSUER=https://YOUR-INSTANCE.zitadel.cloud
+   OIDC_CLIENT_ID=YOUR-APPLICATION-CLIENT-ID
+   APP_ORIGIN=https://YOUR-DOMAIN
+   AUTH_OWNER_EMAIL=YOUR-VERIFIED-OWNER-EMAIL
+5. Restart. Discovery validates issuer and HTTPS endpoints. Missing configuration
+   prevents startup in OIDC mode rather than falling back to anonymous access.
+6. Sign in as the bootstrap owner, then use Team & access to approve members.
+   Share the site URL yourself: no emails are sent automatically. Pending
+   memberships are email allowlist invitations, not emailed bearer invite links.
+7. In Team & access set per-member and background-worker allowances; in Costs
+   set provider allowances. All new member/service allowances start at zero.
+
+Roles (always enforced by Rust, not only by UI)
+Owner: everything including spending and other owners.
+Administrator: member management (except owners/budgets), sources and research.
+Analyst: reads, private notes/bookmarks, AI and X research requests.
+Reviewer: analyst actions plus approving agreement assessments.
+Viewer: reads only. Worker is an internal job identity, not a human login role.
+Unknown write actions are denied. Cost pages/settings are owner-only. Existing
+shared API_TOKEN is accepted only in local mode, not as an OIDC bypass.
+
+Sessions and revocation
+Authorization code + S256 PKCE, browser-bound single-use state (10 min), nonce,
+RS256 signature, issuer/audience/expiry/authorized-party and verified-email checks.
+Server-side session IDs are random and stored hashed in SQLite; browser cookies
+are HttpOnly, SameSite=Lax and Secure on HTTPS. Sessions expire after eight hours;
+there are no stored refresh tokens. Mutation requests require matching Origin
+and a CSRF token obtained from /v1/auth/me. Membership is checked every request.
+Disabling or editing membership revokes sessions. Last owner cannot be removed.
+Logout revokes the local session; it does not log out of every ZITADEL application.
+After changes in the identity provider, an existing local session can last until
+expiry unless revoked in Team & access. Immediate IdP webhook logout is not built.
+
+Data and costs
+Notes/bookmarks keyed by workspace + user + article. Existing notes are retained
+in analyst_notes and copied to local-owner; bootstrap owner's first sign-ins copy
+missing notes from local-owner, falling back to the old table. Shared agreement
+reviews remain a workspace action with reviewer permissions and audit attribution.
+Queued article/evidence jobs persist requesting identity; agreement jobs inherit
+it explicitly. Paid calls re-check active membership/current role and aggregate
+per-user daily/monthly allocations across providers atomically with provider caps.
+Unattributed old jobs use worker; old ledger entries stay legacy-unattributed.
+Local mode does not enforce member allowances; provider limits still apply.
+No claims of actual provider-invoice tracking are made.
+
+Endpoints
+Public: GET /auth/config, /auth/login, /auth/callback (code/state).
+Authenticated: GET /v1/auth/me, POST /v1/auth/logout.
+Owner/admin: GET/POST /v1/team. POST accepts email, role, active, daily_requests,
+daily_usd, monthly_usd. Only owner can set nonzero/change spending allowances.
+Audit entries cover successful mutations, membership changes and logins.
+No private note contents, OAuth tokens or provider keys are included in audit.
+
+Deployment
+Serve behind HTTPS and retain the SQLite database. Restrict proxy access/rate-limit
+login and callback routes. Test a real login, second-user invitation, revocation
+and logout against the actual ZITADEL tenant before deploying to other users.
+SQLite is intended for this single-process/single-workspace initial release.
+The RSA key pair in tests/fixtures/oidc-test-* is synthetic test material, never
+used by application code or as deployment credentials.

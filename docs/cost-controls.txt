@@ -1,0 +1,31 @@
+Cost controls
+
+GET /v1/costs returns settings, UTC period totals and the latest 100 requests.
+POST /v1/costs updates one provider: provider (claude/openai/x), paused,
+daily_requests, daily_usd, monthly_usd, request_usd.
+
+All paid providers start paused with zero allowances. Configure the per-request
+planning allocation and daily/monthly allowances in Costs & budgets before
+unpausing. Existing API authentication protects these endpoints. Existing X and
+image request limits remain in effect; the tighter gate wins.
+
+Admission reserves one configured request allocation in an atomic SQLite write
+before network access. Concurrent requests cannot exceed the configured request
+or allocated-dollar limits. Errors, connection uncertainty and process crashes
+retain reservations because billing may have occurred. Lowering a limit never
+erases usage. Pausing cannot cancel requests already sent. Settings and usage
+survive restart. Day/month periods use UTC. Cached results and local Ollama calls
+consume no allocation. No historical charges are invented.
+
+IMPORTANT: Allocations are estimates chosen by the operator, NOT actual provider
+charges or guaranteed spending ceilings. X bills by its applicable resource
+pricing; AI billing depends on model tokens and tools. This feature does not
+fetch provider invoices or balances. Provider-returned usage is saved where
+available (Claude and OpenAI), but not converted using guessed rates. Set actual
+billing limits in the provider console as well. Mapbox browser loads, hosting,
+other applications and earlier spend are outside this ledger. OpenAI web research
+can include tool charges not represented by token counts.
+
+Coverage: intelligence::chat (Claude news, translation and agreements),
+images::ask (OpenAI image web research), social::x_get (all X requests).
+Free agreement discovery and public-source scraping continue.

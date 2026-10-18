@@ -1,5 +1,9 @@
 mod actors;
+mod agreement_discovery;
+mod agreements;
 mod arms;
+mod authentication;
+mod costs;
 mod evidence;
 mod extract;
 mod feeds;
@@ -15,8 +19,8 @@ use anyhow::Result;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::{Request, StatusCode},
-    middleware::{self, Next},
+    http::StatusCode,
+    middleware,
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -48,21 +52,6 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 type ApiResult<T> = std::result::Result<T, ApiError>;
-async fn auth(State(app): State<App>, req: Request<axum::body::Body>, next: Next) -> Response {
-    if let Some(token) = &app.token {
-        let expected = format!("Bearer {token}");
-        if req
-            .headers()
-            .get("authorization")
-            .and_then(|v| v.to_str().ok())
-            != Some(&expected)
-        {
-            return ApiError(StatusCode::UNAUTHORIZED, "bearer token required".into())
-                .into_response();
-        }
-    }
-    next.run(req).await
-}
 #[derive(Deserialize)]
 struct Submit {
     url: String,
@@ -313,15 +302,19 @@ async fn main() -> Result<()> {
         .parse()?;
     let token = std::env::var("API_TOKEN").ok().filter(|t| !t.is_empty());
     anyhow::ensure!(
-        bind.ip().is_loopback() || token.as_ref().is_some_and(|t| t.len() >= 24),
-        "non-loopback binding requires API_TOKEN with at least 24 characters"
+        bind.ip().is_loopback() || authentication::enabled(),
+        "Public binding requires AUTH_MODE=oidc and configured ZITADEL"
     );
     let db = store::open(
         &std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/osint.db".into()),
     )
     .await?;
     intelligence::init(&db).await?;
+    authentication::init(&db).await?;
     evidence::init(&db).await?;
+    agreements::init(&db).await?;
+    costs::init(&db).await?;
+    agreement_discovery::init(&db).await?;
     social::init(&db).await?;
     reference::init(&db).await?;
     actors::init(&db).await?;
@@ -332,6 +325,12 @@ async fn main() -> Result<()> {
         token,
     };
     let router = Router::new()
+        .route("/v1/auth/me", get(authentication::me))
+        .route("/v1/auth/logout", post(authentication::logout))
+        .route(
+            "/v1/team",
+            get(authentication::team).post(authentication::change_member),
+        )
         .route("/v1/jobs", post(submit))
         .route("/v1/jobs/{id}", get(job))
         .route("/v1/articles", get(articles))
@@ -357,6 +356,19 @@ async fn main() -> Result<()> {
         .route("/v1/images/{kind}/{id}/reject", post(images::reject))
         .route("/v1/arms", get(arms::list))
         .route("/v1/arms/{id}", get(arms::detail))
+        .route("/v1/costs", get(costs::status).post(costs::configure))
+        .route("/v1/agreements", get(agreements::list))
+        .route(
+            "/v1/agreements/discovery/refresh",
+            post(agreement_discovery::refresh),
+        )
+        .route("/v1/agreements/{id}", get(agreements::detail))
+        .route("/v1/agreements/{id}/analyze", post(agreements::analyze))
+        .route("/v1/agreements/{id}/review", post(agreements::review))
+        .route(
+            "/v1/agreements/{id}/documents/{doc}/pdf",
+            get(agreements::pdf),
+        )
         .route("/v1/sources", get(evidence::list))
         .route("/v1/sources/{id}/refresh", post(evidence::refresh))
         .route("/v1/evidence", get(evidence::documents))
@@ -369,7 +381,13 @@ async fn main() -> Result<()> {
         .route("/v1/intelligence/analyze", post(intelligence::analyze))
         .route("/v1/intelligence/{id}", get(intelligence::detail))
         .route("/v1/intelligence/{id}/notes", post(intelligence::save_note))
-        .route_layer(middleware::from_fn_with_state(app.clone(), auth))
+        .route_layer(middleware::from_fn_with_state(
+            app.clone(),
+            authentication::middleware,
+        ))
+        .route("/auth/config", get(authentication::config))
+        .route("/auth/login", get(authentication::login))
+        .route("/auth/callback", get(authentication::callback))
         .with_state(app)
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route(
@@ -395,6 +413,24 @@ async fn main() -> Result<()> {
             }),
         )
         .route(
+            "/v1/geology/sites",
+            get(|| async {
+                (
+                    [("content-type", "application/geo+json")],
+                    include_str!("../dashboard/geology/sites.geo.json"),
+                )
+            }),
+        )
+        .route(
+            "/geology/congo-1931.jpg",
+            get(|| async {
+                (
+                    [("content-type", "image/jpeg")],
+                    include_bytes!("../dashboard/geology/congo-1931.jpg").as_slice(),
+                )
+            }),
+        )
+        .route(
             "/drc.geo.json",
             get(|| async {
                 (
@@ -409,6 +445,7 @@ async fn main() -> Result<()> {
         result = worker(db.clone()) => result?,
         result = intelligence::worker(db.clone()) => result?,
         result = evidence::worker(db.clone()) => result?,
+        result = agreement_discovery::worker(db.clone()) => result?,
         result = social::worker(db.clone()) => result?,
         result = actors::worker(db.clone()) => result?,
         result = arms::worker(db.clone()) => result?,

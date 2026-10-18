@@ -1,0 +1,96 @@
+CONGO SIGNAL — GEOLOGY AND MINERALS SOURCE AUDIT
+Research / downloaded: 18 October 2026
+
+INTEGRATED
+1. IPIS artisanal mining observations (Belgian research organisation).
+   Landing page: https://ipisresearch.be/home/maps-data/open-data/
+   Direct CSV: https://ipisresearch.be/wp-content/uploads/2026/05/cod_mines_curated_all_opendata_p_ipis.csv
+   Licence: Open Data Commons Attribution 1.0; retain IPIS attribution.
+   7,163 visit rows, 3,423 distinct pcode identifiers, 2009–2025 visits.
+   Import selects latest visit_date per pcode, with numeric vid as tie-breaker.
+   Older visits are retained in local raw CSV, not presented as separate mines.
+   Imported fields: site name, minerals, province, coordinates, date, source,
+   coordinate origin and visit count. Historical armed-actor fields are not
+   converted into current territorial-control claims.
+   The old IPIS GeoServer is offline; this direct replacement download works.
+
+2. USGS Africa GIS, published 13 August 2021, catalogue updated July 2024.
+   DOI: https://doi.org/10.5066/P97EQWXP
+   Download catalogue with file URLs:
+   https://www.sciencebase.gov/catalog/item/607611a9d34e018b3201cbbf?format=json
+   Catalogue/rights:
+   https://catalog.data.gov/dataset/compilation-of-geospatial-data-gis-for-the-mineral-industries-and-related-infrastructure-o-0fda3
+   Rights: https://www.usgs.gov/data/compilation-geospatial-data-gis-mineral-industries-and-related-infrastructure-africa
+   Licence: CC0 1.0 (USGS publication page); USGS distribution also carries fitness-for-use disclaimer.
+   Downloaded Africa_GIS.gdb.zip (138,139,197 bytes); EPSG:4326.
+   Country filter is EXACTLY Congo (Kinshasa), not Congo (Brazzaville).
+   119 facility records, 62 deposits/occurrences, 68 exploration records.
+   These are RECORDS, not 249 unique currently operating mines: commodities
+   can have separate records and sites can overlap the other layers/IPIS.
+   Facilities: DsgAttr02 commodity, DsgAttr06 reference year (2018 for DRC).
+   Deposits: DsgAttr01–08 commodities; individual observation dates unknown.
+   Exploration: DsgAttr01–08 commodities; DsgAttr11 last verified active year.
+   Original attributes and InfSource1 citations preserved in exported GeoJSON.
+   No ownership/operating-status inference is made from old records.
+
+3. Congo belge. Carte géologique, May 1931, 1:5,000,000.
+   Publisher: Service géographique du Ministère des Colonies, Brussels.
+   Holding institution: BnF, Cartes et plans, GE C-15047.
+   Catalogue: https://catalogue.bnf.fr/ark:/12148/cb40682979d
+   Scan and rights:
+   https://commons.wikimedia.org/wiki/File:Congo_belge._Carte_g%C3%A9ologique_-_btv1b531215222_(2_of_2).jpg
+   Original:
+   https://upload.wikimedia.org/wikipedia/commons/5/57/Congo_belge._Carte_g%C3%A9ologique_-_btv1b531215222_%282_of_2%29.jpg
+   Downloaded 7,162,544 bytes; 7,330 x 8,800 pixels. Visually inspected.
+   Commons labels public domain in France; attribution retained. This is not
+   a claim that all museum or Gallica material has identical reuse terms.
+   Displayed inside the site, with full-resolution inspection and download.
+   Geological formations, NOT a modern mineral/reserve map. Not georeferenced:
+   we have not guessed image corners, datum or control points. A future overlay
+   needs proper georeferencing and a measured positional-error assessment.
+
+INVESTIGATED, NOT IMPORTED
+AfricaMuseum geological archives / GeoCatalogue:
+https://www.africamuseum.be/en/research/collections_libraries/earth_sciences/archives
+https://georiska.africamuseum.be/en/activities/collection_management
+https://geocatalogue.africamuseum.be/geonetwork/srv/api/records/BE-RMCA-EARTHS-037189
+https://geocatalogue.africamuseum.be/geonetwork/srv/api/records/BE-RMCA-EARTHS-013955
+https://geocatalogue.africamuseum.be/geonetwork/srv/api/records/BE-RMCA-EARTHS-023779
+Catalogue discovery is not evidence that digital scans or reusable GIS files
+are available. Catalogue requests returned access errors. The 1931 BnF scan
+is a separately verified public download, not the newly announced archive.
+
+REPRODUCE / UPDATE
+Raw inputs are ignored under data/geology/; bundled derived assets are under
+ dashboard/geology/. Import script: scripts/import_geology.py.
+Download the IPIS CSV as data/geology/ipis.csv. Download the USGS catalogue
+JSON, follow its Africa_GIS.gdb.zip downloadUri, save as data/geology/africa.zip,
+and unpack it to data/geology/Africa_GIS.gdb. Use a Python venv with fiona.
+Run python scripts/import_geology.py, then rebuild the Rust binary. The output
+metadata contains input SHA-256 hashes and import time. Changing upstream
+schemas or unexpected DRC coordinates causes import failure, not silent repair.
+The served dataset is a pinned snapshot, not a six-hour mining-data collector.
+
+USAGE
+Situation room > Minerals & geology: independent IPIS / USGS toggles,
+source-native mineral filter, date/source popups, filtered GeoJSON export.
+GET /v1/geology/sites returns the complete attributed FeatureCollection.
+GET /geology/congo-1931.jpg returns the archived scan.
+Source mineral labels are preserved in French/English to avoid lossy mapping;
+UI instructions are bilingual. No mineral abundance or economic value is
+inferred. Coltan, cobalt and copper are not automatically called rare earths.
+
+INTERACTIVE EXPLORATION UPDATE
+Map points now cluster below zoom 12; cluster clicks expand the group. Counts
+are records, not necessarily distinct physical mines. Search matches names,
+province and source mineral labels with case/accent normalization. Province,
+record-type, commodity and source filters combine. Zoom to results fits their
+extent. The directory supports keyboard selection and incremental browsing.
+Selecting a site highlights it and opens an inspector with exports and nearby
+news context at 10/25/50/100 km. Distances use the haversine formula against
+approximate place mentions in currently loaded, filtered news. Each article
+appears once at its nearest mention. Null coordinates are excluded. Proximity
+is not evidence that a report concerns the mine. Map expansion, compass and
+metric scale assist exploration. No new paid data service was added.
+Validation: node tests/map_interactions.cjs (filters, distance, missing data,
+clustering lifecycle, selection clearing and style restoration).

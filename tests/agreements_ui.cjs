@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('dashboard/app.js','utf8');
+const context=vm.createContext({state:{lang:'en',agreements:{items:[],metadata:{}},agSearch:'',agCategory:'',agTerm:'',agDrafts:false},L:x=>x,norm:s=>s.toLowerCase(),esc:s=>String(s??'').replaceAll('<','&lt;'),nf:n=>String(n),pageHead:()=>'',emptyState:()=>''});
+vm.runInContext(source.slice(source.indexOf('const agreementStatus='),source.indexOf('async function openAgreement(')),context);
+const a={id:'one',title:'Example',categories:['peace'],parties:'DRC',date:'2025-01-01',signed_term:'Example presidency',documents:[],assessment:{reviewed:false,status:'completed',data:{outcomes:[{dimension:'security',score:2}]}}};
+context.state.agreements.items=[a];
+assert(vm.runInContext('agreementsView()',context).includes('n=0'),'unreviewed outcomes must not silently populate chart');
+context.state.agDrafts=true;assert(vm.runInContext('agreementsView()',context).includes('n=1'));
+context.state.agDrafts=false;a.assessment.reviewed=true;assert(vm.runInContext('agreementsView()',context).includes('n=1'));
+a.assessment.data.outcomes[0].score=null;assert(!vm.runInContext('agreementsView()',context).includes('n=1'),'unknown is excluded, not zero');
+context.state.agCategory='minerals';assert.equal(vm.runInContext('agreementRows().length',context),0);
+console.log('PASS: sector filters, review gate, optional provisional scores, unknown-value exclusion');

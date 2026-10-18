@@ -340,6 +340,7 @@ async fn x_get(
     path: &str,
     query: &[(&str, String)],
 ) -> Result<Value> {
+    let reservation = crate::costs::reserve("x", path).await?;
     let response = client
         .get(format!("{}{}", api_base(), path))
         .bearer_auth(token)
@@ -348,6 +349,12 @@ async fn x_get(
         .await
         .context("X connection failed")?;
     let status = response.status();
+    crate::costs::finish(
+        reservation,
+        &format!("http_{}", status.as_u16()),
+        json!(null),
+    )
+    .await?;
     if status.as_u16() == 429 {
         let reset = response
             .headers()

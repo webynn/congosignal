@@ -1,0 +1,144 @@
+CONGO SIGNAL — AGREEMENTS REGISTER (18 October 2026)
+
+Scope and coverage
+Initial register: 106 records, not an exhaustive list of all DRC treaties.
+68 PA-X DRC-related peace-process records through 2025, 33 mining-contract
+or amendment records discovered in CongoMines, 3 economic/infrastructure
+records, and 2 recent official announcements. The December 2025 DRC–Rwanda
+economic integration framework spans multiple sectors; counts overlap.
+Some records are joint statements, local accords, SOE or community contracts,
+or packages of instruments. Do not report 106 government-signed agreements.
+Most central-government signature statuses require document-by-document review.
+
+Source collection
+PA-X v10 corpus:
+https://www.peaceagreements.org/cms/documents/4494/pax_corpus_v10_agreements.csv
+Subset filter: Con contains Democratic Republic of Congo, or Loc1ISO/Loc2ISO COD.
+Copyright/database right: University of Edinburgh. CC BY-NC-SA 4.0.
+Bell, C. & Badanjak, S. (2019), Introducing PA-X, Journal of Peace Research.
+https://www.peaceagreements.org/media/documents/Terms_of_Use.pdf
+Non-commercial research only; commercial deployment needs different rights.
+Translations/underlying documents may carry additional rights. Archive excluded
+from Git; derived DRC subset is attributed in API metadata and the UI.
+
+CongoMines / Carter Center:
+https://congomines.org/fr/all-documents/?pgdc_search=Convention&pgdc_per_page=100
+Search returned 43 entries; reports, general conventions/decrees and a duplicate
+URL excluded from agreement register. Report on Sicomines implementation is
+attached as separate evidence, never counted as an agreement.
+PDF URLs, SHA-256 hashes and per-page extracted text are in config/agreements.json.
+Raw PDFs: data/agreements/ (Git-ignored; copy this folder for server migration).
+24 scanned agreement PDFs were OCR-processed locally using macOS Vision.
+Numbers, signatures and clauses must be checked against scans before reliance.
+Sicomines amendment first page visually inspected; title, parties and notarial
+stamp visible. No claim of full visual/manual verification of every page.
+
+Infrastructure and current economic announcements
+European Commission: EU–DRC raw materials and Lobito MoUs, 26 October 2023.
+Official release confirmed via web research; local release PDF fetch failed.
+Full executed MoUs remain missing, explicitly marked unavailable.
+World Bank Transport and Connectivity Support Project P161877: project document
+and April 2023 implementation-status report retrieved. Date of financing-agreement
+signature is reported in the World Bank 28 June 2022 announcement, not inferred
+from Board approval or appraisal document date.
+DRC Ministry of Economy: US–DRC Strategic Partnership, 4 December 2025.
+https://economie.gouv.cd/actualites/accord-partenariat-strategique-rdc-usa
+APCSC: Mota-Engil concession/collaboration signed 26 August 2026.
+https://www.apcsc.gouv.cd/article.php?id=28
+These last two are official announcement records, not full executed contracts.
+One CongoMines PDF and both EC release copies were unavailable during collection.
+
+Assessment methodology v1
+Five dimensions: security, revenue, services, sovereignty, accountability.
+Design/potential and observed outcomes are separate arrays. Ordinal scale:
+-2 strongly adverse; -1 adverse; 0 mixed/neutral; +1 beneficial; +2 strongly
+beneficial. Null means insufficient evidence, never zero or failure.
+Design scores require a readable agreement. Outcomes require a separate
+implementation_report. Non-null scores require a verbatim excerpt matched to
+the supplied document. Invalid references/quotes/roles suppress the score.
+This verifies textual support, not truth, representativeness or causality.
+Source reports can be contested; human review remains necessary.
+At most 70,000 characters per document enter each AI request. Truncation is
+recorded in input_documents. This is a provisional document assessment, not
+exhaustive legal review. Underlying texts can contain missed context or OCR errors.
+Model, prompt version, timestamps, input hashes and record fingerprint are saved.
+Source changes mark assessments stale on worker restart and remove review status.
+
+Signing-administration comparison
+Dates group records under Mobutu, Laurent-Désiré Kabila, Joseph Kabila or Félix
+Tshisekedi; unknown dates remain unverified. This is signing chronology only,
+not causal credit for results, nor proof of who negotiated or implemented a deal.
+In particular, later governments can implement agreements inherited from earlier
+ones. No single overall government-strength score is generated.
+The chart shows dimension means and n, excludes missing values, and defaults
+to human-reviewed drafts. Optional provisional mode includes completed AI drafts.
+Review means an analyst accepted a draft, not independent certification.
+Evidence gaps and non-random document coverage prevent fair causal rankings.
+
+Implementation
+GET /v1/agreements
+GET /v1/agreements/{id}
+POST /v1/agreements/{id}/analyze (one concurrent analysis; cached completed result)
+POST /v1/agreements/{id}/review (explicit analyst action)
+GET /v1/agreements/{id}/documents/{doc}/pdf (allowlisted local archive only)
+Existing API authentication applies. Analysis jobs survive as states in SQLite;
+a restart marks interrupted jobs failed, allowing retry. No arbitrary URL fetching.
+
+Reproduction
+scripts/import_agreements.py (pypdf; raw PA-X CSV + saved CongoMines HTML)
+scripts/collect_agreement_announcements.py (official announcement discovery)
+scripts/ocr_agreement.swift (compile with swiftc on macOS)
+scripts/ocr_agreements.py (process unreadable scans, two local OCR tasks at once)
+Rebuild Rust after changing bundled config. This register is a curated snapshot;
+no claim of automatic six-hour agreement discovery. Future expansion should use
+UN Peacemaker, ITIE-RDC, ResourceContracts, ministries and financing registries,
+verify instruments/signatures and add dated implementation observations.
+
+Chronology correction discovered during pilot
+The Sicomines evaluation was uploaded under a 2026 path, but title pages say
+September 2021 and identify an interim ITIE-RDC consultancy report. It is now
+implementation evidence for the 2008 collaboration convention, and historical
+context ONLY for Amendment 5 (2024). The server refuses outcome scores unless
+a dated implementation report postdates the agreement's recorded date.
+Run scripts/link_agreement_evidence.py after re-import/OCR to restore these
+explicit links. The original convention's 22 April 2008 date is corroborated
+by Amendment 5's title, not inferred from the original scan filename.
+
+Citation validation v2
+Pilots showed that model-written quotations can be shortened or paraphrased.
+agreements-v2-passages supplies numbered 900-character source passages and
+requires document_id + passage_id. The server inserts the source passage itself
+and verifies it against the supplied document; model-authored quotations are
+not displayed as verified evidence. Score validation still checks document role
+and chronology. Narrative interpretation remains a provisional AI draft.
+
+Live validation
+39 Rust tests plus agreement UI and map interaction tests pass. Source-passage
+matching prevents fabricated quotations but cannot validate the reasoning. The
+2008 Sicomines pilot was withheld after it misread a production quantity and
+extended claims beyond selected passages. Its assessment is failed, unreviewed,
+and excluded from charts. Do not treat AI drafts as verified historical findings.
+Browser visual verification was unavailable because the Mac was locked.
+
+Automatic discovery (18 October 2026)
+The Rust worker now polls configured CongoMines, Ministry of Economy and APCSC
+indexes on startup when due, then every six hours (AGREEMENTS_POLL_SECONDS,
+minimum one hour). Checks persist in SQLite, so a restart does not reset the
+schedule. POST /v1/agreements/discovery/refresh queues an early check; status is
+included as discovery in GET /v1/agreements and shown in the dashboard.
+
+Candidates are keyword-matched links, not confirmed signed agreements. They
+retain source URL, publisher, discovery timestamp, file hash and original HTML
+or PDF. Up to three linked PDFs are archived per candidate. PDFs need subsequent
+text extraction/OCR and instrument verification before scoring. Discovered source
+roles cannot support design or outcome scores automatically. Unknown dates and
+signatories remain unknown. Queue URLs are unique; existing register URLs are
+skipped. Up to ten documents per source per cycle are fetched, pending before
+failed retries. Fetches respect existing robots, allowlisted redirects, size caps
+and delays; errors remain visible. No paid AI requests occur during discovery.
+
+Coverage is limited to links visible in these configured indexes. It is not a
+comprehensive web search, peace-treaty feed or revision monitor. An existing
+saved document is not silently replaced when a publisher changes it. Additional
+peace registries and approved research connectors can be added later. Keep the
+SQLite database and data/agreements archive when deploying.
