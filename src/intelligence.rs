@@ -128,6 +128,13 @@ pub struct Place {
     lat: f64,
     lon: f64,
 }
+/// Names of explicit DRC places mentioned in `text`.
+pub fn place_names(text: &str) -> Vec<String> {
+    places(text)
+        .into_iter()
+        .map(|p| p.name.to_string())
+        .collect()
+}
 /// Explicit DRC place mentions from a GeoNames-derived gazetteer (config/gazetteer.json).
 /// Capitalized matches only; a single word next to another capitalized word is treated as part
 /// of a personal name, and unpopulated villages need a locative cue.
@@ -365,14 +372,20 @@ pub struct FeedQuery {
 pub async fn feed(State(app): State<App>, Query(q): Query<FeedQuery>) -> ApiResult<Json<Value>> {
     let limit = q.limit.unwrap_or(200).clamp(1, 500);
     let offset = q.offset.unwrap_or(0).max(0);
-    let rows: Vec<String> = sqlx::query_scalar(
-        "SELECT data FROM articles ORDER BY published_at DESC,id LIMIT ? OFFSET ?",
-    )
+    // Feed items screened as Great Lakes regional context are opt-in, like regional documents.
+    let regional = q.scope.as_deref() == Some("regional");
+    const SCOPE: &str =
+        "(? OR coalesce(json_extract(data,'$.relevance.scope'),'drc') != 'regional')";
+    let rows: Vec<String> = sqlx::query_scalar(&format!(
+        "SELECT data FROM articles WHERE {SCOPE} ORDER BY published_at DESC,id LIMIT ? OFFSET ?"
+    ))
+    .bind(regional)
     .bind(limit)
     .bind(offset)
     .fetch_all(&app.db)
     .await?;
-    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM articles")
+    let total: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM articles WHERE {SCOPE}"))
+        .bind(regional)
         .fetch_one(&app.db)
         .await?;
     let mut items = Vec::new();
@@ -382,7 +395,7 @@ pub async fn feed(State(app): State<App>, Query(q): Query<FeedQuery>) -> ApiResu
         let ranked = rank(&a, brief.get("data"), Utc::now());
         let found = places(&format!("{} {}", a.title, a.content));
         let n = note(&app.db, &a.id).await?;
-        items.push(json!({"id":a.id,"title":a.title,"url":a.url,"source":a.source,"category":a.category,"description":a.description,"search_text":a.content,"published_at":a.published_at,"fetched_at":a.fetched_at,"language":a.language,"rank":ranked,"places":found,"brief":brief,"analyst":n,"verification":"single_source_unverified","content_sha256":a.content_sha256}));
+        items.push(json!({"id":a.id,"title":a.title,"url":a.url,"source":a.source,"category":a.category,"description":a.description,"search_text":a.content,"published_at":a.published_at,"fetched_at":a.fetched_at,"language":a.language,"rank":ranked,"places":found,"brief":brief,"analyst":n,"verification":"single_source_unverified","content_sha256":a.content_sha256,"coverage":a.coverage,"relevance":a.relevance}));
     }
     let evidence = crate::evidence::feed(
         State(app.clone()),

@@ -101,6 +101,12 @@ pub struct Article {
     pub content_sha256: String,
     pub html_sha256: String,
     pub extractor_version: String,
+    /// "feed_summary" when only a publisher feed's title and lede are available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<String>,
+    /// DRC/regional screening for multi-country publishers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relevance: Option<serde_json::Value>,
 }
 pub fn extract(html: &str, fetched: &Url) -> Result<Article> {
     let doc = Html::parse_document(html);
@@ -204,6 +210,8 @@ pub fn extract(html: &str, fetched: &Url) -> Result<Article> {
         content,
         paragraphs,
         extractor_version: "actualite-v1".into(),
+        coverage: None,
+        relevance: None,
     })
 }
 #[cfg(test)]

@@ -1,0 +1,14 @@
+{
+  "notes": "Publisher syndication feeds collected as news. Items are kept when they explicitly concern the DRC, or flagged as regional context when they concern the Great Lakes neighbours. 'site' restricts item links to the publisher's own domain. 'coverage' is 'feed_summary' when only the title and lede are published in the feed.",
+  "feeds": [
+    {
+      "id": "jeuneafrique",
+      "name": "Jeune Afrique",
+      "url": "https://feeds.feedburner.com/jeuneafrique",
+      "site": "www.jeuneafrique.com",
+      "language": "fr",
+      "coverage": "feed_summary",
+      "access_note": "Article pages sit behind a bot challenge and many require a subscription. Collected from the publisher's official feed: title, lede, author, section and publication time, linked to the original."
+    }
+  ]
+}

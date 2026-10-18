@@ -309,6 +309,7 @@ SIPRI's database host was unreachable from this machine, so transfers are import
 | `REFERENCE_SYNC` | enabled | `0` disables network refresh of sanctions, Wikidata and Sketchfab (tests/offline) |
 | `REFERENCE_CONTACT` | unset | Contact (email or URL) appended to the User-Agent, as Wikimedia's policy requests |
 | `SIPRI_DIR` | `data/sipri` | Folder of SIPRI trade-register CSV exports |
+| `FEED_POLL_SECONDS` | `1800` | Publisher feed polling interval; `0` disables |
 
 New endpoints (same bearer-token policy): `GET /v1/actors`, `GET /v1/actors/{id}`, `POST /v1/actors/refresh` (re-queues lists and reference data), `GET /v1/arms`, `GET /v1/arms/{id}`.
 
@@ -328,3 +329,14 @@ New endpoints (same bearer-token policy): `GET /v1/actors`, `GET /v1/actors/{id}
 | ACLED | Requires registration; redistribution limits | Not integrated |
 
 Public deployment that redistributes these data should keep the attributions shown in the interface. Sketchfab models marked non-commercial must not be used in commercial products.
+
+## Publisher feeds: Jeune Afrique
+
+`config/news-feeds.json` lists publisher syndication feeds collected as news, alongside the Actualite.cd crawler. Jeune Afrique's site answers automated clients (including `robots.txt` and its own `/feed/`) with a Cloudflare bot challenge, and many articles are paywalled; the collector does not attempt to bypass either. It reads the publisher's official FeedBurner feed (`feeds.feedburner.com/jeuneafrique`) instead, which carries the latest ~30 items with title, lede, author, section and publication time.
+
+- Polled every `FEED_POLL_SECONDS` (default 1800; 300–86400; `0` disables) with conditional GET (ETag / If-Modified-Since). `POST /v1/feeds/refresh` (also triggered by **Collect latest**) polls immediately; `GET /v1/feeds` reports status and counts.
+- Items are kept only when they explicitly concern the DRC (terms such as RDC, Kinshasa, Kivu, M23, FARDC, Tshisekedi, or a recognized DRC place). Great Lakes items (Rwanda, Uganda, Burundi) are stored as regional context and appear only with **Include regional context**; Congo-Brazzaville and other countries are skipped. Links outside the publisher's domain are rejected.
+- Articles are marked `coverage: "feed_summary"`; the dashboard labels them, AI briefs note that they rest on the headline and lede, and the report links to the full article. The raw feed item is stored as revision evidence, so edited headlines create versions.
+- Submitting a Jeune Afrique URL to `POST /v1/jobs` returns `200 already_collected` with the article ID, or `422 feed_only` explaining that pages are not fetched. The feed carries no archive, so articles published before polling started are not available.
+
+Add another publisher by appending a feed (id, name, url, site, language, coverage, access_note); no code change is needed.

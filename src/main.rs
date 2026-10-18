@@ -2,6 +2,7 @@ mod actors;
 mod arms;
 mod evidence;
 mod extract;
+mod feeds;
 mod fetch;
 mod intelligence;
 mod reference;
@@ -65,7 +66,18 @@ async fn auth(State(app): State<App>, req: Request<axum::body::Body>, next: Next
 struct Submit {
     url: String,
 }
-async fn submit(State(app): State<App>, Json(input): Json<Submit>) -> ApiResult<impl IntoResponse> {
+async fn submit(State(app): State<App>, Json(input): Json<Submit>) -> ApiResult<Response> {
+    // Feed-only publishers cannot be fetched page by page; say so instead of queueing a failure.
+    if let Ok(parsed) = url::Url::parse(&input.url)
+        && let Some(answer) = feeds::submitted(&app.db, &parsed).await?
+    {
+        let code = if answer["status"] == "already_collected" {
+            StatusCode::OK
+        } else {
+            StatusCode::UNPROCESSABLE_ENTITY
+        };
+        return Ok((code, Json(answer)).into_response());
+    }
     let url =
         extract::seed(&input.url).map_err(|e| ApiError(StatusCode::BAD_REQUEST, e.to_string()))?;
     let kind = if extract::is_article(&url) {
@@ -84,7 +96,8 @@ async fn submit(State(app): State<App>, Json(input): Json<Submit>) -> ApiResult<
     Ok((
         StatusCode::ACCEPTED,
         Json(json!({"job_id":id,"status_url":format!("/v1/jobs/{id}")})),
-    ))
+    )
+        .into_response())
 }
 async fn job(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     let row = sqlx::query("SELECT * FROM jobs WHERE id=?")
@@ -333,6 +346,8 @@ async fn main() -> Result<()> {
             "/v1/social/accounts/{handle}/history",
             post(social::history),
         )
+        .route("/v1/feeds", get(feeds::list))
+        .route("/v1/feeds/refresh", post(feeds::refresh))
         .route("/v1/actors", get(actors::list))
         .route("/v1/actors/refresh", post(actors::refresh))
         .route("/v1/actors/{id}", get(actors::detail))
@@ -392,7 +407,8 @@ async fn main() -> Result<()> {
         result = evidence::worker(db.clone()) => result?,
         result = social::worker(db.clone()) => result?,
         result = actors::worker(db.clone()) => result?,
-        result = arms::worker(db) => result?,
+        result = arms::worker(db.clone()) => result?,
+        result = feeds::worker(db) => result?,
         result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
     }
     Ok(())
