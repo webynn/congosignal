@@ -30,6 +30,8 @@ pub struct Subject {
 }
 
 /// OPENAI_API_KEY, or OPENAI_KEY as an alias.
+/// Unix time until which searches pause after an OpenAI auth or credit/rate error.
+static PAUSED_UNTIL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
 fn api_key() -> Option<String> {
     ["OPENAI_API_KEY", "OPENAI_KEY"]
         .iter()
@@ -83,6 +85,9 @@ pub async fn found(db: &SqlitePool, kind: &str) -> Result<HashMap<String, Value>
                 r.get::<String, _>("subject_id"),
                 json!({"thumb":r.get::<Option<String>,_>("image_url"),"page":r.get::<Option<String>,_>("source_url"),
                        "source":"web_search","status":r.get::<String,_>("status"),
+                       "license":r.get::<Option<String>,_>("checks").and_then(|c| serde_json::from_str::<Value>(&c).ok()).and_then(|c| c.pointer("/commons/license").cloned()),
+                       "license_url":r.get::<Option<String>,_>("checks").and_then(|c| serde_json::from_str::<Value>(&c).ok()).and_then(|c| c.pointer("/commons/license_url").cloned()),
+                       "artist":r.get::<Option<String>,_>("checks").and_then(|c| serde_json::from_str::<Value>(&c).ok()).and_then(|c| c.pointer("/commons/artist").cloned()),
                        "source_title":r.get::<Option<String>,_>("source_title"),"caption":r.get::<Option<String>,_>("caption"),
                        "checks":r.get::<Option<String>,_>("checks").and_then(|c| serde_json::from_str::<Value>(&c).ok()),
                        "searched_at":r.get::<String,_>("searched_at")}),
@@ -120,10 +125,14 @@ async fn ask(client: &reqwest::Client, key: &str, s: &Subject) -> Result<Value> 
          Search the web. Return a DIRECT image file URL (jpg, png or webp) that appears on a page which names this exact person, preferably Wikimedia Commons, a government or UN page, or a reputable news outlet. \
          The person must be the subject of the photo. If several people share the name, use the context to pick the right one. \
          If you are not confident the photo shows this exact person, return found=false. Never return logos, flags, illustrations, maps, or AI-generated images. Never invent URLs."
+    } else if s.kind == "actor" {
+        "You find the official emblem, logo or flag of a named organization (armed group, army, party, company or mission) for an open-source research tool about the Democratic Republic of the Congo. \
+         Search the web, preferring Wikimedia Commons. Return a DIRECT image file URL whose file name or caption names the organization. \
+         Never return portraits of individuals, photos of other forces, or unrelated scenes; if no emblem, logo or flag exists, return found=false. Never invent URLs."
     } else {
-        "You find existing public images of military equipment types or organizations for an open-source research tool about the Democratic Republic of the Congo. \
-         Search the web. Return a DIRECT image file URL (jpg, png or webp) from a page that names the subject, preferably Wikimedia Commons, a government page or a reputable outlet. \
-         If unsure, return found=false. Never return AI-generated images. Never invent URLs."
+        "You find an existing photograph of a military equipment type for an open-source research tool about the Democratic Republic of the Congo. \
+         Search the web, preferring Wikimedia Commons. Return a DIRECT image file URL whose file name or caption names this equipment type. \
+         If unsure, return found=false. Never return AI-generated images, diagrams of other systems, or invented URLs."
     };
     let request = json!({
         "model": model(),
@@ -162,18 +171,49 @@ fn https(u: &str) -> Option<url::Url> {
         .ok()
         .filter(|u| u.scheme() == "https" && u.host_str().is_some())
 }
+/// Upstream throttling or outage: retry later instead of rejecting the candidate.
+#[derive(Debug)]
+struct Transient(String);
+impl std::fmt::Display for Transient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for Transient {}
+/// Commons file name for an upload.wikimedia.org URL (original or /thumb/ variant).
+fn commons_file(url: &url::Url) -> Option<String> {
+    if url.host_str() != Some("upload.wikimedia.org") {
+        return None;
+    }
+    let segs: Vec<&str> = url.path_segments()?.collect();
+    let name = match segs.iter().position(|s| *s == "thumb") {
+        Some(i) => segs.get(i + 3)?,
+        None => segs.last()?,
+    };
+    url::form_urlencoded::parse(name.as_bytes())
+        .map(|(k, _)| k.into_owned())
+        .next()
+        .filter(|n| !n.is_empty())
+}
+fn wikimedia(url: &url::Url) -> bool {
+    url.host_str()
+        .is_some_and(|h| h.ends_with("wikimedia.org") || h.ends_with("wikipedia.org"))
+}
 /// Raster image of a plausible size; SVG is refused (it can carry script).
 async fn image_ok(client: &reqwest::Client, url: &url::Url) -> Result<String> {
+    if wikimedia(url) {
+        reference::wikimedia_turn().await;
+    }
     let mut r = client
         .get(url.clone())
         .send()
         .await
-        .context("image unreachable")?;
-    anyhow::ensure!(
-        r.status().is_success(),
-        "image HTTP {}",
-        r.status().as_u16()
-    );
+        .map_err(|e| Transient(format!("image unreachable: {e}")))?;
+    let code = r.status().as_u16();
+    if code == 429 || r.status().is_server_error() {
+        return Err(Transient(format!("image HTTP {code}")).into());
+    }
+    anyhow::ensure!(r.status().is_success(), "image HTTP {code}");
     let kind = r
         .headers()
         .get("content-type")
@@ -223,7 +263,9 @@ fn strip(html: &str) -> String {
     }
     out
 }
-async fn verify(client: &reqwest::Client, s: &Subject, answer: &Value) -> (String, Value) {
+/// Verify a candidate. Commons images are checked through the Commons API (no file download),
+/// which also records license and author; `answer` is updated to the Commons thumbnail and page.
+async fn verify(client: &reqwest::Client, s: &Subject, answer: &mut Value) -> (String, Value) {
     let image = answer["image_url"].as_str().and_then(https);
     let page = answer["source_page_url"].as_str().and_then(https);
     let Some(image) = image else {
@@ -232,16 +274,86 @@ async fn verify(client: &reqwest::Client, s: &Subject, answer: &Value) -> (Strin
             json!({"image":"missing or not https"}),
         );
     };
-    let image_check = image_ok(client, &image).await;
-    if let Err(e) = &image_check {
-        return ("rejected_auto".into(), json!({"image":e.to_string()}));
+    // Organizations and equipment must be identified by the image itself (file name, caption, title).
+    let path: String = url::form_urlencoded::parse(image.path().replace('_', " ").as_bytes())
+        .map(|(k, _)| k.into_owned())
+        .collect();
+    let meta = format!(
+        "{} . {} . {}",
+        answer["caption"].as_str().unwrap_or(""),
+        answer["source_title"].as_str().unwrap_or(""),
+        path
+    );
+    let meta_names = names_subject(&meta, s);
+    if !s.person {
+        let folded = text::fold(&meta);
+        let emblem = [
+            "logo",
+            "emblem",
+            "embleme",
+            "flag",
+            "drapeau",
+            "insignia",
+            "seal",
+            "coat of arms",
+            "armoiries",
+            "badge",
+        ]
+        .iter()
+        .any(|w| folded.contains(w));
+        let reason = if !meta_names {
+            Some("image file name or caption does not name the subject")
+        } else if s.kind == "actor" && !emblem {
+            Some("organizations only use an emblem, logo or flag")
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            return (
+                "rejected_auto".into(),
+                json!({"image":"not checked","reason":reason}),
+            );
+        }
     }
+    if let Some(file) = commons_file(&image) {
+        return match reference::commons_image(client, &file).await {
+            Ok(info) if info["thumb"].is_string() => {
+                answer["image_url"] = info["thumb"].clone();
+                answer["source_page_url"] = info["page"].clone();
+                let named = meta_names
+                    || names_subject(
+                        &format!("{file} {}", info["credit"].as_str().unwrap_or("")),
+                        s,
+                    );
+                let checks =
+                    json!({"image":"ok (Commons)","meta_names_subject":named,"commons":info});
+                (if named { "verified" } else { "unverified" }.into(), checks)
+            }
+            Ok(_) => (
+                "rejected_auto".into(),
+                json!({"image":"not found on Commons"}),
+            ),
+            Err(e) => ("error".into(), json!({"image":e.to_string()})),
+        };
+    }
+    if let Err(e) = image_ok(client, &image).await {
+        let status = if e.is::<Transient>() {
+            "error"
+        } else {
+            "rejected_auto"
+        };
+        return (status.into(), json!({"image":e.to_string()}));
+    }
+    let named_status = |named: bool| if named { "verified" } else { "unverified" }.to_string();
     let Some(page) = page else {
         return (
-            "unverified".into(),
-            json!({"image":"ok","page":"no source page given"}),
+            named_status(meta_names),
+            json!({"image":"ok","page":"no source page given","meta_names_subject":meta_names}),
         );
     };
+    if wikimedia(&page) {
+        reference::wikimedia_turn().await;
+    }
     let page_body = async {
         let r = client.get(page.clone()).send().await?;
         anyhow::ensure!(r.status().is_success(), "page HTTP {}", r.status().as_u16());
@@ -252,16 +364,15 @@ async fn verify(client: &reqwest::Client, s: &Subject, answer: &Value) -> (Strin
     .await;
     match page_body {
         Err(e) => (
-            "unverified".into(),
-            json!({"image":"ok","page":e.to_string()}),
+            named_status(meta_names),
+            json!({"image":"ok","page":e.to_string(),"meta_names_subject":meta_names}),
         ),
         Ok(html) => {
             let named = names_subject(&strip(&html), s);
             let file = image.path().rsplit('/').next().unwrap_or("").to_string();
             let on_page = !file.is_empty() && html.contains(&file);
-            let checks =
-                json!({"image":"ok","page":"ok","names_subject":named,"image_on_page":on_page});
-            if named || (!s.person && on_page) {
+            let checks = json!({"image":"ok","page":"ok","names_subject":named,"meta_names_subject":meta_names,"image_on_page":on_page});
+            if named || meta_names {
                 ("verified".into(), checks)
             } else {
                 ("rejected_auto".into(), checks)
@@ -343,17 +454,25 @@ async fn cycle(
             break;
         }
         match ask(openai, key, &s).await {
-            Ok(answer) if answer["found"] == true => {
-                let (status, checks) = verify(web, &s, &answer).await;
+            Ok(mut answer) if answer["found"] == true => {
+                let (status, checks) = verify(web, &s, &mut answer).await;
                 store(db, &s, &status, &answer, checks, None).await?;
             }
             Ok(answer) => store(db, &s, "none", &answer, json!({}), None).await?,
             Err(e) => {
                 tracing::warn!(subject = %s.id, error = %e, "image search failed");
-                store(db, &s, "error", &json!({}), json!({}), Some(e.to_string())).await?;
-                if e.to_string().contains("HTTP 401") || e.to_string().contains("HTTP 429") {
+                let account = ["HTTP 401", "HTTP 403", "HTTP 429"]
+                    .iter()
+                    .any(|c| e.to_string().contains(c));
+                if account {
+                    // Credit, auth or rate problems are not the subject's fault: pause, don't mark it.
+                    PAUSED_UNTIL.store(
+                        Utc::now().timestamp() + 3600,
+                        std::sync::atomic::Ordering::Relaxed,
+                    );
                     break;
                 }
+                store(db, &s, "error", &json!({}), json!({}), Some(e.to_string())).await?;
             }
         }
     }
@@ -370,6 +489,7 @@ pub async fn worker(db: SqlitePool) -> Result<()> {
         .build()?;
     loop {
         if enabled()
+            && Utc::now().timestamp() >= PAUSED_UNTIL.load(std::sync::atomic::Ordering::Relaxed)
             && let Some(key) = api_key()
             && let Err(e) = cycle(&db, &openai, &web, &key).await
         {
@@ -409,6 +529,12 @@ pub async fn reject(
     }
     Ok(Json(json!({"rejected":true})))
 }
+fn paused_until() -> Option<String> {
+    let t = PAUSED_UNTIL.load(std::sync::atomic::Ordering::Relaxed);
+    (t > Utc::now().timestamp())
+        .then(|| chrono::DateTime::from_timestamp(t, 0).map(|d| d.to_rfc3339()))
+        .flatten()
+}
 pub async fn status(State(app): State<App>) -> ApiResult<Json<Value>> {
     let day = Utc::now().format("%Y-%m-%d").to_string();
     let used: i64 = sqlx::query_scalar("SELECT count(*) FROM web_image_requests WHERE day=?")
@@ -422,7 +548,7 @@ pub async fn status(State(app): State<App>) -> ApiResult<Json<Value>> {
         .map(|r| json!({"kind":r.get::<String,_>("kind"),"status":r.get::<String,_>("status"),"count":r.get::<i64,_>("n")}))
         .collect();
     Ok(Json(
-        json!({"enabled":enabled(),"configured":api_key().is_some(),"model":model(),"requests_today":used,"daily_limit":daily_limit(),"counts":counts}),
+        json!({"paused_until":paused_until(),"enabled":enabled(),"configured":api_key().is_some(),"model":model(),"requests_today":used,"daily_limit":daily_limit(),"counts":counts}),
     ))
 }
 
@@ -448,6 +574,51 @@ mod tests {
             "https://x.org/a.jpg"
         );
         assert!(output_json(&json!({"output":[]})).is_err());
+    }
+    #[tokio::test]
+    async fn organizations_need_a_named_emblem() {
+        let web = reqwest::Client::new();
+        let adf = Subject {
+            kind: "actor",
+            id: "adf".into(),
+            name: "Allied Democratic Forces (ADF)".into(),
+            context: String::new(),
+            names: vec!["ADF".into(), "Allied Democratic Forces".into()],
+            person: false,
+            priority: 0,
+        };
+        let scene = json!({"image_url":"https://upload.wikimedia.org/x/Joint_MONUSCO-FARDC_operation_against_ADF_in_Beni.jpg","caption":"UN soldier during an operation against the Allied Democratic Forces (ADF)","source_title":null,"source_page_url":null});
+        assert_eq!(
+            verify(&web, &adf, &mut scene.clone()).await.0,
+            "rejected_auto"
+        );
+        let rdf = Subject {
+            kind: "actor",
+            id: "rdf".into(),
+            name: "Rwanda Defence Force (RDF)".into(),
+            context: String::new(),
+            names: vec!["Rwanda Defence Force".into()],
+            person: false,
+            priority: 0,
+        };
+        let portrait = json!({"image_url":"https://example.org/Corneille_Nangaa.jpg","caption":"Corneille Nangaa","source_title":null,"source_page_url":null});
+        assert_eq!(
+            verify(&web, &rdf, &mut portrait.clone()).await.0,
+            "rejected_auto"
+        );
+        let thumb = url::Url::parse("https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Rwanda_Defence_Force_emblem.png/480px-Rwanda_Defence_Force_emblem.png").unwrap();
+        assert_eq!(
+            commons_file(&thumb).as_deref(),
+            Some("Rwanda_Defence_Force_emblem.png")
+        );
+        let original = url::Url::parse(
+            "https://upload.wikimedia.org/wikipedia/commons/7/7c/Kisangani%2C_RD_Congo.jpg?utm=x",
+        )
+        .unwrap();
+        assert_eq!(
+            commons_file(&original).as_deref(),
+            Some("Kisangani,_RD_Congo.jpg")
+        );
     }
     #[test]
     fn source_page_must_name_the_person() {

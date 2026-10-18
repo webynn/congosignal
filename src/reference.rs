@@ -38,6 +38,12 @@ pub fn client() -> Result<reqwest::Client> {
 /// Next permitted Wikimedia request time, shared by every worker (Wikimedia rate-limits per client).
 static WIKIMEDIA_SLOT: LazyLock<tokio::sync::Mutex<tokio::time::Instant>> =
     LazyLock::new(|| tokio::sync::Mutex::new(tokio::time::Instant::now()));
+/// Wait for the shared Wikimedia request slot (used by any client touching Wikimedia hosts).
+pub async fn wikimedia_turn() {
+    let mut slot = WIKIMEDIA_SLOT.lock().await;
+    tokio::time::sleep_until(*slot).await;
+    *slot = tokio::time::Instant::now() + std::time::Duration::from_millis(1200);
+}
 /// GET with a response size cap; errors never include upstream bodies. Wikimedia requests are
 /// spaced out, and 429 responses are retried after the server's Retry-After (capped).
 pub async fn get_bytes(client: &reqwest::Client, url: &str, cap: usize) -> Result<Vec<u8>> {
@@ -191,7 +197,7 @@ fn strip_html(s: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 /// Image thumbnail plus license and author from Commons extmetadata.
-async fn commons_image(client: &reqwest::Client, file: &str) -> Result<Value> {
+pub async fn commons_image(client: &reqwest::Client, file: &str) -> Result<Value> {
     let url = format!(
         "https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=480&titles={}",
         urlencode(&format!("File:{file}"))

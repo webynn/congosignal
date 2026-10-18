@@ -1075,14 +1075,23 @@ pub async fn image_subjects(db: &SqlitePool) -> Result<Vec<crate::images::Subjec
                 first(|r| &r.dob),
                 lists.into_iter().collect::<Vec<_>>().join(", "),
             );
-            let names = std::iter::once(a.name.clone())
-                .chain(
-                    a.aliases
-                        .iter()
-                        .filter(|x| text::tokens(x).len() >= 2)
-                        .cloned(),
-                )
-                .collect();
+            // Names the image or page may use: full name, name without "(ACRONYM)", aliases, terms.
+            let bare = a
+                .name
+                .split('(')
+                .next()
+                .unwrap_or(&a.name)
+                .trim()
+                .to_string();
+            let mut names: Vec<String> = vec![a.name.clone(), bare];
+            names.extend(
+                a.aliases
+                    .iter()
+                    .filter(|x| text::tokens(x).len() >= 2)
+                    .cloned(),
+            );
+            names.extend(a.terms().into_iter().map(|t| t.tokens.join(" ")));
+            names.dedup();
             crate::images::Subject {
                 kind: "actor",
                 priority: if a.curated.is_some() { 100_000 } else { 0 }
