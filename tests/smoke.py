@@ -37,7 +37,7 @@ def request(path, data=None, auth=True):
         return e.code, json.load(e)
 
 def start():
-    env = {**os.environ, "LOAD_DOTENV": "0", "BIND_ADDR": f"127.0.0.1:{PORT}", "API_TOKEN": TOKEN, "DATABASE_URL": f"sqlite://{DB}"}
+    env = {**os.environ, "LOAD_DOTENV": "0", "REFERENCE_SYNC": "0", "BIND_ADDR": f"127.0.0.1:{PORT}", "API_TOKEN": TOKEN, "DATABASE_URL": f"sqlite://{DB}"}
     env.pop("POLL_SECONDS", None)
     p = subprocess.Popen([str(ROOT / "target/debug/drc-osint-worker")], cwd=ROOT, env=env)
     for _ in range(100):

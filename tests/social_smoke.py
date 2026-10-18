@@ -65,7 +65,7 @@ def api(path, data=None, auth=True):
     except urllib.error.HTTPError as e: return e.code, json.load(e)
 
 with tempfile.TemporaryDirectory(prefix='congo-signal-social-') as directory:
-    env = dict(os.environ, LOAD_DOTENV='0', DATABASE_URL=f'sqlite://{Path(directory)/"test.db"}', BIND_ADDR=f'127.0.0.1:{port}', API_TOKEN='integration-test-secret-long',
+    env = dict(os.environ, LOAD_DOTENV='0',REFERENCE_SYNC='0', DATABASE_URL=f'sqlite://{Path(directory)/"test.db"}', BIND_ADDR=f'127.0.0.1:{port}', API_TOKEN='integration-test-secret-long',
                EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'), EVIDENCE_POLL_SECONDS='0', AI_ENABLED='0',
                X_ENABLED='1', X_BEARER_TOKEN=TOKEN, X_API_URL=f'http://127.0.0.1:{mock.server_port}', X_ACCOUNT_REQUEST_LIMIT='4', X_DAILY_REQUEST_LIMIT='0', X_POST_REQUEST_LIMIT='0')
     env.pop('POLL_SECONDS', None)

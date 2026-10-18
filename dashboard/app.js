@@ -47,22 +47,28 @@ const paths = {
   history: 'M3 12a9 9 0 1 0 3-6.7L3 8 M3 3v5h5 M12 7v5l4 2',
   alert: 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z M12 9v4 M12 17h.01',
   calendar: 'M3 5h18v16H3z M3 10h18 M8 3v4 M16 3v4',
+  flag: 'M4 22V4 M4 4h13l-2 4 2 4H4',
+  target: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M17 12a5 5 0 1 1-10 0 5 5 0 0 1 10 0 M12 1v4 M12 19v4 M1 12h4 M19 12h4',
 };
 const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[n] || paths.grid}"/></svg>`;
 
 // ---------------------------------------------------------------------------------------------
 // State
 
-const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'saved', 'method'];
+const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
-const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('account/')) return 'social'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
+const hashPart = prefix => location.hash.startsWith(`#${prefix}/`) ? decodeURIComponent(location.hash.slice(prefix.length + 2)) : '';
+function openFromHash() { if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
 const state = {
   lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
   loaded: false, error: '', items: [], total: 0, limit: 200, status: {}, config: null, ev: null, sources: null, social: null, posts: null, accounts: null, updated: null, geometry: null,
   q: '', category: 'all', place: '', sort: 'priority', publisher: '', includeRegional: false, visible: 20,
   layers: ['security', 'politics', 'health', 'economy', 'other'], windowDays: 0, selectedDay: '', highOnly: false, basemap: 'base', tilt: false,
   sf: { topic: '', lang: '', kind: '', q: '', sort: 'latest', accountQ: '', visible: 40 },
+  af: { kind: 'all', group: '', q: '', sort: 'mentions', visible: 48 }, wf: { category: '', q: '', sort: 'mentions' },
+  actors: null, arms: null, actor: null, weapon: null,
   evQuery: '', evRegional: false,
   modal: null, detail: null, detailId: null, detailTab: 'brief', dossier: null, palette: null,
 };
@@ -168,7 +174,7 @@ async function api(path, data) {
 }
 async function load() {
   try {
-    const [data, status, config, ev, sources, social, posts, accounts] = await Promise.all([
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -177,8 +183,10 @@ async function load() {
       api('/v1/social').catch(() => null),
       api('/v1/social/posts?limit=500').catch(() => null),
       api('/v1/social/accounts?limit=200').catch(() => null),
+      api('/v1/actors').catch(() => null),
+      api('/v1/arms').catch(() => null),
     ]);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, error: '' });
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, error: '' });
   } catch (e) { state.error = e.message }
   state.loaded = true;
   render();
@@ -222,6 +230,8 @@ const NAV = () => [
   ['reports', 'layers', L('Reports', 'Articles'), state.total],
   ['social', 'radio', L('Social intelligence', 'Veille sociale'), state.social?.archive?.posts],
   ['sources', 'book', L('Primary sources', 'Sources primaires'), state.ev?.items?.length],
+  ['actors', 'flag', L('Key figures & sanctions', 'Acteurs et sanctions'), state.actors?.items?.filter(a => a.sanctioned).length],
+  ['arms', 'target', L('Arms & equipment', 'Armes et équipements'), state.arms?.items?.filter(i => i.mentions?.total).length],
   ['saved', 'bookmark', L('Saved', 'Sauvegardés'), state.items.filter(a => a.analyst.saved).length],
   ['method', 'shield', L('Methodology', 'Méthodologie')],
 ];
@@ -262,7 +272,7 @@ function render() {
   const scrolls = $$('#app [data-scroll]').map(el => [el.dataset.scroll, el.scrollTop]);
   document.documentElement.lang = state.lang;
   mapHost?.remove();
-  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, method: methodView };
+  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView };
   $('#app').innerHTML = shell(views[state.view]());
   for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
   if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.start, keep.end) } catch {} } }
@@ -285,6 +295,7 @@ function reportRow(a, compactRow = false) {
     a.analyst?.review === 'follow_up' ? `<span class="badge medium">${L('Follow-up', 'À approfondir')}</span>` : a.analyst?.review === 'reviewed' ? `<span class="badge good">${L('Reviewed', 'Examiné')}</span>` : '',
     a.record_type === 'evidence' ? `<span class="badge">${L('Primary document', 'Document primaire')}</span>` : '',
     a.relevance?.scope === 'regional' ? `<span class="badge">${L('Regional context', 'Contexte régional')}</span>` : '',
+    actorChips(namedActors('report', a.id).sort((x, y) => y.sanctioned - x.sanctioned), 3),
   ].join('');
   return `<div class="report" role="button" tabindex="0" data-act="report" data-arg="${esc(a.id)}">
     <div class="score ${a.rank.band}" style="--v:${a.rank.score}" data-tip="${esc(`${L('Priority', 'Priorité')} ${a.rank.score}/100 · ${bandLabel(a.rank.band)}`)}"><span>${a.rank.score}</span></div>
@@ -329,6 +340,7 @@ function postCard(p, withAuthor = true) {
     <div class="post-head">${withAuthor ? `<button class="who" data-act="account" data-arg="${esc(p.author_handle)}">${esc(p.author_name)}</button><span class="handle">@${esc(p.author_handle)}</span><span class="muted">·</span>` : ''}<time title="${esc(date(p.created_at))} (Kinshasa)">${date(p.created_at, true)}</time><span class="kind">${p.kind && p.kind !== 'post' ? `<span class="badge">${esc(kindName(p.kind))}</span> ` : ''}<span class="badge">${esc(p.lang)}</span></span></div>
     <div class="post-text ${(p.text || '').length > 480 ? 'clamp' : ''}">${richText(p.text || '', terms)}</div>${(p.text || '').length > 480 ? `<button class="linkbtn" data-act="expand">${L('Show full post', 'Afficher tout')}</button>` : ''}
     <div class="post-foot">${metric('reply', m.reply_count, L('Replies', 'Réponses'))}${metric('repost', m.retweet_count, L('Reposts', 'Republications'))}${metric('quote', m.quote_count, L('Quotes', 'Citations'))}${metric('heart', m.like_count, L('Likes', 'J’aime'))}${m.impression_count ? metric('eye', m.impression_count, L('Impressions', 'Impressions')) : ''}<span class="grow"></span><button class="linkbtn" data-act="copy" data-arg="${esc(p.url)}">${L('Copy link', 'Copier le lien')}</button><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">${L('Open on X', 'Ouvrir sur X')} ↗</a></div>
+    ${namedActors('post', p.id).length ? `<div class="chips" style="margin-top:8px">${actorChips(namedActors('post', p.id))}</div>` : ''}
     <div class="post-topics">${(p.topics || []).map(t => `<span class="tag" data-tip="${esc(t.via === 'account_history' ? L('Matched locally during an account-history scan', 'Correspondance locale lors d’un historique de compte') : L('Returned by the X topic query', 'Renvoyé par la requête X du thème'))}"><i class="swatch" style="background:${topicColor(t.topic)}"></i>${esc(topicName(t.topic))}${t.terms?.length ? ` <em>· ${esc(t.terms.join(', '))}</em>` : ''}</span>`).join('')}</div>
   </div></article>`;
 }
@@ -364,6 +376,7 @@ function briefingView() {
         <div class="panel-body notice" style="margin:0 16px 14px">${L('Topics overlap and include reposts. Volume is a signal, not an event.', 'Les thèmes se chevauchent et incluent les republications. Le volume est un signal, pas un événement.')}</div></section>
       <div class="stack">
         <section class="panel"><div class="panel-head"><h2>${icon('pin')}${L('Hotspots', 'Points chauds')}</h2><small>${L('place mentions', 'lieux cités')}</small></div><div class="panel-body">${placeRanking(placesList(), 7)}</div></section>
+        ${(() => { const top = (state.actors?.items || []).filter(a => a.mentions?.recent).sort((a, b) => b.mentions.recent - a.mentions.recent).slice(0, 6); return top.length ? `<section class="panel"><div class="panel-head"><h2>${icon('flag')}${L('Key figures in the news', 'Personnalités dans l’actualité')}</h2><small>${L('mentions · 7 days', 'mentions · 7 jours')}</small></div>${top.map(a => `<button class="account-row" data-act="actor" data-arg="${esc(a.id)}">${portrait(a, 'sm')}<div style="min-width:0"><strong>${esc(a.name)}</strong><small>${a.sanctioned ? `${L('Sanctioned', 'Sanctionné')} · ${[...new Set(a.sanctions.map(s => s.list))].join(', ')}` : esc(actorDesc(a))}</small></div><div class="n">${a.mentions.recent}<small>${L('mentions', 'mentions')}</small></div></button>`).join('')}</section>` : '' })()}
         <section class="panel"><div class="panel-head"><h2>${icon('users')}${L('Most active accounts', 'Comptes les plus actifs')}</h2><small>${L('on monitored topics', 'sur les thèmes suivis')}</small></div>${(state.accounts?.items || []).slice(0, 5).map(accountRow).join('') || `<div class="panel-body muted" style="font-size:12px">${L('Accounts appear once posts are archived.', 'Les comptes apparaissent après archivage des publications.')}</div>`}</section>
         <section class="panel"><div class="panel-head"><h2>${icon('shield')}${L('Collection health', 'État de la collecte')}</h2></div><div class="panel-body">${feedStatuses().map(([c, label, v]) => `<div class="health-row"><i class="dot ${c}"></i><div><strong>${esc(label)}</strong><small>${esc(v)}</small></div></div>`).join('')}</div></section>
       </div>
@@ -646,7 +659,9 @@ const METHOD = {
     ['Evidence before conclusions.', 'Congo Signal is a bilingual open-source research workspace for the DRC. It borrows source evaluation and report management ideas from OpenCTI and geographic exploration from Ushahidi. It is an original implementation, not a fork of either platform.'],
     ['Explainable priority, not a truth score', 'Priority combines the source category (5–35 points), impact-related words (up to 24), recency (up to 20), recognized DRC place mentions (6) and an optional AI impact assessment (up to 15). High is 65+, medium 40–64. Rankings apply to the loaded set; a mention or allegation is not an independently established event.'],
     ['Two languages, one source trail', 'The French article is preserved. The configured AI provider generates an English headline, English and French briefs and an impact explanation. Full translations are generated on demand with aligned paragraphs. Model, generation time, source fingerprint and status are retained. AI can make mistakes; a translation is not an additional source.'],
-    ['Place mentions, not verified events', 'A small DRC gazetteer matches explicit place names. Coordinates are approximate town centers. A place may be mentioned as background; no incident location is inferred. Missing markers do not imply an absence of reporting.'],
+    ['Place mentions, not verified events', 'A gazetteer of about 6,000 DRC towns, villages, territories and Kinshasa communes (GeoNames, with Wikidata coordinates for a few missing conflict localities) matches capitalized place names. Small villages only match after a location cue such as “à”, “near” or “de”, and a name directly after another capitalized word is treated as a person’s name. Coordinates are approximate; a place may be mentioned as background, and no incident location is inferred.'],
+    ['Sanctions and key figures', 'Profiles merge the DRC regimes of the UN Security Council 1533 list, the US OFAC SDN list (DRCONGO), the EU (COD) and the UK, refreshed daily, with curated public figures. Records are merged across lists by name and birth year; Wikidata supplies roles and Commons photos with their licenses. Identity-document numbers are never stored. Name matching across lists, to Wikidata and in mentions is automated and can confuse namesakes; every claim links to its official source.'],
+    ['Arms and equipment', 'Weapon types are matched by keyword in news, X posts and document pages. Actors named in the same sentence are counted as co-mentions: a lead for review, never proof of possession, use or supply. Descriptions, origins and operators come from Wikidata; 3D models are representative Sketchfab models of the type. State-to-state transfers come from SIPRI exports you import.'],
     ['Social signals: attributed, never labeled', 'X topic counts cover the previous 24 complete hours and include reposts; topics overlap. Topic samples and analyst-requested account histories are archived only when a post matches a topic rule. Account dossiers show public profile facts, posting hours and topic mix of archived posts. No stance, affiliation, automation or coordination labels are inferred, and activity volume is not influence. Every X request is reserved against a daily cap before it is sent.'],
     ['Analyst-controlled review', 'Bookmarks, review status and notes are stored locally in SQLite. Marking a report reviewed does not certify its claims. No automatic credibility rating is assigned.'],
   ],
@@ -654,7 +669,9 @@ const METHOD = {
     ['Les sources avant les conclusions.', 'Congo Signal est un espace de recherche bilingue en sources ouvertes consacré à la RDC. Il s’inspire de l’évaluation des sources d’OpenCTI et de l’exploration géographique d’Ushahidi. Il s’agit d’une réalisation originale.'],
     ['Une priorité explicable, pas un score de vérité', 'La priorité combine la catégorie (5–35 points), les termes d’impact (jusqu’à 24), la récence (jusqu’à 20), les lieux de RDC reconnus (6) et une analyse d’impact IA facultative (jusqu’à 15). Élevé : 65+, moyen : 40–64. Une mention ou allégation ne constitue pas un événement établi.'],
     ['Deux langues, une même traçabilité', 'L’article français est conservé. Le service IA génère un titre anglais, des synthèses en français et en anglais et une explication d’impact. Les traductions intégrales sont produites à la demande. Le modèle, la date, l’empreinte source et le statut sont conservés. L’IA peut se tromper ; une traduction n’est pas une source supplémentaire.'],
-    ['Des lieux cités, pas des incidents vérifiés', 'Un petit répertoire géographique repère les noms de lieux explicites. Les coordonnées sont approximatives. Aucune position d’incident n’est déduite. L’absence de repère ne signifie pas l’absence d’information.'],
+    ['Des lieux cités, pas des incidents vérifiés', 'Un répertoire d’environ 6 000 villes, villages, territoires et communes de Kinshasa (GeoNames, complété par Wikidata) repère les noms de lieux écrits avec une majuscule. Les petits villages ne sont retenus qu’après un indice de lieu (« à », « près de », « de »), et un nom suivant directement un autre mot à majuscule est traité comme un nom de personne. Les coordonnées sont approximatives ; aucune position d’incident n’est déduite.'],
+    ['Sanctions et personnalités', 'Les profils fusionnent les régimes RDC de la liste 1533 du Conseil de sécurité, de l’OFAC américain (DRCONGO), de l’UE (COD) et du Royaume-Uni, actualisés chaque jour, avec des personnalités publiques sélectionnées. Wikidata fournit fonctions et photos Commons avec leurs licences. Les numéros de documents d’identité ne sont jamais conservés. Les rapprochements de noms sont automatiques et peuvent confondre des homonymes ; chaque information renvoie à sa source officielle.'],
+    ['Armes et équipements', 'Les types d’armes sont repérés par mots-clés dans les articles, publications X et pages de documents. Les acteurs cités dans la même phrase sont des co-mentions : une piste, jamais une preuve de possession, d’usage ou de fourniture. Descriptions, origines et utilisateurs proviennent de Wikidata ; les modèles 3D Sketchfab sont représentatifs du type. Les transferts entre États proviennent des exports SIPRI importés.'],
     ['Signaux sociaux : attribués, jamais étiquetés', 'Les comptages X couvrent les 24 dernières heures complètes et incluent les republications ; les thèmes se chevauchent. Les échantillons et historiques de comptes demandés par l’analyste ne sont archivés que si une publication correspond à un thème. Les dossiers affichent le profil public, les heures de publication et la répartition thématique. Aucune position, affiliation, automatisation ou coordination n’est déduite. Chaque requête X est réservée sur un plafond quotidien avant envoi.'],
     ['Un examen contrôlé par l’analyste', 'Les sauvegardes, statuts et notes sont conservés localement dans SQLite. Marquer un article comme examiné ne certifie pas ses affirmations. Aucune note automatique de crédibilité n’est attribuée.'],
   ],
@@ -662,7 +679,7 @@ const METHOD = {
 function methodView() {
   const [[h, intro], ...rest] = METHOD[state.lang];
   return `<section class="panel method"><div class="eyebrow">CONGO SIGNAL · ${L('METHODOLOGY', 'MÉTHODOLOGIE')}</div><h2 style="margin-top:8px">${h}</h2><p>${intro}</p>${rest.map(([t, p]) => `<h3>${t}</h3><p>${p}</p>`).join('')}
-    <h3>${L('References & attribution', 'Références et attribution')}</h3><p><a target="_blank" rel="noopener noreferrer" href="https://github.com/bilawalsidhu/gods-eye-view">God’s Eye View ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.opencti.io/latest/usage/reliability-confidence/">OpenCTI — Reliability & confidence ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.ushahidi.com/platform-user-manual/5.-modes-for-visualizing-and-managing-data-on-your-deployment">Ushahidi — Geographic report views ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://github.com/johan/world.geo.json">World GeoJSON / Natural Earth ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.x.com/x-api/introduction">X API ↗</a></p></section>`;
+    <h3>${L('References & attribution', 'Références et attribution')}</h3><p><a target="_blank" rel="noopener noreferrer" href="https://github.com/bilawalsidhu/gods-eye-view">God’s Eye View ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.opencti.io/latest/usage/reliability-confidence/">OpenCTI — Reliability & confidence ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.ushahidi.com/platform-user-manual/5.-modes-for-visualizing-and-managing-data-on-your-deployment">Ushahidi — Geographic report views ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://github.com/johan/world.geo.json">World GeoJSON / Natural Earth ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.x.com/x-api/introduction">X API ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://www.geonames.org/">GeoNames (CC BY 4.0) ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://www.wikidata.org/">Wikidata (CC0) · Wikimedia Commons (per-image licenses) ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://main.un.org/securitycouncil/en/sanctions/1533">UN Security Council 1533 Committee ↗</a> · <a target="_blank" rel="noopener noreferrer" href="https://ofac.treasury.gov/">OFAC ↗</a> · <a target="_blank" rel="noopener noreferrer" href="https://www.sanctionsmap.eu/">EU ↗</a> · <a target="_blank" rel="noopener noreferrer" href="https://www.gov.uk/government/publications/the-uk-sanctions-list">UK (OGL v3) ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://sketchfab.com/">Sketchfab 3D models (per-model licenses) ↗</a> · <a target="_blank" rel="noopener noreferrer" href="https://www.sipri.org/databases/armstransfers">SIPRI Arms Transfers Database ↗</a></p></section>`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -694,7 +711,7 @@ function renderDetail() {
   const scroller = $('#overlay .drawer'), top = scroller?.scrollTop || 0;
   const tabs = [['brief', L('AI brief', 'Synthèse IA')], ['original', L('Original · FR', 'Original · FR')], ['english', L('English translation', 'Traduction anglaise')], ['evidence', L('Provenance', 'Traçabilité')], ['notes', L('Analyst notes', 'Notes d’analyse')]];
   $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="drawer-top"><span class="eyebrow">${L('REPORT', 'ARTICLE')} · ${esc(a.source)}</span><div class="actions"><a class="btn sm" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Original', 'Original')}</a><button class="btn sm" data-act="detail-save">${icon('bookmark')}${d.analyst.saved ? L('Saved', 'Sauvegardé') : L('Save', 'Sauvegarder')}</button><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>
-    <div class="drawer-body"><div class="report-kicker">${item ? `<span class="badge ${item.rank.band}">${bandLabel(item.rank.band)} · ${item.rank.score}</span>` : ''}<span class="tag"><i class="swatch" style="background:${layerColor(item ? reportLayer(item) : 'other')}"></i>${esc(categoryName(a.category))}</span>${(item?.places || []).map(p => `<span>${icon('pin')} ${esc(p.name)}</span>`).join('')}</div><h1 id="detail-title">${esc(state.lang === 'en' && b?.title_en ? b.title_en : a.title)}</h1><div class="drawer-meta">${date(a.published_at)} (Kinshasa) · ${L('Single source · unverified', 'Source unique · non corroboré')}</div>
+    <div class="drawer-body"><div class="report-kicker">${item ? `<span class="badge ${item.rank.band}">${bandLabel(item.rank.band)} · ${item.rank.score}</span>` : ''}<span class="tag"><i class="swatch" style="background:${layerColor(item ? reportLayer(item) : 'other')}"></i>${esc(categoryName(a.category))}</span>${(item?.places || []).map(p => `<span>${icon('pin')} ${esc(p.name)}</span>`).join('')}</div><h1 id="detail-title">${esc(state.lang === 'en' && b?.title_en ? b.title_en : a.title)}</h1><div class="drawer-meta">${date(a.published_at)} (Kinshasa) · ${L('Single source · unverified', 'Source unique · non corroboré')}</div>${namedActors('report', a.id).length ? `<div class="chips" style="margin-bottom:6px">${actorChips(namedActors('report', a.id), 12)}</div>` : ''}
     <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button data-act="tab" data-arg="${k}" class="${tab === k ? 'active' : ''}" role="tab" aria-selected="${tab === k}">${l}</button>`).join('')}</div><section role="tabpanel">${content}</section></div></section></div>`;
   const drawer = $('#overlay .drawer'); if (drawer) drawer.scrollTop = top;
   if (!scroller) $('#overlay [data-act="close"]')?.focus();
@@ -727,6 +744,177 @@ async function openEvidence(id) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Key figures & sanctions
+
+const LIST_LABEL = { UN: 'UN', US: 'US', EU: 'EU', UK: 'UK' };
+const groupName = id => { const g = (state.actors?.groups || state.arms?.groups || []).find(g => g.id === id); return g ? g[state.lang] : id };
+const actorById = id => state.actors?.items?.find(a => a.id === id);
+const actorGroups = a => [...new Set([...(a.groups || []), ...(a.designation_groups || [])])];
+const actorDesc = a => a.description?.[state.lang] || a.description?.en || a.titles?.[0] || '';
+const sanctionBadges = a => [...new Set((a.sanctions || []).map(s => s.list))].sort().map(l => `<span class="badge high" data-tip="${esc(L(`Listed by ${l}`, `Inscrit par ${l}`))}">${LIST_LABEL[l] || esc(l)}</span>`).join('');
+const portrait = (a, size = '') => a.image?.thumb ? `<img class="portrait ${size}" src="${esc(a.image.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : avatar(a.name, a.id, size === 'xl' ? 'lg' : size);
+const credit = img => img ? `<div class="credit">${L('Image', 'Image')}: ${img.artist ? esc(img.artist.slice(0, 80)) + ' · ' : ''}${img.license_url ? `<a href="${esc(img.license_url)}" target="_blank" rel="noopener noreferrer">${esc(img.license || L('license', 'licence'))}</a>` : esc(img.license || '')} · <a href="${esc(img.page)}" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></div>` : '';
+/// Actors named in a report or archived post, from the mention index.
+const namedActors = (kind, id) => (state.actors?.index?.[`${kind}:${id}`] || []).map(actorById).filter(Boolean);
+const actorChips = (list, max = 4) => list.slice(0, max).map(a => `<button class="chip actor-chip ${a.sanctioned ? 'sanctioned' : ''}" data-act="actor" data-arg="${esc(a.id)}" data-tip="${esc(a.sanctioned ? L('Sanctioned · ', 'Sanctionné · ') + [...new Set(a.sanctions.map(s => s.list))].join(', ') : actorDesc(a))}">${a.sanctioned ? icon('flag') : icon('user')}${esc(a.name)}</button>`).join('') + (list.length > max ? `<span class="muted" style="font-size:11.5px">+${list.length - max}</span>` : '');
+
+function actorsView() {
+  const d = state.actors, f = state.af, q = norm(f.q.trim());
+  const all = d?.items || [];
+  const items = all.filter(a => (f.kind === 'all' || (f.kind === 'sanctioned' && a.sanctioned) || (f.kind === 'curated' && a.curated) || (f.kind === 'person' && a.kind === 'person') || (f.kind === 'organization' && a.kind !== 'person'))
+    && (!f.group || actorGroups(a).includes(f.group)) && (!q || norm([a.name, ...a.aliases, actorDesc(a), ...(a.titles || [])].join(' ')).includes(q)))
+    .sort((a, b) => f.sort === 'name' ? a.name.localeCompare(b.name) : f.sort === 'listed' ? String(b.sanctions.map(s => s.listed_on).sort().at(-1)).localeCompare(String(a.sanctions.map(s => s.listed_on).sort().at(-1))) : ((b.mentions.recent || 0) - (a.mentions.recent || 0)) || ((b.mentions.total || 0) - (a.mentions.total || 0)) || (b.curated - a.curated));
+  const groupCounts = countBy(all, actorGroups);
+  const kinds = [['all', L('All', 'Tous'), all.length], ['sanctioned', L('Sanctioned', 'Sanctionnés'), all.filter(a => a.sanctioned).length], ['curated', L('Key figures', 'Personnalités clés'), all.filter(a => a.curated).length], ['person', L('People', 'Personnes'), all.filter(a => a.kind === 'person').length], ['organization', L('Organizations', 'Organisations'), all.filter(a => a.kind !== 'person').length]];
+  return pageHead(L('SANCTIONS · KEY FIGURES', 'SANCTIONS · PERSONNALITÉS'), L('Key figures & sanctions', 'Acteurs et sanctions'), L('Who is who in the conflict: official UN, US, EU and UK sanctions designations merged with public profiles, and every place they appear in our sources.', 'Qui est qui dans le conflit : désignations officielles de l’ONU, des États-Unis, de l’UE et du Royaume-Uni, profils publics et chaque mention dans nos sources.'), `<button class="btn" data-act="refresh-reference">${icon('refresh')}${L('Refresh lists', 'Actualiser les listes')}</button>`)
+    + `<section class="panel status-strip">${(d?.lists || []).map(l => `<span class="feed-status" style="padding:0" data-tip="${esc(`${l.label}\n${l.license}`)}"><i class="dot ${!l.sync ? 'warn' : l.sync.status === 'ok' ? 'ok' : 'bad'}"></i><b>${esc(l.id)}</b>&nbsp;${l.sync?.records ?? '—'} ${L('records', 'entrées')} · ${l.sync?.checked_at ? age(l.sync.checked_at) : L('pending', 'en attente')}</span>`).join('')}${d && !d.sync_enabled ? `<span class="badge">${L('Network sync disabled', 'Synchronisation désactivée')}</span>` : ''}<span style="margin-left:auto" class="muted">${nf(all.filter(a => a.sanctioned).length)} ${L('sanctioned profiles', 'profils sanctionnés')} · ${nf(all.filter(a => a.image).length)} ${L('with photos', 'avec photo')}</span></section>
+    <section class="panel" style="margin-bottom:16px"><div class="toolbar"><div class="chips" style="width:100%">${kinds.map(([k, l, n]) => `<button class="chip ${f.kind === k ? 'active' : ''}" data-act="actor-kind" data-arg="${k}">${l} <b>${n}</b></button>`).join('')}</div>
+      <label class="search">${icon('search')}<input id="actor-q" class="input" type="search" data-model="af.q" value="${esc(f.q)}" placeholder="${L('Search names, aliases, roles…', 'Rechercher noms, alias, fonctions…')}" aria-label="${L('Search actors', 'Rechercher')}"></label>
+      <select class="select" data-model="af.group" aria-label="${L('Group', 'Groupe')}"><option value="">${L('All groups', 'Tous les groupes')}</option>${groupCounts.map(([g, n]) => `<option value="${esc(g)}" ${f.group === g ? 'selected' : ''}>${esc(groupName(g))} (${n})</option>`).join('')}</select>
+      <select class="select" data-model="af.sort" aria-label="${L('Sort', 'Tri')}"><option value="mentions" ${f.sort === 'mentions' ? 'selected' : ''}>${L('Most mentioned', 'Plus mentionnés')}</option><option value="listed" ${f.sort === 'listed' ? 'selected' : ''}>${L('Recently listed', 'Inscrits récemment')}</option><option value="name" ${f.sort === 'name' ? 'selected' : ''}>${L('Name', 'Nom')}</option></select></div>
+      <div class="list-meta"><span>${nf(items.length)} ${L('profiles', 'profils')}</span><span>${L('Mentions are text matches, not evidence of involvement', 'Une mention n’est pas une preuve d’implication')}</span></div>
+      <div class="actor-grid">${items.slice(0, f.visible).map(actorCard).join('') || emptyState(L('No profiles match', 'Aucun profil'), d ? L('Try another filter.', 'Essayez un autre filtre.') : L('Sanctions lists are still syncing.', 'Les listes sont en cours de synchronisation.'))}</div>
+      ${items.length > f.visible ? `<div class="loadmore"><button class="btn" data-act="actor-more">${L('Show more', 'Afficher plus')} (${items.length - f.visible})</button></div>` : ''}</section>
+    <p class="notice">${esc(d?.notice || '')}</p>`;
+}
+function actorCard(a) {
+  const m = a.mentions || {};
+  return `<div class="panel actor-card" role="button" tabindex="0" data-act="actor" data-arg="${esc(a.id)}">${portrait(a)}
+    <div class="actor-body"><div class="actor-badges">${sanctionBadges(a)}${a.curated ? `<span class="badge accent">${L('Key figure', 'Clé')}</span>` : ''}${a.kind !== 'person' ? `<span class="badge">${L('Org.', 'Org.')}</span>` : ''}</div>
+    <h3>${esc(a.name)}</h3><p>${esc(actorDesc(a))}</p>
+    <div class="actor-foot">${actorGroups(a).slice(0, 2).map(g => `<span class="tag">${esc(groupName(g))}</span>`).join('')}<span class="grow"></span>${m.total ? `<span class="num" data-tip="${esc(L(`${m.report || 0} reports · ${m.post || 0} X posts · ${m.document || 0} document pages`, `${m.report || 0} articles · ${m.post || 0} publications X · ${m.document || 0} pages de documents`))}">${icon('activity')} ${nf(m.total)}${m.recent ? ` <b class="hot">+${m.recent}</b>` : ''}</span>` : ''}</div></div></div>`;
+}
+async function openActor(id) {
+  state.modal = 'actor'; state.actor = { id, data: null, kind: '' };
+  if (location.hash !== '#actor/' + id) history.replaceState(null, '', '#actor/' + encodeURIComponent(id));
+  renderActor();
+  try { state.actor.data = await api(`/v1/actors/${encodeURIComponent(id)}`) } catch (e) { state.actor.error = e.message }
+  if (state.actor?.id === id) renderActor();
+}
+function factRow(label, value) { return value ? `<dt>${label}</dt><dd>${value}</dd>` : '' }
+const labelList = list => (list || []).map(x => esc(x.label?.[state.lang] || x.label?.en || x.id)).join(', ');
+function mentionList(mentions, terms, kindFilter, withGroups = false) {
+  const kindIcon = { report: 'layers', post: 'radio', document: 'book' };
+  const rows = mentions.filter(m => !kindFilter || m.kind === kindFilter);
+  return rows.slice(0, 120).map(m => `<article class="mention"><div class="report-kicker">${icon(kindIcon[m.kind] || 'layers')}<span>${esc(m.kind === 'post' ? L('X post', 'Publication X') : m.kind === 'document' ? L('Document', 'Document') : L('Report', 'Article'))}</span><span class="sep">·</span><span>${m.at ? date(m.at, true) : '—'}</span>${m.page ? `<span class="sep">·</span><b>p. ${m.page}</b>` : ''}${m.hits > 1 ? `<span class="sep">·</span><span>${m.hits}×</span>` : ''}</div>
+    <h4>${esc(m.title || '')}</h4><p class="post-text" style="margin:4px 0 6px">${highlight(m.snippet || '', terms)}</p>
+    <div class="actions">${withGroups && Object.keys(m.groups || {}).length ? `<span class="muted" style="font-size:11.5px">${L('Same sentence', 'Même phrase')}:</span>${Object.keys(m.groups).map(g => `<span class="tag">${esc(groupName(g))}</span>`).join('')}<span style="flex:1"></span>` : ''}${m.kind === 'report' ? `<button class="btn sm" data-act="report" data-arg="${esc(m.ref)}">${L('Open report', 'Ouvrir')}</button>` : m.kind === 'document' ? `<button class="btn sm" data-act="evidence-open" data-arg="${esc(m.ref)}">${L('Open document', 'Ouvrir le document')}</button>` : `<button class="btn sm" data-act="account" data-arg="${esc((m.title || '').replace('@', ''))}">${L('Account dossier', 'Dossier')}</button>`}${m.url ? `<a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Source', 'Source')}</a>` : ''}</div></article>`).join('') || `<div class="empty">${L('No mentions in collected sources yet.', 'Aucune mention dans les sources collectées.')}</div>`;
+}
+function mentionTimeline(mentions) {
+  const months = countBy(mentions.filter(m => m.at && m.kind !== 'document'), m => m.at.slice(0, 7)).sort((a, b) => a[0].localeCompare(b[0])).slice(-18);
+  return months.length > 1 ? `${bars(months.map(([m, n]) => ({ value: n, tip: `${m} · ${n}` })))}<div class="axis"><span>${months[0][0]}</span><span>${months.at(-1)[0]}</span></div>` : '';
+}
+function renderActor() {
+  const s = state.actor; if (!s) return;
+  const a = s.data, w = a?.wikidata;
+  let body;
+  if (s.error) body = `<div class="errorbar">${esc(s.error)}</div>`;
+  else if (!a) body = `<div class="loading-line"></div>`;
+  else {
+    const kinds = countBy(a.mentions, m => m.kind);
+    const facts = [
+      factRow(L('Born', 'Naissance'), w?.born ? esc(w.born) : (a.sanctions.find(r => r.dob?.length)?.dob || []).map(esc).join(' / ')),
+      factRow(L('Birthplace', 'Lieu de naissance'), labelList(w?.birthplace) || (a.sanctions.find(r => r.pob?.length)?.pob || []).map(esc).join(' / ')),
+      factRow(L('Nationality', 'Nationalité'), labelList(w?.citizenship) || [...new Set(a.sanctions.flatMap(r => r.nationality || []))].map(esc).join(', ')),
+      factRow(L('Positions', 'Fonctions'), (w?.positions || []).map(p => `${esc(p.label?.[state.lang] || p.label?.en || p.id)}${p.start || p.end ? ` <span class="muted">(${esc((p.start || '').slice(0, 4))}–${esc((p.end || '').slice(0, 4))})</span>` : ''}`).join('<br>')),
+      factRow(L('Military', 'Armée'), [labelList(w?.military_branch), labelList(w?.rank)].filter(Boolean).join(' · ')),
+      factRow(L('Party', 'Parti'), labelList(w?.parties)),
+      factRow(L('Member of', 'Membre de'), [labelList(w?.member_of), labelList(w?.affiliations)].filter(Boolean).join(', ')),
+      factRow(L('Founded', 'Fondation'), w?.inception ? esc(w.inception) : ''),
+      factRow(L('Headquarters', 'Siège'), labelList(w?.headquarters)),
+      factRow(L('Leaders', 'Dirigeants'), labelList(w?.leaders)),
+      factRow(L('Titles on lists', 'Fonctions (listes)'), [...new Set(a.sanctions.flatMap(r => r.titles || []))].slice(0, 6).map(esc).join(' · ')),
+    ].join('');
+    body = `<div class="profile-head">${portrait(a, 'xl')}<div style="min-width:0"><div class="actor-badges">${sanctionBadges(a)}${a.curated ? `<span class="badge accent">${L('Key figure', 'Personnalité clé')}</span>` : ''}</div><h1 style="margin:6px 0 4px">${esc(a.name)}</h1><p class="dossier-bio" style="margin:0 0 8px">${esc(actorDesc(a))}</p>
+      <div class="actions">${w?.wikipedia?.[state.lang] || w?.wikipedia?.en ? `<a class="btn sm" href="${esc(w.wikipedia[state.lang] || w.wikipedia.en)}" target="_blank" rel="noopener noreferrer">${icon('book')}Wikipedia</a>` : ''}${w ? `<a class="btn sm ghost" href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">Wikidata ${esc(w.qid)}</a>` : ''}${w?.x_username ? `<button class="btn sm" data-act="account" data-arg="${esc(w.x_username)}">${icon('radio')}@${esc(w.x_username)}</button>` : ''}<a class="btn sm ghost" href="https://x.com/search?q=${encodeURIComponent('"' + a.name + '"')}&f=live" target="_blank" rel="noopener noreferrer">${L('Search X', 'Chercher sur X')} ↗</a></div>
+      ${w?.match === 'name_title' ? `<p class="notice" style="margin:10px 0 0">${L('Profile matched to Wikidata by name and regional relevance. Verify it is the same person.', 'Profil associé à Wikidata par le nom et la pertinence régionale. Vérifiez qu’il s’agit de la même personne.')}</p>` : ''}${credit(a.image)}</div></div>
+      ${a.aliases?.length ? `<details style="margin:12px 0"><summary>${L('Aliases and spellings', 'Alias et graphies')} (${a.aliases.length})</summary><div class="cloud" style="margin-top:8px">${a.aliases.map(x => `<button disabled style="cursor:default;opacity:1">${esc(x)}</button>`).join('')}</div></details>` : ''}
+      ${facts ? `<section class="panel" style="padding:14px 16px;margin:12px 0"><dl class="props">${facts}</dl></section>` : ''}
+      ${a.sanctions.length ? `<h3 class="section-title">${icon('flag')}${L('Sanctions designations', 'Désignations de sanctions')}</h3>${a.sanctions.map(r => `<section class="panel sanction"><div class="report-kicker"><span class="badge high">${esc(r.list)}</span><b>${esc((a.lists || []).find(l => l.id === r.list)?.label || r.program)}</b><span class="sep">·</span><span class="mono">${esc(r.reference)}</span>${r.listed_on ? `<span class="sep">·</span><span>${L('Listed', 'Inscrit le')} ${esc(r.listed_on)}</span>` : ''}</div>${r.reason ? `<p>${esc(r.reason)}</p>` : ''}<div class="report-kicker">${r.dob?.length ? `<span>${L('DOB', 'Naissance')}: ${r.dob.map(esc).join(' / ')}</span>` : ''}${r.nationality?.length ? `<span>· ${r.nationality.map(esc).join(', ')}</span>` : ''}<span style="flex:1"></span><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${L('Official source', 'Source officielle')} ↗</a></div></section>`).join('')}` : ''}
+      ${a.designation_groups?.length ? `<p class="muted" style="font-size:12.5px">${L('Groups named in designation text', 'Groupes cités dans la désignation')}: ${a.designation_groups.map(g => `<span class="tag" style="margin-right:8px">${esc(groupName(g))}</span>`).join('')}</p>` : ''}
+      <h3 class="section-title">${icon('activity')}${L('Mentions in collected sources', 'Mentions dans les sources collectées')} <span class="muted num">${a.mentions.length}</span></h3>
+      ${mentionTimeline(a.mentions)}
+      <div class="chips" style="margin:10px 0"><button class="chip ${!s.kind ? 'active' : ''}" data-act="actor-mkind" data-arg="">${L('All', 'Tout')} <b>${a.mentions.length}</b></button>${kinds.map(([k, n]) => `<button class="chip ${s.kind === k ? 'active' : ''}" data-act="actor-mkind" data-arg="${k}">${k === 'report' ? L('Reports', 'Articles') : k === 'post' ? L('X posts', 'Publications X') : L('Documents', 'Documents')} <b>${n}</b></button>`).join('')}</div>
+      <section class="panel">${mentionList(a.mentions, a.terms || [], s.kind)}</section>
+      <p class="notice">${L('Matching uses names, aliases and listed terms; a mention can refer to a namesake. Sanctions are reproduced from official sources with attribution.', 'La recherche utilise noms, alias et termes associés ; une mention peut concerner un homonyme. Les sanctions sont reproduites depuis les sources officielles.')}</p>`;
+  }
+  const top = $('#overlay .drawer')?.scrollTop || 0, had = !!$('#overlay .drawer');
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(a?.name || L('Profile', 'Profil'))}"><div class="drawer-top"><span class="eyebrow">${icon('user')}${L('PROFILE', 'PROFIL')}</span><div class="actions">${a ? `<button class="btn sm" data-act="export-actor">${icon('download')}JSON</button>` : ''}<button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div><div class="drawer-body">${body}</div></section></div>`;
+  if (had) $('#overlay .drawer').scrollTop = top; else $('#overlay [data-act="close"]')?.focus();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Arms & equipment
+
+const REGION_WORDS = ['congo', 'rwanda', 'uganda', 'ouganda', 'burundi', 'tanzania', 'tanzanie', 'south africa', 'afrique du sud', 'malawi', 'angola', 'kenya', 'zambia', 'zambie'];
+const regionalLabel = l => REGION_WORDS.some(w => norm(l).includes(w));
+const itemImage = (it, cls = '') => it.image?.thumb ? `<img class="${cls}" src="${esc(it.image.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : it.model?.thumb ? `<img class="${cls}" src="${esc(it.model.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="${cls} placeholder">${icon('target')}</div>`;
+function armsView() {
+  const d = state.arms, f = state.wf, q = norm(f.q.trim());
+  const all = d?.items || [];
+  const items = all.filter(i => (!f.category || i.category === f.category) && (!q || norm([i.name, ...i.terms, i.description?.en, i.description?.fr].join(' ')).includes(q)))
+    .sort((a, b) => f.sort === 'name' ? a.name.localeCompare(b.name) : (b.mentions?.total || 0) - (a.mentions?.total || 0));
+  const catName = id => d?.categories?.find(c => c.id === id)?.[state.lang] || id;
+  // Co-mention matrix: equipment rows x the groups most co-mentioned overall.
+  const groupTotals = {};
+  for (const i of all) for (const [g, n] of Object.entries(i.groups || {})) groupTotals[g] = (groupTotals[g] || 0) + n;
+  const cols = Object.entries(groupTotals).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([g]) => g);
+  const rows = items.filter(i => cols.some(g => i.groups?.[g]));
+  const maxCell = Math.max(1, ...rows.flatMap(i => cols.map(g => i.groups?.[g] || 0)));
+  const shade = n => n ? `background: color-mix(in srgb, var(--series-1) ${Math.round(15 + 85 * Math.sqrt(n / maxCell))}%, var(--panel-2))` : '';
+  const t = d?.transfers;
+  return pageHead(L('ARMS · EQUIPMENT · SUPPLY', 'ARMES · ÉQUIPEMENTS · APPROVISIONNEMENT'), L('Arms & equipment', 'Armes et équipements'), L('Weapon systems documented in our sources, the armed actors named alongside them, and recorded state-to-state transfers.', 'Systèmes d’armes documentés dans nos sources, acteurs armés cités avec eux et transferts entre États.'), `<button class="btn" data-act="refresh-reference">${icon('refresh')}${L('Refresh references', 'Actualiser')}</button>`)
+    + `<section class="panel" style="margin-bottom:16px"><div class="toolbar"><div class="chips" style="width:100%"><button class="chip ${!f.category ? 'active' : ''}" data-act="arms-cat" data-arg="">${L('All', 'Tout')} <b>${all.length}</b></button>${(d?.categories || []).map(c => `<button class="chip ${f.category === c.id ? 'active' : ''}" data-act="arms-cat" data-arg="${esc(c.id)}">${esc(c[state.lang])} <b>${all.filter(i => i.category === c.id).length}</b></button>`).join('')}</div>
+      <label class="search">${icon('search')}<input id="arms-q" class="input" type="search" data-model="wf.q" value="${esc(f.q)}" placeholder="${L('Search weapons, designations…', 'Rechercher armes, désignations…')}" aria-label="${L('Search equipment', 'Rechercher')}"></label>
+      <select class="select" data-model="wf.sort" aria-label="${L('Sort', 'Tri')}"><option value="mentions" ${f.sort === 'mentions' ? 'selected' : ''}>${L('Most mentioned', 'Plus mentionnés')}</option><option value="name" ${f.sort === 'name' ? 'selected' : ''}>${L('Name', 'Nom')}</option></select></div>
+      <div class="equip-grid">${items.map(i => `<div class="equip-card" role="button" tabindex="0" data-act="weapon" data-arg="${esc(i.id)}">${itemImage(i, 'equip-img')}<div class="equip-body"><div class="report-kicker"><span>${esc(catName(i.category))}</span>${i.model ? `<span class="badge accent" data-tip="${esc(L('Representative 3D model available', 'Modèle 3D représentatif disponible'))}">3D</span>` : ''}${i.transfers ? `<span class="badge" data-tip="${esc(L('Matching SIPRI transfer records', 'Transferts SIPRI correspondants'))}">SIPRI ${i.transfers}</span>` : ''}</div><h3>${esc(i.name)}</h3><p>${esc(i.description?.[state.lang] || i.description?.en || '')}</p>
+        <div class="actor-foot">${Object.entries(i.groups || {}).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([g, n]) => `<span class="tag" data-tip="${esc(L('Named in the same sentence', 'Cité dans la même phrase'))}">${esc(groupName(g))} · ${n}</span>`).join('')}<span class="grow"></span><span class="num" data-tip="${esc(L(`${i.mentions?.report || 0} reports · ${i.mentions?.post || 0} X posts · ${i.mentions?.document || 0} document pages`, `${i.mentions?.report || 0} articles · ${i.mentions?.post || 0} publications · ${i.mentions?.document || 0} pages`))}">${icon('activity')} ${nf(i.mentions?.total || 0)}</span></div></div></div>`).join('') || emptyState(L('No equipment matches', 'Aucun équipement'), '')}</div></section>
+    <div class="split"><section class="panel"><div class="panel-head"><h2>${icon('grid')}${L('Who is named alongside which weapons', 'Qui est cité avec quelles armes')}</h2><small>${L('same-sentence co-mentions', 'co-mentions dans la même phrase')}</small></div>
+      ${rows.length ? `<div class="matrix-wrap"><table class="matrix"><thead><tr><th></th>${cols.map(g => `<th><span>${esc(groupName(g))}</span></th>`).join('')}</tr></thead><tbody>${rows.map(i => `<tr><th><button class="linkbtn" data-act="weapon" data-arg="${esc(i.id)}">${esc(i.name)}</button></th>${cols.map(g => { const n = i.groups?.[g] || 0; return `<td style="${shade(n)}" data-tip="${esc(`${i.name} · ${groupName(g)}: ${n}`)}">${n || ''}</td>` }).join('')}</tr>`).join('')}</tbody></table></div>` : `<div class="panel-body muted">${L('Co-mentions appear as sources are scanned.', 'Les co-mentions apparaissent au fil de l’analyse des sources.')}</div>`}
+      <div class="panel-body notice" style="margin:12px 16px">${L('A co-mention means the weapon and the actor appear in the same sentence. It is a lead for review, not proof of possession, use or supply.', 'Une co-mention signifie que l’arme et l’acteur figurent dans la même phrase. C’est une piste, pas une preuve de possession, d’usage ou de fourniture.')}</div></section>
+    <section class="panel"><div class="panel-head"><h2>${icon('globe')}${L('State suppliers · SIPRI', 'Fournisseurs étatiques · SIPRI')}</h2><small>${t?.rows ? `${nf(t.rows)} ${L('records', 'entrées')}` : ''}</small></div><div class="panel-body">
+      ${t?.rows ? t.flows.map(fl => { const max = Math.max(1, ...fl.suppliers.map(s => s.tiv || s.orders)); return `<div class="eyebrow" style="margin:10px 0 6px">${L('To', 'Vers')} ${esc(fl.recipient)}</div>${fl.suppliers.slice(0, 8).map(s => `<div class="rank-row" style="cursor:default" data-tip="${esc(`${s.supplier} → ${fl.recipient}: ${s.orders} ${L('orders', 'commandes')} · TIV ${Number(s.tiv).toFixed(1)}`)}"><span>${esc(s.supplier)}</span>${meter(s.tiv || s.orders, max, 'var(--series-2)')}<b>${s.tiv ? Number(s.tiv).toFixed(0) : s.orders}</b></div>`).join('')}` }).join('') + `<p class="notice">${L('Bars show SIPRI trend-indicator values (TIV) of deliveries, a volume measure, not financial value.', 'Les barres montrent les valeurs TIV du SIPRI, une mesure de volume et non de valeur financière.')}</p>`
+        : `<p style="margin:0 0 10px;color:var(--text-2);font-size:13px">${L('Import the SIPRI Arms Transfers Database to see which states supplied the DRC, Rwanda, Uganda and Burundi.', 'Importez la base SIPRI pour voir quels États ont fourni la RDC, le Rwanda, l’Ouganda et le Burundi.')}</p><ol class="steps"><li>${L('Open', 'Ouvrez')} <a href="https://armstransfers.sipri.org/" target="_blank" rel="noopener noreferrer">armstransfers.sipri.org</a> → Trade Register.</li><li>${L('Recipients: DR Congo, Rwanda, Uganda, Burundi · all years · export CSV.', 'Destinataires : RD Congo, Rwanda, Ouganda, Burundi · toutes années · export CSV.')}</li><li>${L('Save the file into', 'Enregistrez le fichier dans')} <code>${esc(t?.directory || 'data/sipri')}</code>. ${L('It is imported within a minute.', 'Il est importé en moins d’une minute.')}</li></ol>${(t?.sync || []).filter(x => x.error).map(x => `<p class="ev-error">${esc(x.error)}</p>`).join('')}`}
+    </div></section></div>
+    <p class="notice">${esc(d?.notice || '')}</p>`;
+}
+async function openWeapon(id) {
+  state.modal = 'weapon'; state.weapon = { id, data: null, show3d: false };
+  if (location.hash !== '#weapon/' + id) history.replaceState(null, '', '#weapon/' + encodeURIComponent(id));
+  renderWeapon();
+  try { state.weapon.data = await api(`/v1/arms/${encodeURIComponent(id)}`) } catch (e) { state.weapon.error = e.message }
+  if (state.weapon?.id === id) renderWeapon();
+}
+function renderWeapon() {
+  const s = state.weapon; if (!s) return;
+  const d = s.data, it = d?.item, w = d?.wikidata, m = d?.model;
+  let body;
+  if (s.error) body = `<div class="errorbar">${esc(s.error)}</div>`;
+  else if (!d) body = `<div class="loading-line"></div>`;
+  else {
+    const groups = {};
+    for (const x of d.mentions) for (const [g, n] of Object.entries(x.groups || {})) groups[g] = (groups[g] || 0) + n;
+    const g = Object.entries(groups).sort((a, b) => b[1] - a[1]);
+    const ops = w?.operators || [];
+    const regional = ops.filter(o => regionalLabel(o.label?.en || ''));
+    body = `<div class="weapon-hero">${w?.image?.thumb ? `<img src="${esc(w.image.thumb)}" alt="" referrerpolicy="no-referrer">` : m?.thumb ? `<img src="${esc(m.thumb)}" alt="" referrerpolicy="no-referrer">` : ''}</div>${credit(w?.image)}
+      <div class="report-kicker" style="margin-top:12px"><span>${esc(d.category?.[state.lang] || it.category)}</span></div><h1>${esc(it.name)}</h1><p class="dossier-bio">${esc(w?.description?.[state.lang] || w?.description?.en || '')}</p>
+      <div class="actions" style="margin-bottom:12px">${w?.wikipedia?.[state.lang] || w?.wikipedia?.en ? `<a class="btn sm" href="${esc(w.wikipedia[state.lang] || w.wikipedia.en)}" target="_blank" rel="noopener noreferrer">${icon('book')}Wikipedia</a>` : ''}${w ? `<a class="btn sm ghost" href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">Wikidata ${esc(w.qid)}</a>` : ''}</div>
+      <section class="panel" style="padding:14px 16px;margin-bottom:12px"><dl class="props">${factRow(L('Origin', 'Origine'), labelList(w?.origin))}${factRow(L('Manufacturer', 'Fabricant'), labelList(w?.manufacturer))}${factRow(L('In service since', 'En service depuis'), esc(w?.service_entry || w?.inception || ''))}${factRow(L('Regional operators (Wikidata)', 'Utilisateurs régionaux (Wikidata)'), regional.length ? regional.map(o => `<b>${esc(o.label?.[state.lang] || o.label?.en)}</b>`).join(', ') : '')}${factRow(L('All listed operators', 'Tous les utilisateurs'), ops.length ? `<details><summary>${ops.length}</summary>${labelList(ops)}</details>` : '')}${factRow(L('Search terms', 'Termes recherchés'), it.terms.map(esc).join(', '))}</dl></section>
+      ${m ? `<section class="panel model-panel"><div class="panel-head"><h2>${icon('target')}${L('3D model', 'Modèle 3D')}</h2><small>${L('representative of the type', 'représentatif du type')}</small></div>${s.show3d ? `<iframe class="model-frame" title="${esc(m.name)}" src="${esc(m.embed_url)}?autostart=1&ui_theme=${state.theme === 'light' ? 'light' : 'dark'}&dnt=1" allow="autoplay; fullscreen; xr-spatial-tracking" allowfullscreen></iframe>` : `<button class="model-cover" data-act="show-3d">${m.thumb ? `<img src="${esc(m.thumb)}" alt="" referrerpolicy="no-referrer">` : ''}<span class="btn primary">${icon('target')}${L('Load interactive 3D model', 'Charger le modèle 3D')}</span><small>${L('Loads Sketchfab (third-party)', 'Charge Sketchfab (tiers)')}</small></button>`}<div class="credit" style="padding:8px 16px 12px">“${esc(m.name)}” ${L('by', 'par')} <a href="${esc(m.author_url)}" target="_blank" rel="noopener noreferrer">${esc(m.author)}</a> · ${esc(m.license || '')} · <a href="${esc(m.viewer_url)}" target="_blank" rel="noopener noreferrer">Sketchfab</a> · ${L('Not the specific item documented.', 'Pas l’objet précis documenté.')}</div></section>` : ''}
+      ${g.length ? `<h3 class="section-title">${icon('users')}${L('Actors named in the same sentence', 'Acteurs cités dans la même phrase')}</h3><section class="panel" style="padding:12px 16px">${g.map(([k, n]) => `<div class="topic-bar"><span class="tag">${esc(groupName(k))}</span>${meter(n, g[0][1], 'var(--series-1)')}<b>${n}</b></div>`).join('')}</section>` : ''}
+      ${d.transfers.length ? `<h3 class="section-title">${icon('globe')}${L('SIPRI transfer records', 'Transferts SIPRI')}</h3><section class="panel"><div class="matrix-wrap"><table class="table"><thead><tr><th>${L('Supplier', 'Fournisseur')}</th><th>${L('Recipient', 'Destinataire')}</th><th>${L('Designation', 'Désignation')}</th><th>${L('Ordered', 'Commande')}</th><th>${L('Delivered', 'Livraison')}</th></tr></thead><tbody>${d.transfers.slice(0, 100).map(r => `<tr><td>${esc(r.supplier)}</td><td>${esc(r.recipient)}</td><td>${esc(r.designation || '')}<br><small class="muted">${esc(r.description || '')}</small></td><td>${esc(r.ordered || '')} ${r.order_year ? `<small class="muted">(${esc(r.order_year)})</small>` : ''}</td><td>${esc(r.delivered || '')} ${r.delivery_years ? `<small class="muted">(${esc(r.delivery_years)})</small>` : ''}</td></tr>`).join('')}</tbody></table></div></section>` : ''}
+      <h3 class="section-title">${icon('activity')}${L('Mentions in collected sources', 'Mentions dans les sources collectées')} <span class="muted num">${d.mentions.length}</span></h3>
+      ${mentionTimeline(d.mentions)}
+      <section class="panel" style="margin-top:10px">${mentionList(d.mentions, it.terms, '', true)}</section>
+      <p class="notice">${L('Mentions are keyword matches and include general or historical references. Verify each against the source before drawing conclusions.', 'Les mentions sont des correspondances par mots-clés, y compris générales ou historiques. Vérifiez chaque source avant de conclure.')}</p>`;
+  }
+  const top = $('#overlay .drawer')?.scrollTop || 0, had = !!$('#overlay .drawer');
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(it?.name || L('Equipment', 'Équipement'))}"><div class="drawer-top"><span class="eyebrow">${icon('target')}${L('EQUIPMENT', 'ÉQUIPEMENT')}</span><div class="actions">${d ? `<button class="btn sm" data-act="export-weapon">${icon('download')}JSON</button>` : ''}<button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div><div class="drawer-body">${body}</div></section></div>`;
+  if (had) $('#overlay .drawer').scrollTop = top; else $('#overlay [data-act="close"]')?.focus();
+}
+
+// ---------------------------------------------------------------------------------------------
 // Command palette
 
 function paletteItems(q) {
@@ -737,6 +925,8 @@ function paletteItems(q) {
     const h = q.trim().replace(/^@/, '');
     if (validHandle(h)) out.push({ group: L('X accounts', 'Comptes X'), icon: 'user', label: `${L('Open dossier for', 'Ouvrir le dossier de')} @${h}`, run: () => openDossier(h) });
     out.push(...(state.accounts?.items || []).filter(a => norm(a.handle + ' ' + a.name).includes(n.replace(/^@/, ''))).slice(0, 5).map(a => ({ group: L('X accounts', 'Comptes X'), icon: 'user', label: `${a.name} · @${a.handle}`, hint: `${a.posts} ${L('posts', 'publ.')}`, run: () => openDossier(a.handle) })));
+    out.push(...(state.actors?.items || []).filter(a => norm([a.name, ...a.aliases].join(' ')).includes(n)).sort((a, b) => (b.mentions.total || 0) - (a.mentions.total || 0)).slice(0, 5).map(a => ({ group: L('Key figures & sanctions', 'Acteurs et sanctions'), icon: a.sanctioned ? 'flag' : 'user', label: a.name, hint: a.sanctioned ? [...new Set(a.sanctions.map(s => s.list))].join(' · ') : actorDesc(a).slice(0, 40), run: () => openActor(a.id) })));
+    out.push(...(state.arms?.items || []).filter(i => norm([i.name, ...i.terms].join(' ')).includes(n)).slice(0, 4).map(i => ({ group: L('Arms & equipment', 'Armes et équipements'), icon: 'target', label: i.name, hint: `${i.mentions?.total || 0} ${L('mentions', 'mentions')}`, run: () => openWeapon(i.id) })));
     out.push(...placesList().filter(p => norm(p.name + ' ' + p.province).includes(n)).slice(0, 4).map(p => ({ group: L('Places', 'Lieux'), icon: 'pin', label: p.name, hint: `${p.count} ${L('reports', 'articles')}`, run: () => { state.place = p.name; go('situation') } })));
     out.push(...state.items.filter(a => norm(title(a) + ' ' + a.title).includes(n)).sort((a, b) => b.rank.score - a.rank.score).slice(0, 6).map(a => ({ group: L('Reports', 'Articles'), icon: 'layers', label: title(a), hint: `${a.rank.score} · ${age(a.published_at)}`, run: () => openDetail(a.id) })));
     out.push({ group: L('Search', 'Rechercher'), icon: 'search', label: `${L('Search reports for', 'Rechercher dans les articles')} “${q.trim()}”`, run: () => { state.q = q.trim(); go('reports') } });
@@ -762,8 +952,8 @@ function runPalette(i) { const it = state.palette?.items[i]; if (!it) return; cl
 function closeOverlay() {
   evidenceGeneration++;
   if (evidenceBlob) { URL.revokeObjectURL(evidenceBlob); evidenceBlob = null }
-  if (state.dossier && hashAccount()) history.replaceState(null, '', '#' + state.view);
-  state.modal = null; state.detailId = null; state.detail = null; state.dossier = null; state.palette = null;
+  if ((state.dossier && hashAccount()) || (state.actor && hashPart('actor')) || (state.weapon && hashPart('weapon'))) history.replaceState(null, '', '#' + state.view);
+  state.modal = null; state.detailId = null; state.detail = null; state.dossier = null; state.palette = null; state.actor = null; state.weapon = null;
   $('#overlay').innerHTML = ''; document.body.style.overflow = '';
 }
 function settings() {
@@ -817,6 +1007,16 @@ const ACTIONS = {
   'post-more': () => { state.sf.visible += 40; render() },
   'export-posts': () => download('congo-signal-x-posts.json', { exported_at: new Date().toISOString(), filters: state.sf, notice: state.social?.notice, posts: filteredPosts() }),
   account: h => openDossier(h),
+  actor: id => openActor(id),
+  'actor-kind': k => { state.af.kind = k; state.af.visible = 48; render() },
+  'actor-more': () => { state.af.visible += 48; render() },
+  'actor-mkind': k => { state.actor.kind = k; renderActor() },
+  'export-actor': () => { const a = state.actor?.data; if (a) download(`profile-${a.id}.json`, { exported_at: new Date().toISOString(), ...a }) },
+  weapon: id => openWeapon(id),
+  'arms-cat': c => { state.wf.category = c; render() },
+  'show-3d': () => { state.weapon.show3d = true; renderWeapon() },
+  'export-weapon': () => { const d = state.weapon?.data; if (d) download(`equipment-${d.item.id}.json`, { exported_at: new Date().toISOString(), ...d }) },
+  'refresh-reference': async () => { const r = await api('/v1/actors/refresh', {}); toast(r.sync_enabled ? L('Reference refresh queued. Lists and profiles update in the background.', 'Actualisation lancée. Listes et profils se mettent à jour en arrière-plan.') : L('Network sync is disabled on the server (REFERENCE_SYNC=0).', 'Synchronisation réseau désactivée sur le serveur (REFERENCE_SYNC=0).')) },
   hashtag: tag => { closeOverlay(); state.sf.q = '#' + tag; state.sf.visible = 40; go('social') },
   copy: async text => { try { await navigator.clipboard.writeText(text); toast(L('Link copied', 'Lien copié')) } catch { toast(text) } },
   history: () => fetchHistory(),
@@ -855,7 +1055,7 @@ document.addEventListener('click', async e => {
   if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
   if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
   const fn = ACTIONS[el.dataset.act]; if (!fn) return;
-  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand'].includes(el.dataset.act);
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d'].includes(el.dataset.act);
   if (busy) el.disabled = true;
   try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
 });
@@ -903,14 +1103,14 @@ document.addEventListener('keydown', e => {
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
   }
 });
-window.addEventListener('popstate', () => { const v = viewFromHash(); if (v !== state.view) { state.view = v; render() } if (hashAccount()) openDossier(hashAccount()) });
+window.addEventListener('popstate', () => { const v = viewFromHash(); if (v !== state.view) { state.view = v; render() } openFromHash() });
 
 // ---------------------------------------------------------------------------------------------
 // Boot
 
 try { state.geometry = await fetch('/drc.geo.json').then(r => r.json()) } catch {}
 await load();
-if (hashAccount()) openDossier(hashAccount());
+openFromHash();
 setInterval(async () => {
   if (document.hidden || (state.modal && state.modal !== 'detail') || document.activeElement?.matches('input,textarea,select')) return;
   await load();

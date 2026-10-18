@@ -1,0 +1,42 @@
+{
+  "notes": "Curated public figures and organizations. Roles, biographies and images are fetched from Wikidata/Commons; sanctions come only from the official lists. 'enwiki' is the English Wikipedia title used to resolve the Wikidata item; 'terms' are extra mention terms (distinctive surnames or acronyms).",
+  "groups": [
+    {"id": "m23-afc", "en": "M23 / AFC", "fr": "M23 / AFC", "terms": ["M23", "M 23", "AFC", "AFC/M23", "Alliance Fleuve Congo", "Mouvement du 23 mars", "March 23 Movement"]},
+    {"id": "rwanda", "en": "Rwanda · government & RDF", "fr": "Rwanda · gouvernement et RDF", "terms": ["RDF", "Rwanda Defence Force", "Forces rwandaises de défense", "armée rwandaise", "Rwandan army", "Rwandan troops", "troupes rwandaises"]},
+    {"id": "drc-gov", "en": "DRC government & FARDC", "fr": "Gouvernement de la RDC et FARDC", "terms": ["FARDC", "armée congolaise", "Congolese army", "forces armées de la RDC"]},
+    {"id": "drc-politics", "en": "DRC political figures", "fr": "Personnalités politiques de la RDC", "terms": []},
+    {"id": "wazalendo", "en": "Wazalendo & Mai-Mai", "fr": "Wazalendo et Maï-Maï", "terms": ["Wazalendo", "Wazalendu", "Mai-Mai", "Maï-Maï", "Mayi-Mayi", "NDC-R", "Raia Mutomboki", "Nyatura"]},
+    {"id": "fdlr", "en": "FDLR", "fr": "FDLR", "terms": ["FDLR", "FOCA", "Forces démocratiques de libération du Rwanda"]},
+    {"id": "adf", "en": "ADF / ISCAP", "fr": "ADF / ISCAP", "terms": ["ADF", "Allied Democratic Forces", "Forces démocratiques alliées", "ISCAP"]},
+    {"id": "ituri", "en": "Ituri armed groups", "fr": "Groupes armés de l’Ituri", "terms": ["CODECO", "CRP", "FRPI", "FPIC", "UPC", "PUSIC", "FNI"]},
+    {"id": "twirwaneho", "en": "Twirwaneho", "fr": "Twirwaneho", "terms": ["Twirwaneho"]},
+    {"id": "burundi", "en": "Burundi · government & FDNB", "fr": "Burundi · gouvernement et FDNB", "terms": ["FDNB", "armée burundaise", "Burundian army", "Burundian troops", "RED-Tabara", "Red Tabara"]},
+    {"id": "uganda", "en": "Uganda · government & UPDF", "fr": "Ouganda · gouvernement et UPDF", "terms": ["UPDF", "armée ougandaise", "Ugandan army"]},
+    {"id": "international", "en": "UN & regional missions", "fr": "ONU et missions régionales", "terms": ["MONUSCO", "SAMIDRC", "SADC", "EACRF"]},
+    {"id": "minerals", "en": "Minerals & finance networks", "fr": "Réseaux miniers et financiers", "terms": []}
+  ],
+  "people": [
+    {"id": "felix-tshisekedi", "kind": "person", "name": "Félix Tshisekedi", "group": "drc-gov", "enwiki": "Félix Tshisekedi", "terms": ["Tshisekedi"]},
+    {"id": "judith-suminwa", "kind": "person", "name": "Judith Suminwa", "group": "drc-gov", "enwiki": "Judith Suminwa", "terms": ["Suminwa"]},
+    {"id": "joseph-kabila", "kind": "person", "name": "Joseph Kabila", "group": "drc-politics", "enwiki": "Joseph Kabila", "terms": []},
+    {"id": "moise-katumbi", "kind": "person", "name": "Moïse Katumbi", "group": "drc-politics", "enwiki": "Moïse Katumbi", "terms": ["Katumbi"]},
+    {"id": "jean-pierre-bemba", "kind": "person", "name": "Jean-Pierre Bemba", "group": "drc-politics", "enwiki": "Jean-Pierre Bemba", "terms": []},
+    {"id": "paul-kagame", "kind": "person", "name": "Paul Kagame", "group": "rwanda", "enwiki": "Paul Kagame", "terms": ["Kagame"]},
+    {"id": "james-kabarebe", "kind": "person", "name": "James Kabarebe", "group": "rwanda", "enwiki": "James Kabarebe", "terms": ["Kabarebe"]},
+    {"id": "corneille-nangaa", "kind": "person", "name": "Corneille Nangaa", "group": "m23-afc", "enwiki": "Corneille Nangaa", "terms": ["Nangaa"]},
+    {"id": "sultani-makenga", "kind": "person", "name": "Sultani Makenga", "group": "m23-afc", "enwiki": "Sultani Makenga", "terms": ["Makenga"]},
+    {"id": "bertrand-bisimwa", "kind": "person", "name": "Bertrand Bisimwa", "group": "m23-afc", "enwiki": "Bertrand Bisimwa", "terms": ["Bisimwa"]},
+    {"id": "lawrence-kanyuka", "kind": "person", "name": "Lawrence Kanyuka", "group": "m23-afc", "enwiki": null, "terms": ["Kanyuka"]},
+    {"id": "willy-ngoma", "kind": "person", "name": "Willy Ngoma", "group": "m23-afc", "enwiki": null, "terms": []},
+    {"id": "yoweri-museveni", "kind": "person", "name": "Yoweri Museveni", "group": "uganda", "enwiki": "Yoweri Museveni", "terms": ["Museveni"]},
+    {"id": "evariste-ndayishimiye", "kind": "person", "name": "Évariste Ndayishimiye", "group": "burundi", "enwiki": "Évariste Ndayishimiye", "terms": ["Ndayishimiye"]},
+    {"id": "m23", "kind": "organization", "name": "M23 (March 23 Movement)", "group": "m23-afc", "enwiki": "March 23 Movement", "terms": ["M23", "M 23", "Mouvement du 23 mars"], "aliases": ["M23"]},
+    {"id": "afc", "kind": "organization", "name": "Alliance Fleuve Congo (AFC)", "group": "m23-afc", "enwiki": "Congo River Alliance", "terms": ["AFC", "Alliance Fleuve Congo"], "aliases": ["Alliance Fleuve Congo (AFC)"]},
+    {"id": "fardc", "kind": "organization", "name": "FARDC (Armed Forces of the DRC)", "group": "drc-gov", "enwiki": "Armed Forces of the Democratic Republic of the Congo", "terms": ["FARDC"]},
+    {"id": "rdf", "kind": "organization", "name": "Rwanda Defence Force (RDF)", "group": "rwanda", "enwiki": "Rwanda Defence Force", "terms": ["RDF", "Rwanda Defence Force", "Forces rwandaises de défense"]},
+    {"id": "fdlr", "kind": "organization", "name": "FDLR", "group": "fdlr", "enwiki": "Democratic Forces for the Liberation of Rwanda", "terms": ["FDLR"], "aliases": ["Forces Democratiques de Liberation du Rwanda (FDLR)"]},
+    {"id": "adf", "kind": "organization", "name": "Allied Democratic Forces (ADF)", "group": "adf", "enwiki": "Allied Democratic Forces", "terms": ["ADF", "Allied Democratic Forces"], "aliases": ["ADF"]},
+    {"id": "updf", "kind": "organization", "name": "Uganda People’s Defence Force (UPDF)", "group": "uganda", "enwiki": "Uganda People's Defence Force", "terms": ["UPDF"]},
+    {"id": "monusco", "kind": "organization", "name": "MONUSCO", "group": "international", "enwiki": "MONUSCO", "terms": ["MONUSCO"]}
+  ]
+}

@@ -63,7 +63,7 @@ def wait_task(task):
     raise AssertionError('AI task did not finish')
 with tempfile.TemporaryDirectory(prefix='congo-signal-test-') as directory:
     db=Path(directory)/'test.db'
-    env=dict(os.environ,EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'),EVIDENCE_POLL_SECONDS='0',LOAD_DOTENV='0',AI_PROVIDER=PROVIDER,ANTHROPIC_API_KEY='test-only-key',CLAUDE_MODEL='test-model',CLAUDE_API_URL=f'http://127.0.0.1:{mock.server_port}/v1/messages',MAPBOX_PUBLIC_TOKEN='sk.must-never-expose',DATABASE_URL=f'sqlite://{db}',BIND_ADDR=f'127.0.0.1:{port}',AI_ENABLED='1',OLLAMA_URL=f'http://127.0.0.1:{mock.server_port}',OLLAMA_MODEL='test-model',API_TOKEN='integration-test-secret-long')
+    env=dict(os.environ,EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'),EVIDENCE_POLL_SECONDS='0',LOAD_DOTENV='0',REFERENCE_SYNC='0',AI_PROVIDER=PROVIDER,ANTHROPIC_API_KEY='test-only-key',CLAUDE_MODEL='test-model',CLAUDE_API_URL=f'http://127.0.0.1:{mock.server_port}/v1/messages',MAPBOX_PUBLIC_TOKEN='sk.must-never-expose',DATABASE_URL=f'sqlite://{db}',BIND_ADDR=f'127.0.0.1:{port}',AI_ENABLED='1',OLLAMA_URL=f'http://127.0.0.1:{mock.server_port}',OLLAMA_MODEL='test-model',API_TOKEN='integration-test-secret-long')
     env.pop('POLL_SECONDS',None)
     env['X_ENABLED']='0'
     env.pop('X_BEARER_TOKEN',None)

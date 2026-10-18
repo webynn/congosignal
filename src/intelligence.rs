@@ -1,3 +1,4 @@
+use crate::text;
 use crate::{
     ApiError, ApiResult, App,
     extract::{Article, digest},
@@ -13,6 +14,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::{Row, SqlitePool};
+use std::collections::HashMap;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 pub async fn init(db: &SqlitePool) -> Result<()> {
@@ -43,6 +46,81 @@ pub fn fingerprint(a: &Article) -> String {
         .as_bytes(),
     )
 }
+#[derive(Deserialize)]
+struct GazetteerPlace {
+    name: String,
+    province: String,
+    lat: f64,
+    lon: f64,
+    kind: String,
+    major: bool,
+}
+struct Gazetteer {
+    places: Vec<GazetteerPlace>,
+    by_first: HashMap<String, Vec<(usize, Vec<String>)>>,
+}
+static GAZETTEER: LazyLock<Gazetteer> = LazyLock::new(|| {
+    #[derive(Deserialize)]
+    struct File {
+        places: Vec<GazetteerPlace>,
+    }
+    let file: File =
+        serde_json::from_str(include_str!("../config/gazetteer.json")).expect("valid gazetteer");
+    let mut by_first: HashMap<String, Vec<(usize, Vec<String>)>> = HashMap::new();
+    for (i, p) in file.places.iter().enumerate() {
+        let toks = text::tokens(&p.name);
+        if let Some(first) = toks.first() {
+            by_first.entry(first.clone()).or_default().push((i, toks));
+        }
+    }
+    // Longest names first so "Mbanza-Ngungu" wins over "Mbanza".
+    for v in by_first.values_mut() {
+        v.sort_by_key(|(_, t)| std::cmp::Reverse(t.len()));
+    }
+    Gazetteer {
+        places: file.places,
+        by_first,
+    }
+});
+// Words that introduce a location; minor villages only match after one of these.
+const LOCATIVE: &[&str] = &[
+    "a",
+    "au",
+    "aux",
+    "de",
+    "du",
+    "des",
+    "d",
+    "vers",
+    "pres",
+    "depuis",
+    "entre",
+    "dans",
+    "sur",
+    "in",
+    "at",
+    "near",
+    "from",
+    "to",
+    "of",
+    "et",
+    "and",
+    "localite",
+    "village",
+    "territoire",
+    "chefferie",
+    "groupement",
+    "cite",
+    "commune",
+    "ville",
+    "town",
+    "city",
+    "around",
+    "outside",
+    "l",
+    "la",
+    "le",
+];
 #[derive(Serialize)]
 pub struct Place {
     name: &'static str,
@@ -50,39 +128,68 @@ pub struct Place {
     lat: f64,
     lon: f64,
 }
+/// Explicit DRC place mentions from a GeoNames-derived gazetteer (config/gazetteer.json).
+/// Capitalized matches only; a single word next to another capitalized word is treated as part
+/// of a personal name, and unpopulated villages need a locative cue.
 pub fn places(text: &str) -> Vec<Place> {
-    let normalized = text.to_lowercase().replace(['‐', '‑', '–'], "-");
-    [
-        ("Kinshasa", "Kinshasa", -4.32, 15.31),
-        ("Goma", "Nord-Kivu", -1.68, 29.22),
-        ("Bukavu", "Sud-Kivu", -2.51, 28.86),
-        ("Beni", "Nord-Kivu", 0.49, 29.47),
-        ("Butembo", "Nord-Kivu", 0.13, 29.29),
-        ("Walikale", "Nord-Kivu", -1.43, 28.07),
-        ("Bunia", "Ituri", 1.56, 30.25),
-        ("Djugu", "Ituri", 1.92, 30.49),
-        ("Uvira", "Sud-Kivu", -3.40, 29.14),
-        ("Walungu", "Sud-Kivu", -2.69, 28.66),
-        ("Lubumbashi", "Haut-Katanga", -11.66, 27.48),
-        ("Kolwezi", "Lualaba", -10.72, 25.47),
-        ("Kisangani", "Tshopo", 0.51, 25.19),
-        ("Mbandaka", "Équateur", 0.05, 18.26),
-        ("Kananga", "Kasaï-Central", -5.90, 22.42),
-        ("Mbuji-Mayi", "Kasaï-Oriental", -6.15, 23.59),
-        ("Matadi", "Kongo-Central", -5.82, 13.47),
-        ("Popokabaka", "Kwango", -5.71, 16.58),
-        ("Kenge", "Kwango", -4.83, 16.90),
-        ("Kalemie", "Tanganyika", -5.95, 29.19),
-    ]
-    .into_iter()
-    .filter(|(name, _, _, _)| contains_term(&normalized, &name.to_lowercase()))
-    .map(|(name, province, lat, lon)| Place {
-        name,
-        province,
-        lat,
-        lon,
-    })
-    .collect()
+    let g = &*GAZETTEER;
+    let d = text::Doc::new(&text.replace(['‐', '‑', '–'], "-"));
+    let adjacent = |a: usize, b: usize| d.gap(a, b).chars().all(char::is_whitespace);
+    let mut found: Vec<usize> = Vec::new();
+    let mut i = 0;
+    while i < d.tokens.len() {
+        let tok = &d.tokens[i];
+        let hit = if tok.capitalized {
+            g.by_first.get(&tok.folded).and_then(|cands| {
+                cands.iter().find(|(_, name)| {
+                    name.iter()
+                        .enumerate()
+                        .all(|(k, t)| d.tokens.get(i + k).is_some_and(|x| &x.folded == t))
+                })
+            })
+        } else {
+            None
+        };
+        let Some((idx, name)) = hit else {
+            i += 1;
+            continue;
+        };
+        let p = &g.places[*idx];
+        let n = name.len();
+        let prev = i.checked_sub(1).map(|j| &d.tokens[j]);
+        let next = d.tokens.get(i + n);
+        let locative = prev.is_some_and(|t| LOCATIVE.contains(&t.folded.as_str()));
+        let mut ok = true;
+        if n == 1 && !matches!(p.kind.as_str(), "PPLC" | "PPLA") {
+            if prev.is_some_and(|t| t.capitalized && !locative) && adjacent(i - 1, i) {
+                ok = false;
+            }
+            if next.is_some_and(|t| t.capitalized && !g.by_first.contains_key(&t.folded))
+                && adjacent(i, i + 1)
+            {
+                ok = false;
+            }
+        }
+        if ok && !p.major {
+            ok = locative;
+        }
+        if ok && !found.contains(idx) {
+            found.push(*idx);
+        }
+        i += n;
+    }
+    found
+        .into_iter()
+        .map(|i| {
+            let p = &g.places[i];
+            Place {
+                name: p.name.as_str(),
+                province: p.province.as_str(),
+                lat: p.lat,
+                lon: p.lon,
+            }
+        })
+        .collect()
 }
 fn contains_term(text: &str, term: &str) -> bool {
     text.match_indices(term).any(|(i, _)| {
@@ -173,7 +280,7 @@ pub fn rank(a: &Article, brief: Option<&Value>, now: DateTime<Utc>) -> Rank {
             });
         }
     }
-    if !places(&text).is_empty() {
+    if !places(&format!("{} {}", a.title, a.content)).is_empty() {
         reasons.push(Reason {
             code: "geography",
             en: "Recognized DRC place mentioned".into(),
@@ -706,6 +813,18 @@ mod tests {
     fn place_matching_respects_boundaries() {
         assert!(places("bénin et bénéfices").is_empty());
         assert_eq!(places("Beni et Goma").len(), 2);
+        // A surname after a first name is not a village; small villages need a locative cue.
+        assert!(places("Joseph Kabila et Patrick Mutombo").is_empty());
+        let names: Vec<_> =
+            places("Combats à Kitshanga et à Rubaya, près de Sake. Kitshanga Kitshanga")
+                .iter()
+                .map(|p| p.name)
+                .collect();
+        assert_eq!(names, ["Kitshanga", "Rubaya", "Sake"]);
+        assert_eq!(
+            places("La commune de Gombe à Kinshasa")[0].province,
+            "Kinshasa"
+        );
     }
     #[test]
     fn future_article_gets_no_recency_bonus() {

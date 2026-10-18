@@ -1,9 +1,13 @@
+mod actors;
+mod arms;
 mod evidence;
 mod extract;
 mod fetch;
 mod intelligence;
+mod reference;
 mod social;
 mod store;
+mod text;
 
 use anyhow::Result;
 use axum::{
@@ -305,6 +309,9 @@ async fn main() -> Result<()> {
     intelligence::init(&db).await?;
     evidence::init(&db).await?;
     social::init(&db).await?;
+    reference::init(&db).await?;
+    actors::init(&db).await?;
+    arms::init(&db).await?;
     let app = App {
         db: db.clone(),
         token,
@@ -326,6 +333,11 @@ async fn main() -> Result<()> {
             "/v1/social/accounts/{handle}/history",
             post(social::history),
         )
+        .route("/v1/actors", get(actors::list))
+        .route("/v1/actors/refresh", post(actors::refresh))
+        .route("/v1/actors/{id}", get(actors::detail))
+        .route("/v1/arms", get(arms::list))
+        .route("/v1/arms/{id}", get(arms::detail))
         .route("/v1/sources", get(evidence::list))
         .route("/v1/sources/{id}/refresh", post(evidence::refresh))
         .route("/v1/evidence", get(evidence::documents))
@@ -378,7 +390,9 @@ async fn main() -> Result<()> {
         result = worker(db.clone()) => result?,
         result = intelligence::worker(db.clone()) => result?,
         result = evidence::worker(db.clone()) => result?,
-        result = social::worker(db) => result?,
+        result = social::worker(db.clone()) => result?,
+        result = actors::worker(db.clone()) => result?,
+        result = arms::worker(db) => result?,
         result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
     }
     Ok(())
