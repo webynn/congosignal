@@ -57,10 +57,10 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 
 const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
-const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'minerals' || h.startsWith('mine/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'minerals' || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
 const hashPart = prefix => location.hash.startsWith(`#${prefix}/`) ? decodeURIComponent(location.hash.slice(prefix.length + 2)) : '';
-function openFromHash() { if (hashPart('mine')) { state.mineralMode = true; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
+function openFromHash() { if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
 const state = {
   lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
   loaded: false, error: '', items: [], total: 0, limit: 200, status: {}, config: null, ev: null, sources: null, social: null, posts: null, accounts: null, updated: null, geometry: null,
@@ -595,6 +595,7 @@ function mineralFeatures() {
   const q = norm(state.mineralSearch.trim());
   return (state.geology?.features || []).filter(({properties:p}) => state.mineralLayers.includes(p.dataset) &&
     (!state.mineralQuery || p.minerals.includes(state.mineralQuery)) &&
+    (!state.mineralFocusLabels?.length || p.minerals.some(m => state.mineralFocusLabels.includes(m))) &&
     (!state.mineralProvince || p.province === state.mineralProvince) &&
     (!state.mineralKind || p.kind === state.mineralKind) &&
     (!q || norm([p.name,p.province,...p.minerals].join(' ')).includes(q)));
@@ -757,7 +758,7 @@ function marketBoard() {
   const items = (state.commodities?.items || []).filter(c => priceSummary(c));
   if (!state.commodities) return `<div class="timeline-head"><strong>${L('Mineral markets', 'Marchés des minerais')}</strong><span>${L('Market data unavailable or still syncing.', 'Données de marché indisponibles ou en cours de synchronisation.')}</span></div>`;
   return `<div class="timeline-head"><strong>${L('Mineral markets', 'Marchés des minerais')}</strong><span>${L('Benchmarks: World Bank Pink Sheet · no-benchmark minerals: UN Comtrade customs unit values', 'Références : Banque mondiale · minerais sans référence : valeurs unitaires douanières UN Comtrade')}</span></div>
-    <div class="tickers">${items.map(c => { const s = priceSummary(c); return `<button class="ticker ${state.marketCommodity === c.id ? 'active' : ''}" data-act="market" data-arg="${esc(c.id)}"><span class="t-name">${esc(commodityName(c))}</span><span class="t-val"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}</span>${s.history.length > 1 ? spark(s.history.slice(-24), 'var(--signal)', 96, 22) : `<small class="t-note">${esc(s.note)}</small>`}</button>` }).join('') || `<small class="muted">${L('No market data yet.', 'Pas encore de données de marché.')}</small>`}</div>`;
+    <div class="tickers">${items.map(c => { const s = priceSummary(c); return `<button class="ticker ${(state.focus?.commodity || state.marketCommodity) === c.id ? 'active' : ''}" data-act="focus" data-arg="${esc(c.id)}" data-tip="${esc(L('Map this mineral’s mining areas', 'Cartographier les zones minières de ce minerai'))}"><span class="t-name">${esc(commodityName(c))}</span><span class="t-val"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}</span>${s.history.length > 1 ? spark(s.history.slice(-24), 'var(--signal)', 96, 22) : `<small class="t-note">${esc(s.note)}</small>`}</button>` }).join('') || `<small class="muted">${L('No market data yet.', 'Pas encore de données de marché.')}</small>`}</div>`;
 }
 function partnerBars(list, year, max) {
   const top = list.partners[0]?.value_usd || 1;
@@ -811,7 +812,7 @@ function mineDossier(f) {
     <div class="dossier-top"><span class="eyebrow">${esc(p.dataset)} · ${esc(mineralKindLabel(p.kind))}</span><button class="iconbtn" data-act="mineral-close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div>
     <h2 class="mine-name">${esc(p.name)}</h2>
     <div class="mine-place">${esc([p.village, p.territory, p.province].filter(Boolean).join(' · '))}</div>
-    <div class="chips" style="margin:10px 0">${p.minerals.map(m => `<span class="chip mineral-chip">${esc(m)}</span>`).join('')}${q ? `<span class="badge ${q[0]}" data-tip="${esc(L('DRC Ministry of Mines site qualification at the latest IPIS visit (green: validated; yellow: issues to remedy; red: non-compliant).', 'Qualification du site par le ministère des Mines lors de la dernière visite IPIS (vert : validé ; jaune : à corriger ; rouge : non conforme).'))}">${L('Qualification', 'Qualification')} · ${q[1]}</span>` : ''}${p.traceability ? `<span class="badge good" data-tip="${esc(L('Mineral traceability scheme recorded for the site', 'Système de traçabilité enregistré pour le site'))}">${esc(p.traceability)}</span>` : ''}</div>
+    <div class="chips" style="margin:10px 0">${p.minerals.map(m => `<button class="chip mineral-chip" data-act="focus" data-arg="${esc(commodityFor(m)?.id || m)}" data-tip="${esc(L('Map all mining areas for this mineral', 'Cartographier toutes les zones de ce minerai'))}">${esc(m)}</button>`).join('')}${q ? `<span class="badge ${q[0]}" data-tip="${esc(L('DRC Ministry of Mines site qualification at the latest IPIS visit (green: validated; yellow: issues to remedy; red: non-compliant).', 'Qualification du site par le ministère des Mines lors de la dernière visite IPIS (vert : validé ; jaune : à corriger ; rouge : non conforme).'))}">${L('Qualification', 'Qualification')} · ${q[1]}</span>` : ''}${p.traceability ? `<span class="badge good" data-tip="${esc(L('Mineral traceability scheme recorded for the site', 'Système de traçabilité enregistré pour le site'))}">${esc(p.traceability)}</span>` : ''}</div>
     ${(p.trade || []).length ? `<section class="route"><div class="eyebrow" style="margin-bottom:8px">${L('Trade route · latest IPIS visit', 'Circuit commercial · dernière visite IPIS')}</div>${p.trade.map(t => `<div class="route-row"><span class="route-node mine">${esc(t.mineral)}</span><i>→</i><span class="route-node" data-tip="${esc(L('Selling points: where the mineral is first sold', 'Points de vente : premier lieu de vente'))}">${esc(t.selling_points || '—')}</span><i>→</i><span class="route-node dest" data-tip="${esc(L('Final destination recorded by IPIS', 'Destination finale enregistrée par IPIS'))}">${esc(t.final_destination || '—')}</span></div>`).join('')}</section>` : ''}
     <section class="panel" style="padding:12px 16px;margin:12px 0"><dl class="props">${facts}</dl></section>
     ${commodities.map(c => commodityCard(c, p)).join('')}
@@ -830,7 +831,7 @@ function marketPanel() {
     <div class="eyebrow">${L('MARKET INTELLIGENCE', 'RENSEIGNEMENT DE MARCHÉ')}</div><h2 class="mine-name">${esc(commodityName(c))}</h2>
     <div class="chips" style="margin:8px 0 12px">${all.filter(x => priceSummary(x)).map(x => `<button class="chip ${x.id === c.id ? 'active' : ''}" data-act="market" data-arg="${esc(x.id)}">${esc(commodityName(x))}</button>`).join('')}</div>
     ${s ? `<section class="panel" style="padding:14px 16px;margin-bottom:12px"><div class="price-line big"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}</div><div class="muted" style="font-size:11.5px;margin-bottom:8px">${esc(s.note)}</div>${c.price?.history?.length > 1 ? areaChart(c.price.history.slice(-36).map(h => ({ value: h.value, tip: `${h.period} · ${usd(h.value)} ${c.price.unit.replace('$', '')}` })), 'var(--signal)', 70) : ''}</section>` : ''}
-    <div class="actions" style="margin-bottom:12px"><button class="btn sm" data-act="market-sites" data-arg="${esc(c.id)}">${icon('pin')}${L('Show', 'Afficher')} ${nf(siteCount)} ${L('sites on map', 'sites sur la carte')}</button></div>
+    <div class="actions" style="margin-bottom:12px"><button class="btn sm primary" data-act="focus" data-arg="${esc(c.id)}">${icon('map')}${L('Map', 'Cartographier')} ${nf(siteCount)} ${L('sites & mining areas', 'sites et zones minières')}</button></div>
     ${c.hs.map(h => `<section class="panel market-card"><div class="panel-head"><h2>${esc(h[state.lang] || h.en)}</h2><small>HS ${esc(h.code)}</small></div><div class="panel-body">${buyersBlock(h, 10)}</div></section>`).join('')}
     <p class="notice">${esc(state.commodities?.notice || '')}</p>
     <p class="muted" style="font-size:11px">${(state.commodities?.sources || []).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a> · ${esc(s.license)}`).join('<br>')}</p></div>`;
@@ -852,11 +853,11 @@ function mineralsSituation() {
     <section class="stage"><div class="map-area">${mapSVG([])}
       <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i></div>
       <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
-      <div class="map-float tl glass"><strong>${sel ? esc(sel.properties.name) : L('Mineral & geological map', 'Carte minière et géologique')}</strong>${nf(fs.length)} ${L('sites', 'sites')} · IPIS · USGS · Macrostrat</div>
+      <div class="map-float tl glass ${state.focus ? 'focus-tag' : ''}" ${state.focus ? `style="--focus:${state.focus.hex}"` : ''}><strong>${sel ? esc(sel.properties.name) : state.focus ? `<i class="swatch" style="background:${state.focus.hex}"></i>${esc(state.focus.name)}` : L('Mineral & geological map', 'Carte minière et géologique')}</strong>${state.focus ? `${nf(state.focus.sites)} ${L('sites', 'sites')} · ${state.focus.areas.length} ${L('mining areas', 'zones minières')} · ${[...new Set(state.focus.areas.flatMap(a => a.provinces))].length} ${L('provinces', 'provinces')}` : `${nf(fs.length)} ${L('sites', 'sites')} · IPIS · USGS · Macrostrat`}</div>
       <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button class="active" data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels', 'Afficher les panneaux') : L('Expand map', 'Agrandir')}</button><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
       ${state.geoUnit ? geoUnitCard(state.geoUnit) : `<div class="map-float bl glass">${L('Click the map for bedrock geology; click a site for its dossier. Sites are historical records, not current operations.', 'Cliquez sur la carte pour la géologie ; sur un site pour son dossier. Les sites sont des références historiques.')}</div>`}
     </div><div class="timeline market-board">${marketBoard()}</div></section>
-    <aside class="rail-pane">${sel ? mineDossier(sel) : marketPanel()}</aside>
+    <aside class="rail-pane">${sel ? mineDossier(sel) : state.focus ? focusPanel() : marketPanel()}</aside>
   </div>`;
 }
 function geoUnitCard(u) {
@@ -885,7 +886,11 @@ function mountGeology() {
   try { mountGeologyLayers(map) } catch {}
 }
 function mountGeologyLayers(map) {
-  const before = ['drc-border', 'mineral-clusters', 'mineral-sites'].find(l => map.getLayer(l));
+  // Geology and relief sit beneath every Congo Signal layer (outline, focus mask, sites), whatever
+  // order those were added in; a mis-ordered stack is corrected on the next mount.
+  const ours = ['drc-fill', 'drc-border', 'focus-mask', 'focus-fill', 'focus-glow', 'focus-line', 'focus-active', 'focus-labels', 'mineral-clusters', 'mineral-counts', 'mineral-sites', 'mineral-selection'];
+  const order = () => map.getStyle().layers.map(l => l.id);
+  const before = order().find(id => ours.includes(id));
   if (!map.getSource('macrostrat')) {
     map.addSource('macrostrat', { type: 'raster', tiles: ['https://tiles.macrostrat.org/carto/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 10, attribution: '© <a href="https://macrostrat.org" target="_blank" rel="noopener">Macrostrat</a> (CC BY 4.0)' });
     map.addLayer({ id: 'geology', type: 'raster', source: 'macrostrat', paint: { 'raster-opacity': state.geoOpacity, 'raster-saturation': -0.25, 'raster-contrast': 0.05, 'raster-fade-duration': 150 } }, before);
@@ -894,6 +899,8 @@ function mountGeologyLayers(map) {
     map.addSource('terrain-dem', { type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14 });
     map.addLayer({ id: 'relief', type: 'hillshade', source: 'terrain-dem', paint: { 'hillshade-exaggeration': 0.55, 'hillshade-shadow-color': '#05080a', 'hillshade-highlight-color': 'rgba(255,255,255,0.18)' } }, before);
   }
+  const ids = order();
+  if (before && ids.indexOf('geology') > ids.indexOf(before)) { map.moveLayer('geology', before); map.moveLayer('relief', before) }
   const on = state.mineralMode && state.view === 'situation';
   map.setLayoutProperty('geology', 'visibility', on && state.geoOverlay ? 'visible' : 'none');
   map.setPaintProperty('geology', 'raster-opacity', state.geoOpacity);
@@ -901,6 +908,213 @@ function mountGeologyLayers(map) {
   if (map.getLayer('drc-fill')) map.setPaintProperty('drc-fill', 'fill-opacity', on ? 0 : 0.04);
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// Mineral focus: group a mineral's sites into mining areas, outline them, spotlight and tour.
+
+// focus-geometry:start — pure functions (tested in tests/mineral_focus.cjs)
+const FOCUS_LINK_KM = 20, FOCUS_MIN_SITES = 3;
+function kmBetween(a, b) {
+  const rad = Math.PI / 180, dlat = (b[1] - a[1]) * rad, dlon = (b[0] - a[0]) * rad;
+  const h = Math.sin(dlat / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin(dlon / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(Math.min(1, h)));
+}
+/// Single-linkage clusters: sites within `linkKm` of each other chain into one area (grid-indexed).
+function clusterSites(features, linkKm = FOCUS_LINK_KM) {
+  const n = features.length, parent = [...Array(n).keys()];
+  const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  const cell = linkKm / 111, grid = new Map();
+  features.forEach((f, i) => {
+    const [x, y] = f.geometry.coordinates, key = `${Math.floor(x / cell)}:${Math.floor(y / cell)}`;
+    (grid.get(key) || grid.set(key, []).get(key)).push(i);
+  });
+  features.forEach((f, i) => {
+    const [x, y] = f.geometry.coordinates, cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      for (const j of grid.get(`${cx + dx}:${cy + dy}`) || []) {
+        if (j > i && kmBetween(f.geometry.coordinates, features[j].geometry.coordinates) <= linkKm) {
+          const a = find(i), b = find(j); if (a !== b) parent[a] = b;
+        }
+      }
+    }
+  });
+  const groups = new Map();
+  features.forEach((f, i) => { const r = find(i); (groups.get(r) || groups.set(r, []).get(r)).push(f) });
+  return [...groups.values()];
+}
+function convexHull(points) {
+  const p = [...new Map(points.map(q => [q.join(','), q])).values()].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (p.length < 3) return p;
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower = [], upper = [];
+  for (const q of p) { while (lower.length >= 2 && cross(lower.at(-2), lower.at(-1), q) <= 0) lower.pop(); lower.push(q) }
+  for (const q of [...p].reverse()) { while (upper.length >= 2 && cross(upper.at(-2), upper.at(-1), q) <= 0) upper.pop(); upper.push(q) }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+/// Rounded outline around an area: the convex hull of small circles (radius `padKm`) placed on the
+/// hull of its sites — a buffered hull, so single sites and straight lines still get a body.
+function areaOutline(points, padKm = 7) {
+  const cy = points.reduce((s, q) => s + q[1], 0) / points.length;
+  const kx = 1 / (111.32 * Math.cos(cy * Math.PI / 180)), ky = 1 / 110.57;
+  const around = convexHull(points).flatMap(q => [...Array(16).keys()].map(k => [q[0] + Math.cos(k / 8 * Math.PI) * padKm * kx, q[1] + Math.sin(k / 8 * Math.PI) * padKm * ky]));
+  const ring = convexHull(around).map(q => [Math.round(q[0] * 1e5) / 1e5, Math.round(q[1] * 1e5) / 1e5]);
+  return [...ring, ring[0]];
+}
+function ringAreaKm2(ring) {
+  const lat0 = ring.reduce((s, q) => s + q[1], 0) / ring.length, kx = 111.32 * Math.cos(lat0 * Math.PI / 180), ky = 110.57;
+  let a = 0;
+  for (let i = 0; i < ring.length - 1; i++) a += ring[i][0] * kx * ring[i + 1][1] * ky - ring[i + 1][0] * kx * ring[i][1] * ky;
+  return Math.abs(a / 2);
+}
+const signedArea = ring => ring.slice(0, -1).reduce((s, q, i) => s + q[0] * ring[i + 1][1] - ring[i + 1][0] * q[1], 0) / 2;
+/// Mining areas for a mineral. Sites are grouped by territory (IPIS) or province (USGS, which has
+/// no territory), then chained within FOCUS_LINK_KM; areas need FOCUS_MIN_SITES sites. Grouping by
+/// administrative unit first keeps dense mineral belts from merging into one region-sized blob.
+function mineralAreas(features) {
+  const groups = new Map();
+  for (const f of features) {
+    const p = f.properties, key = `${p.province || '—'}|${p.territory || ''}`;
+    (groups.get(key) || groups.set(key, []).get(key)).push(f);
+  }
+  return [...groups.values()].flatMap(g => clusterSites(g)).filter(g => g.length >= FOCUS_MIN_SITES).map(g => {
+    const pts = g.map(f => f.geometry.coordinates);
+    const ring = areaOutline(pts);
+    const top = (field) => [...g.reduce((m, f) => { const v = f.properties[field]; return v ? m.set(v, (m.get(v) || 0) + 1) : m }, new Map())].sort((a, b) => b[1] - a[1]).map(x => x[0]);
+    const provinces = top('province'), territories = top('territory');
+    const xs = ring.map(q => q[0]), ys = ring.map(q => q[1]);
+    return { sites: g, count: g.length, ring, provinces: provinces.length ? provinces : ['—'], province: provinces[0] || '—', territory: territories[0] || null,
+      name: territories[0] ? `${territories[0]} · ${provinces[0]}` : provinces[0] || '—',
+      bbox: [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], km2: ringAreaKm2(ring),
+      centroid: [pts.reduce((s, q) => s + q[0], 0) / pts.length, pts.reduce((s, q) => s + q[1], 0) / pts.length] };
+  }).sort((a, b) => b.count - a.count);
+}
+/// A world polygon with the areas cut out, to dim everything outside them. Overlapping outlines are
+/// merged (hull of their union) first: overlapping holes make an invalid polygon that is not drawn.
+function spotlightMask(areas) {
+  const bbox = r => { const xs = r.map(q => q[0]), ys = r.map(q => q[1]); return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
+  const overlap = (a, b) => a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
+  let rings = areas.map(a => a.ring.slice(0, -1));
+  for (let merged = true; merged;) {
+    merged = false;
+    outer: for (let i = 0; i < rings.length; i++) for (let j = i + 1; j < rings.length; j++) {
+      if (overlap(bbox(rings[i]), bbox(rings[j]))) { rings[i] = convexHull([...rings[i], ...rings[j]]); rings.splice(j, 1); merged = true; break outer }
+    }
+  }
+  const outer = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]];
+  const holes = rings.map(r => [...r, r[0]]).map(r => signedArea(r) > 0 ? [...r].reverse() : r);
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [outer, ...holes] } };
+}
+// focus-geometry:end
+
+const FOCUS_COLORS = { gold: '#f5c542', tin: '#5fd0ff', tantalum: '#c084fc', tungsten: '#9fb4c8', copper: '#ff8a3d', cobalt: '#4f8cff', diamonds: '#e8eef5', zinc: '#a3e635', manganese: '#f472b6', silver: '#cbd5e1', oil: '#facc15' };
+let focusTour = 0;
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+/// Focus a mineral by commodity id or by a raw site label (e.g. "Tourmaline").
+function focusMineral(key) {
+  const c = state.commodities?.items?.find(x => x.id === key);
+  const labels = c ? c.labels : [key];
+  const present = new Set((state.geology?.features || []).flatMap(f => f.properties.minerals));
+  const usable = labels.filter(l => present.has(l));
+  if (!usable.length) { toast(L('No mapped sites for this mineral.', 'Aucun site cartographié pour ce minerai.')); return }
+  const sites = (state.geology?.features || []).filter(f => state.mineralLayers.includes(f.properties.dataset) && f.properties.minerals.some(m => usable.includes(m)));
+  const areas = mineralAreas(sites);
+  state.focus = { key, commodity: c?.id || null, name: c ? commodityName(c) : key, labels: usable, color: FOCUS_COLORS[c?.id] || 'var(--accent)', hex: FOCUS_COLORS[c?.id] || '#c6f36b', sites: sites.length, areas, active: -1 };
+  state.mineralFocusLabels = usable; state.mineralQuery = ''; state.mineralSelected = ''; state.geoUnit = null;
+  if (c) state.marketCommodity = c.id;
+  state.mineralMode = true;
+  history.replaceState(null, '', '#focus/' + encodeURIComponent(key));
+  if (state.view !== 'situation') go('situation'); else render();
+  playFocusTour();
+}
+function exitFocus() {
+  focusTour++;
+  state.focus = null; state.mineralFocusLabels = [];
+  history.replaceState(null, '', '#minerals');
+  render();
+  mapInstance?.easeTo({ pitch: state.tilt ? 55 : 0, bearing: 0, duration: reducedMotion() ? 0 : 900 });
+  mapInstance?.fitBounds([[12, -13.6], [31.4, 5.5]], { padding: 40, duration: reducedMotion() ? 0 : 1400 });
+}
+const moveDone = map => new Promise(r => map.once('moveend', r));
+const pause = ms => new Promise(r => setTimeout(r, ms));
+function markActiveArea(i) {
+  if (!state.focus) return;
+  state.focus.active = i;
+  $$('[data-area]').forEach(el => el.classList.toggle('active', Number(el.dataset.area) === i));
+  try { mapInstance?.setFilter('focus-active', ['==', ['get', 'rank'], i]) } catch {}
+}
+function allAreasBounds(areas) {
+  const xs = areas.flatMap(a => [a.bbox[0][0], a.bbox[1][0]]), ys = areas.flatMap(a => [a.bbox[0][1], a.bbox[1][1]]);
+  return [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]];
+}
+/// Overview of all areas, then fly through the largest ones with a slight tilt, then back.
+async function playFocusTour(onlyIndex) {
+  const token = ++focusTour, map = mapInstance, f = state.focus;
+  if (!map || !f?.areas.length) return;
+  const still = () => token === focusTour && state.focus === f && mapInstance === map;
+  const fast = reducedMotion();
+  const fly = async (bounds, opts = {}) => { map.fitBounds(bounds, { padding: 90, maxZoom: 9.5, duration: fast ? 0 : 2200, essential: true, ...opts }); if (!fast) await moveDone(map) };
+  if (onlyIndex != null) { markActiveArea(onlyIndex); await fly(f.areas[onlyIndex].bbox, { pitch: fast ? 0 : 40, bearing: fast ? 0 : -12 }); return }
+  markActiveArea(-1);
+  await fly(allAreasBounds(f.areas), { pitch: 0, bearing: 0, duration: fast ? 0 : 1800, maxZoom: 7 });
+  if (fast || f.areas.length < 2 || !still()) return;
+  await pause(900);
+  for (let i = 0; i < Math.min(6, f.areas.length) && still(); i++) {
+    markActiveArea(i);
+    await fly(f.areas[i].bbox, { pitch: 42, bearing: (i % 2 ? 14 : -14), duration: 2600 });
+    if (!still()) return;
+    await pause(1500);
+  }
+  if (!still()) return;
+  markActiveArea(-1);
+  await fly(allAreasBounds(f.areas), { pitch: 0, bearing: 0, duration: 2000, maxZoom: 7 });
+}
+/// Spotlight mask, area fills, glowing outlines and numbered labels for the focused mineral.
+function mountFocus() {
+  const map = mapInstance; if (!map) return;
+  try {
+    const f = state.mineralMode && state.view === 'situation' ? state.focus : null;
+    const areas = f?.areas || [];
+    const polys = { type: 'FeatureCollection', features: areas.map((a, i) => ({ type: 'Feature', properties: { rank: i, label: `${i + 1} · ${a.province} · ${a.count}` }, geometry: { type: 'Polygon', coordinates: [a.ring] } })) };
+    const labels = { type: 'FeatureCollection', features: areas.map((a, i) => ({ type: 'Feature', properties: { rank: i, label: `${i + 1}  ${(a.territory || a.province).toUpperCase()}`, sub: `${a.territory ? a.province + ' · ' : ''}${a.count} ${L('sites', 'sites')}` }, geometry: { type: 'Point', coordinates: a.centroid } })) };
+    const mask = { type: 'FeatureCollection', features: areas.length ? [spotlightMask(areas)] : [] };
+    const signature = JSON.stringify([f?.key, areas.length, f?.hex]);
+    if (!map.getSource('focus-areas')) {
+      map.addSource('focus-mask', { type: 'geojson', data: mask });
+      map.addSource('focus-areas', { type: 'geojson', data: polys });
+      map.addSource('focus-labels', { type: 'geojson', data: labels });
+      const before = ['mineral-clusters', 'mineral-sites'].find(l => map.getLayer(l));
+      map.addLayer({ id: 'focus-mask', type: 'fill', source: 'focus-mask', paint: { 'fill-color': '#02060a', 'fill-opacity': 0.55 } }, before);
+      map.addLayer({ id: 'focus-fill', type: 'fill', source: 'focus-areas', paint: { 'fill-color': '#c6f36b', 'fill-opacity': 0.1 } }, before);
+      map.addLayer({ id: 'focus-glow', type: 'line', source: 'focus-areas', paint: { 'line-color': '#c6f36b', 'line-width': 9, 'line-blur': 7, 'line-opacity': 0.55 } }, before);
+      map.addLayer({ id: 'focus-line', type: 'line', source: 'focus-areas', paint: { 'line-color': '#c6f36b', 'line-width': 1.8 } }, before);
+      map.addLayer({ id: 'focus-active', type: 'line', source: 'focus-areas', filter: ['==', ['get', 'rank'], -1], paint: { 'line-color': '#ffffff', 'line-width': 2.6, 'line-dasharray': [2, 1.2] } }, before);
+      map.addLayer({ id: 'focus-labels', type: 'symbol', source: 'focus-labels', layout: { 'text-field': ['format', ['get', 'label'], { 'font-scale': 0.95 }, '\n', {}, ['get', 'sub'], { 'font-scale': 0.78 }], 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'], 'text-size': 12, 'text-letter-spacing': 0.08, 'text-allow-overlap': false, 'text-variable-anchor': ['top', 'bottom', 'left', 'right'], 'text-radial-offset': 1.2 }, paint: { 'text-color': '#ffffff', 'text-halo-color': '#02060a', 'text-halo-width': 1.6 } });
+      map.__focusSignature = '';
+    }
+    if (map.__focusSignature !== signature) {
+      map.getSource('focus-mask').setData(mask);
+      map.getSource('focus-areas').setData(polys);
+      map.getSource('focus-labels').setData(labels);
+      for (const id of ['focus-fill', 'focus-glow', 'focus-line']) map.setPaintProperty(id, id === 'focus-fill' ? 'fill-color' : 'line-color', f?.hex || '#c6f36b');
+      map.__focusSignature = signature;
+    }
+    map.setFilter('focus-active', ['==', ['get', 'rank'], f?.active ?? -1]);
+  } catch {}
+}
+function focusPanel() {
+  const f = state.focus, c = state.commodities?.items?.find(x => x.id === f.commodity);
+  const s = c ? priceSummary(c) : null, h = c ? mainTrade(c) : null;
+  const provinces = [...new Set(f.areas.flatMap(a => a.provinces))];
+  return `<div class="mine-dossier focus-panel" data-scroll="focus" style="--focus:${f.hex}">
+    <div class="dossier-top"><span class="eyebrow"><i class="swatch" style="background:${f.hex}"></i>${L('MINERAL FOCUS', 'FOCUS MINERAI')}</span><button class="iconbtn" data-act="focus-exit" aria-label="${L('Exit focus', 'Quitter le focus')}">${icon('close')}</button></div>
+    <h2 class="mine-name">${esc(f.name)}</h2>
+    <div class="focus-stats"><div><b class="num">${nf(f.sites)}</b><small>${L('sites', 'sites')}</small></div><div><b class="num">${f.areas.length}</b><small>${L('mining areas', 'zones minières')}</small></div><div><b class="num">${provinces.length}</b><small>${L('provinces', 'provinces')}</small></div></div>
+    <div class="actions" style="margin:10px 0 14px"><button class="btn sm primary" data-act="focus-tour">${icon('globe')}${L('Replay tour', 'Rejouer la visite')}</button><button class="btn sm" data-act="focus-overview">${L('All areas', 'Toutes les zones')}</button><button class="linkbtn" data-act="focus-exit">${L('Exit focus', 'Quitter')}</button></div>
+    <div class="eyebrow" style="margin-bottom:6px">${L('Mining areas · sites within', 'Zones minières · sites à moins de')} ${FOCUS_LINK_KM} km</div>
+    <div class="area-list">${f.areas.map((a, i) => { const kinds = countBy(a.sites, x => x.properties.kind).map(([k, n]) => `${n} ${mineralKindLabel(k).toLowerCase()}`).join(' · '); return `<button class="area-row ${f.active === i ? 'active' : ''}" data-area="${i}" data-act="focus-area" data-arg="${i}"><b class="area-rank">${i + 1}</b><div><strong>${esc(a.name)}</strong><small>${esc(kinds)}</small><small class="muted">${esc(a.sites.slice(0, 3).map(x => x.properties.name).join(', '))}${a.count > 3 ? '…' : ''}</small></div><div class="area-n"><b class="num">${nf(a.count)}</b><small class="num">${nf(Math.round(a.km2))} km²</small></div></button>` }).join('') || `<p class="muted">${L('Sites are too scattered to form areas of 3+ sites.', 'Sites trop dispersés pour former des zones de 3 sites ou plus.')}</p>`}</div>
+    ${c ? `<section class="panel market-card"><div class="panel-head"><h2>${L('Market', 'Marché')}</h2><button class="linkbtn" data-act="market-open" data-arg="${esc(c.id)}">${L('Full market', 'Marché complet')} →</button></div><div class="panel-body">${s ? `<div class="price-line"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}<span class="grow"></span>${s.history.length > 1 ? spark(s.history.slice(-24), 'var(--signal)', 120, 28) : ''}</div><div class="muted" style="font-size:11.5px">${esc(s.note)}</div>` : ''}<div class="eyebrow" style="margin:12px 0 6px">${L('Who buys', 'Qui achète')}</div>${buyersBlock(h, 5)}</div></section>` : ''}
+    <p class="notice">${L('Areas group historical site records by proximity; outlines are drawn around those sites with a small margin. They are not concession boundaries, deposits or zones of control.', 'Les zones regroupent des références historiques par proximité ; les contours entourent ces sites avec une marge. Ce ne sont ni des concessions, ni des gisements, ni des zones de contrôle.')}</p></div>`;
+}
 
 function mapSVG(ps) {
   if (state.config?.mapbox_public_token && window.mapboxgl && !mapFailed) return '<div id="map-slot"></div>';
@@ -932,6 +1146,9 @@ function mountMap() {
       mapInstance.on('error', () => { if (!mapInstance?.isStyleLoaded()) { mapFailed = true; mapInstance?.remove(); mapInstance = null; mapHost = null; render() } });
       mapInstance.on('idle', mountMinerals);
       mapInstance.on('idle', mountGeology);
+      mapInstance.on('idle', mountFocus);
+      // Any manual pan or zoom hands control back to the analyst.
+      for (const ev of ['dragstart', 'wheel', 'touchstart']) mapInstance.on(ev, () => { focusTour++ });
       mapInstance.on('click', 'mineral-sites', mineralPopup);
       mapInstance.on('click', 'mineral-clusters', mineralCluster);
       for (const layer of ['mineral-sites','mineral-clusters']) {
@@ -946,7 +1163,7 @@ function mountMap() {
       });
       mapInstance.on('style.load', () => {
         mountMinerals();
-        setTimeout(mountGeology, 0);
+        setTimeout(() => { mountGeology(); mountFocus() }, 0);
         if (state.geometry && !mapInstance.getSource('drc-outline')) {
           const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c8dd91';
           mapInstance.addSource('drc-outline', { type: 'geojson', data: state.geometry });
@@ -960,6 +1177,7 @@ function mountMap() {
   requestAnimationFrame(() => mapInstance?.resize());
   mountMinerals();
   mountGeology();
+  mountFocus();
   if (state.mineralMode) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; markerSignature = ''; return }
   const linked = situationItems(true);
   const places = placesList(linked);
@@ -1423,7 +1641,7 @@ const ACTIONS = {
   'mineral-reset': () => {Object.assign(state,{mineralSearch:'',mineralQuery:'',mineralProvince:'',mineralKind:'',mineralSelected:'',mineralVisible:15,mineralLayers:['IPIS','USGS']});render()},
   'mineral-export': () => {const f=selectedMineral();if(f) download('congo-signal-site.json',{...f,metadata:state.geology.metadata})},
   'map-focus': () => {state.mapFocus=!state.mapFocus;render()},
-  'map-mode': m => { state.mineralMode = m === 'minerals'; state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
+  'map-mode': m => { state.mineralMode = m === 'minerals'; if (!state.mineralMode) { focusTour++; state.focus = null; state.mineralFocusLabels = [] } state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
   market: id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
   'market-open': id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
   'market-sites': id => {
@@ -1432,6 +1650,11 @@ const ACTIONS = {
     state.mineralQuery = c.labels.find(l => present.has(l)) || ''; state.mineralSelected = ''; render(); fitMinerals();
   },
   'geo-close': () => { state.geoUnit = null; render() },
+  focus: key => focusMineral(key),
+  'focus-exit': () => exitFocus(),
+  'focus-tour': () => playFocusTour(),
+  'focus-area': i => playFocusTour(Number(i)),
+  'focus-overview': () => { focusTour++; markActiveArea(-1); if (state.focus?.areas.length) mapInstance?.fitBounds(allAreasBounds(state.focus.areas), { padding: 90, maxZoom: 7, pitch: 0, bearing: 0, duration: reducedMotion() ? 0 : 1600 }) },
   'geology-archive': () => geologyArchive(),
   'geology-export': () => download('congo-signal-minerals.geojson', {type:'FeatureCollection',metadata:state.geology?.metadata,features:mineralFeatures()}),
   report: id => openDetail(id),
@@ -1508,7 +1731,7 @@ document.addEventListener('click', async e => {
   if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
   if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
   const fn = ACTIONS[el.dataset.act]; if (!fn) return;
-  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close'].includes(el.dataset.act);
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview'].includes(el.dataset.act);
   if (busy) el.disabled = true;
   try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
 });

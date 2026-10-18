@@ -924,3 +924,22 @@ body {
 /* The stage must not grow past its column (wide market board / ticker rows). */
 .stage { grid-template-columns: minmax(0, 1fr); }
 .market-board { min-width: 0; overflow: hidden; }
+
+/* Mineral focus */
+.focus-panel .swatch { width: 10px; height: 10px; }
+.focus-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.focus-stats div { padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--focus) 7%, var(--panel-2)); }
+.focus-stats b { display: block; font-size: 20px; font-weight: 500; color: var(--text); }
+.focus-stats small { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; font-family: var(--mono); }
+.area-list { display: grid; gap: 4px; margin-bottom: 12px; }
+.area-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel-2); text-align: left; color: inherit; transition: border-color .15s, background .15s, box-shadow .15s; }
+.area-row:hover { border-color: var(--line-strong); }
+.area-row.active { border-color: var(--focus); background: color-mix(in srgb, var(--focus) 10%, var(--panel-2)); box-shadow: 0 0 22px -10px var(--focus); }
+.area-rank { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font: 600 11px var(--mono); color: #02060a; background: var(--focus); }
+.area-row strong { display: block; font-size: 13px; }
+.area-row small { display: block; font-size: 11px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.area-n { text-align: right; }
+.area-n b { display: block; font-size: 14px; font-weight: 500; }
+.area-n small { font-size: 10.5px; color: var(--muted); }
+.focus-tag { border-color: color-mix(in srgb, var(--focus) 60%, var(--line-strong)); box-shadow: 0 0 26px -10px var(--focus); }
+.focus-tag strong { display: flex; align-items: center; gap: 8px; }

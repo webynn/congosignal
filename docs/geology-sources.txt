@@ -141,3 +141,24 @@ Site dossier additions (scripts/import_geology.py):
 - "Indicative capacity value" = nameplate capacity × latest benchmark price,
   only for mass/volume units with a benchmark. It is a ceiling for
   orientation, not production, revenue, reserves or current output.
+
+MINERAL FOCUS (added 18 October 2026)
+Click a mineral (market ticker, market chip, a mineral tag in a site dossier,
+or "Map … sites & mining areas"), or open /#focus/<commodity id or label>.
+- Sites of that mineral (respecting the IPIS/USGS toggles) are grouped into
+  mining areas: by territory (IPIS) or province (USGS, no territory field),
+  then single-linkage within 20 km; areas need at least 3 sites. Grouping by
+  administrative unit first stops dense belts merging into region-sized blobs.
+- Each area is outlined as a buffered convex hull (7 km margin) in the
+  mineral's colour, numbered and labelled "territory · province · sites".
+  Everything outside the areas is dimmed (overlapping outlines merge into one
+  spotlight hole). Only that mineral's sites remain on the map.
+- Navigation is animated: overview of all areas, then a tilted fly-through
+  of the six largest, then back to the overview. Any drag, scroll or touch
+  stops the tour; "Replay tour", "All areas" and each area row fly on demand.
+  With reduced motion enabled, moves are instant and no tour plays.
+- Areas describe where historical site records cluster. They are NOT
+  concession boundaries, ore bodies, reserves or zones of armed control.
+Validation: node tests/mineral_focus.cjs (linkage, minimum size, territory
+separation, outlines contain sites, mask winding and non-overlapping holes,
+real gold data).
