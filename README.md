@@ -362,3 +362,15 @@ Images passing both checks are `verified`; if the source page cannot be fetched 
 | `IMAGE_SEARCH_ENABLED` | enabled | `0` disables; also off when `REFERENCE_SYNC=0` |
 
 Rights: web images are third-party works whose reuse rights are not cleared. They are hotlinked for internal research display with their source; do not republish them. Subject names and short context (role, affiliation, nationality, birth year from the sanctions lists) are sent to OpenAI.
+
+## Live radio (`/#radio`)
+
+**Situation room → Radio** maps DRC radio stations and plays their live streams in the browser. A station can be opened directly with `#radio/<station-id>`. Playback continues across views, and an **ON AIR** chip in the top bar controls it. Selecting a station shows its stream details, reports that mention places within 60 km, and other stations nearby.
+
+- **Sources.** Curated official streams come from `config/radio-stations.json`; currently Radio Okapi and Radio Maendeleo, taken from the players on their own websites. Other stations come from the community [Radio Browser](https://www.radio-browser.info/) directory (country code `CD`), synced daily. A curated entry takes precedence over a directory duplicate.
+- **Health.** Every 30 minutes each stream is probed: the first 8 KB is read, `.pls`/`.m3u` playlists are resolved, and an audio content type is required. The result (codec, bitrate, latency, error) is shown, and the list defaults to live streams.
+- **Location.** A station is placed by its directory coordinates when those fall inside the DRC; otherwise by the gazetteer, using its listed city, name or tags. Stations that can't be placed are listed as *National & online*. A location is the city where the station is listed, not its transmitter coverage.
+- **Proxying.** Audio is not proxied; the browser connects to the broadcaster directly. A few streams are plain `http:`, and browsers block those on an HTTPS deployment.
+- **API.** `GET /v1/radio` lists stations. `POST /v1/radio/{id}/listen` counts a play locally and, for directory stations, registers a click with Radio Browser. `REFERENCE_SYNC=0` disables the directory sync and the health checks.
+
+To add a station, append an entry to `config/radio-stations.json` with these fields: `id`, `name`, `city`, `homepage`, `stream`, `languages`, `tags`, `coverage` and `source_note`. Use the stream URL from the station's own player.

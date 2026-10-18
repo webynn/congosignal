@@ -943,3 +943,65 @@ body {
 .area-n small { font-size: 10.5px; color: var(--muted); }
 .focus-tag { border-color: color-mix(in srgb, var(--focus) 60%, var(--line-strong)); box-shadow: 0 0 26px -10px var(--focus); }
 .focus-tag strong { display: flex; align-items: center; gap: 8px; }
+
+/* Live radio: equalizer, on-air chip, station list, now-playing card, map markers, dial. */
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex-shrink: 0; }
+.eq i { width: 3px; height: 3px; border-radius: 1px; background: var(--muted); }
+.eq.on i { background: var(--accent); animation: eq 0.9s ease-in-out infinite alternate; }
+.eq.on i:nth-child(3n+2) { animation-duration: .7s; animation-delay: -.3s; }
+.eq.on i:nth-child(3n) { animation-duration: 1.1s; animation-delay: -.6s; }
+.eq.on i:nth-child(4n) { animation-duration: .55s; }
+@keyframes eq { from { height: 3px; } to { height: 100%; } }
+.onair { display: inline-flex; align-items: center; gap: 2px; height: 30px; padding: 0 3px 0 0; border: 1px solid var(--line-strong); border-radius: 15px; background: var(--panel); max-width: 320px; min-width: 0; }
+.onair.playing { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow: var(--glow); }
+.onair.error { border-color: color-mix(in srgb, var(--critical) 50%, var(--line)); }
+.onair-main { display: inline-flex; align-items: center; gap: 8px; min-width: 0; height: 28px; padding: 0 8px 0 12px; border: 0; background: none; color: var(--text); font-size: 12px; }
+.onair-main strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.onair-main small { color: var(--muted); white-space: nowrap; }
+.onair-label { font: 600 10px var(--mono); letter-spacing: 1.2px; color: var(--accent); }
+.onair.error .onair-label { color: var(--critical); }
+.onair-btn { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); color: var(--text-2); font-size: 9px; display: grid; place-items: center; }
+.onair-btn:hover { color: var(--text); border-color: var(--line-strong); }
+.station-group h2 span { margin-left: auto; font: 500 11px var(--mono); color: var(--muted); }
+.station { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; margin: 0 0 2px; border: 1px solid transparent; border-radius: var(--radius-sm, 6px); background: none; color: var(--text); text-align: left; }
+.station strong { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.station small { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.station:hover { background: var(--hover); }
+.station.selected { border-color: var(--line-strong); background: var(--panel-2); }
+.station.playing strong { color: var(--accent); }
+.station.tuning .eq i { animation: eq .4s steps(2) infinite alternate; background: var(--text-2); }
+.now-playing { padding-bottom: 6px; }
+.np-head { display: flex; gap: 12px; align-items: center; }
+.np-logo { width: 52px; height: 52px; border-radius: 10px; object-fit: contain; background: #fff; border: 1px solid var(--line); flex-shrink: 0; }
+.np-logo.ph { display: grid; place-items: center; background: var(--panel-2); color: var(--accent); }
+.np-logo.ph .icon { width: 24px; height: 24px; }
+.np-visual { margin: 16px 0 12px; height: 54px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm, 6px); background: color-mix(in srgb, var(--panel-2) 80%, transparent); display: flex; }
+.np-visual .eq { width: 100%; height: 100%; justify-content: space-between; gap: 3px; }
+.np-visual .eq i { flex: 1; height: 8%; }
+.np-visual .eq.on i { box-shadow: 0 0 8px -2px var(--accent); }
+.np-controls { display: flex; align-items: center; gap: 12px; }
+.np-play { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); font-size: 15px; box-shadow: var(--glow); flex-shrink: 0; }
+.np-play.on { background: transparent; color: var(--accent); }
+.np-play:disabled { opacity: .4; box-shadow: none; cursor: not-allowed; }
+.np-volume { display: flex; align-items: center; gap: 8px; flex: 1; color: var(--muted); min-width: 0; }
+.np-volume input { flex: 1; accent-color: var(--accent); min-width: 0; }
+.np-props dd { overflow-wrap: anywhere; }
+.radio-marker { display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--text); }
+.rm-dot { position: relative; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 70%, transparent); border: 1.5px solid var(--accent); color: var(--accent); box-shadow: 0 3px 12px rgba(0,0,0,.4); }
+.rm-dot .icon { width: 14px; height: 14px; }
+.rm-label { display: grid; padding: 3px 8px; border-radius: 6px; background: color-mix(in srgb, var(--bg) 78%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px); text-align: left; line-height: 1.25; }
+.rm-label b { font-size: 11.5px; } .rm-label small { font: 10px var(--mono); color: var(--muted); }
+.radio-marker.off .rm-dot { border-color: var(--muted); color: var(--muted); }
+.radio-marker.selected .rm-label, .radio-marker:hover .rm-label { border-color: var(--accent); }
+.radio-marker.playing .rm-dot { background: var(--accent); color: var(--bg); }
+.radio-marker.playing .rm-dot::before, .radio-marker.playing .rm-dot::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 1.5px solid var(--accent); animation: ping 2s cubic-bezier(.2, .6, .3, 1) infinite; }
+.radio-marker.playing .rm-dot::after { animation-delay: 1s; }
+.dial .tickers { padding-bottom: 4px; }
+.dial-station { min-width: 170px; position: relative; }
+.dial-station .t-name { font: 500 10px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+.dial-station .eq { height: 10px; width: 100%; justify-content: space-between; }
+.dial-station .eq i { flex: 1; }
+@media (prefers-reduced-motion: reduce) { .eq.on i { animation: none; height: 60%; } .radio-marker.playing .rm-dot::before, .radio-marker.playing .rm-dot::after { animation: none; opacity: .5; } }
+@media (max-width: 900px) { .onair-main small, .onair-main strong { display: none; } }
+.eq:not(.on) i { opacity: .55; }
+.eq:not(.on) i:nth-child(3n+1) { height: 45%; } .eq:not(.on) i:nth-child(3n+2) { height: 80%; } .eq:not(.on) i:nth-child(3n) { height: 30%; }

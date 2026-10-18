@@ -136,6 +136,13 @@ pub struct Place {
     lat: f64,
     lon: f64,
 }
+/// First explicit DRC place in `text`: (name, province, lat, lon).
+pub fn first_place(text: &str) -> Option<(String, String, f64, f64)> {
+    places(text)
+        .into_iter()
+        .next()
+        .map(|p| (p.name.to_string(), p.province.to_string(), p.lat, p.lon))
+}
 /// Names of explicit DRC places mentioned in `text`.
 pub fn place_names(text: &str) -> Vec<String> {
     places(text)

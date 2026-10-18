@@ -11,6 +11,7 @@ mod feeds;
 mod fetch;
 mod images;
 mod intelligence;
+mod radio;
 mod reference;
 mod social;
 mod store;
@@ -322,6 +323,7 @@ async fn main() -> Result<()> {
     arms::init(&db).await?;
     images::init(&db).await?;
     commodities::init(&db).await?;
+    radio::init(&db).await?;
     let app = App {
         db: db.clone(),
         token,
@@ -356,6 +358,8 @@ async fn main() -> Result<()> {
         .route("/v1/actors/{id}", get(actors::detail))
         .route("/v1/images", get(images::status))
         .route("/v1/images/{kind}/{id}/reject", post(images::reject))
+        .route("/v1/radio", get(radio::list))
+        .route("/v1/radio/{id}/listen", post(radio::listen))
         .route("/v1/commodities", get(commodities::list))
         .route("/v1/geology/unit", get(commodities::geology_unit))
         .route("/v1/arms", get(arms::list))
@@ -455,7 +459,8 @@ async fn main() -> Result<()> {
         result = arms::worker(db.clone()) => result?,
         result = feeds::worker(db.clone()) => result?,
         result = images::worker(db.clone()) => result?,
-        result = commodities::worker(db) => result?,
+        result = commodities::worker(db.clone()) => result?,
+        result = radio::worker(db) => result?,
         result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
     }
     Ok(())

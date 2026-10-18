@@ -57,10 +57,10 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 
 const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
-const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'minerals' || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
 const hashPart = prefix => location.hash.startsWith(`#${prefix}/`) ? decodeURIComponent(location.hash.slice(prefix.length + 2)) : '';
-function openFromHash() { if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
+function openFromHash() { if (hashPart('radio')) { state.radioMode = true; state.mineralMode = false; state.radioSel = hashPart('radio'); render() } else if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; state.radioMode = false; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
 const state = {
   lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
   loaded: false, error: '', items: [], total: 0, limit: 200, status: {}, config: null, ev: null, sources: null, social: null, posts: null, accounts: null, updated: null, geometry: null,
@@ -179,7 +179,7 @@ async function load() {
     state.auth=await api('/v1/auth/me');state.loginRequired=false;
   } catch(e) {if(state.authConfig?.mode==='oidc'){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
   try {
-    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities] = await Promise.all([
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -195,9 +195,10 @@ async function load() {
       api('/v1/costs').catch(() => null),
       api('/v1/team').catch(() => null),
       api('/v1/commodities').catch(() => null),
+      api('/v1/radio').catch(() => null),
     ]);
     if (state.agDetail?.assessment?.status === 'running') state.agDetail = await api('/v1/agreements/'+state.agDetail.id);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, error: '' });
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, error: '' });
   } catch (e) { state.error = e.message }
   state.loaded = true;
   render();
@@ -286,7 +287,7 @@ function shell(content) {
       <div class="crumb"><span class="crumb-code">${VIEW_CODES[state.view] || 'OPS'}</span><strong>${esc(viewLabel(state.view))}</strong></div>
       <button class="omni" data-act="palette" aria-label="${L('Search everything', 'Tout rechercher')}">${icon('search')}<span>${L('Search reports, places, actors, weapons…', 'Rechercher articles, lieux, acteurs, armes…')}</span><kbd>⌘K</kbd></button>
       <div class="clocks" aria-label="${L('Current time', 'Heure actuelle')}"><span><small>UTC</small><b id="clock-utc">${clockText(0)}</b></span><span><small>KIN</small><b id="clock-kin">${clockText(1)}</b></span></div>
-      <span class="live-pill ${state.error ? 'down' : ''}"><i class="dot ${state.error ? 'bad' : 'ok live'}"></i>${state.error ? L('OFFLINE', 'HORS LIGNE') : 'LIVE'}</span>
+      ${onAirChip()}<span class="live-pill ${state.error ? 'down' : ''}"><i class="dot ${state.error ? 'bad' : 'ok live'}"></i>${state.error ? L('OFFLINE', 'HORS LIGNE') : 'LIVE'}</span>
       <div class="seg" role="group" aria-label="Language"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'active' : ''}">EN</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'active' : ''}">FR</button></div>
       <button class="iconbtn" data-act="theme" aria-label="${L('Toggle theme', 'Changer de thème')}" title="${L('Toggle theme', 'Changer de thème')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button>
       <button class="iconbtn" data-act="settings" aria-label="${L('Connection settings', 'Paramètres de connexion')}">${icon('settings')}</button>
@@ -700,6 +701,7 @@ function mineralCluster(e) {
 }
 
 function situationView() {
+  if (state.radioMode) return radioSituation();
   if (state.mineralMode) return mineralsSituation();
   const items = situationItems(), ps = placesList(situationItems(true));
   const timeline = (() => {
@@ -1021,7 +1023,7 @@ function focusMineral(key) {
   state.focus = { key, commodity: c?.id || null, name: c ? commodityName(c) : key, labels: usable, color: FOCUS_COLORS[c?.id] || 'var(--accent)', hex: FOCUS_COLORS[c?.id] || '#c6f36b', sites: sites.length, areas, active: -1 };
   state.mineralFocusLabels = usable; state.mineralQuery = ''; state.mineralSelected = ''; state.geoUnit = null;
   if (c) state.marketCommodity = c.id;
-  state.mineralMode = true;
+  state.mineralMode = true; state.radioMode = false;
   history.replaceState(null, '', '#focus/' + encodeURIComponent(key));
   if (state.view !== 'situation') go('situation'); else render();
   playFocusTour();
@@ -1116,6 +1118,134 @@ function focusPanel() {
     <p class="notice">${L('Areas group historical site records by proximity; outlines are drawn around those sites with a small margin. They are not concession boundaries, deposits or zones of control.', 'Les zones regroupent des références historiques par proximité ; les contours entourent ces sites avec une marge. Ce ne sont ni des concessions, ni des gisements, ni des zones de contrôle.')}</p></div>`;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Live radio: stations on the map, a persistent player, and news from the station's area.
+
+state.radioMode = location.hash === '#radio' || location.hash.startsWith('#radio/'); state.radio = null; state.radioNow = ''; state.radioSel = ''; state.radioStatus = 'idle';
+state.radioQ = ''; state.radioLang = ''; state.radioLiveOnly = true; state.radioPlace = '';
+const radioAudio = new Audio();
+radioAudio.preload = 'none';
+radioAudio.volume = Number(store.get('congo-radio-volume') || 0.8);
+radioAudio.addEventListener('playing', () => { state.radioStatus = 'playing'; refreshRadioChrome() });
+radioAudio.addEventListener('waiting', () => { state.radioStatus = 'loading'; refreshRadioChrome() });
+radioAudio.addEventListener('pause', () => { if (state.radioStatus !== 'error') state.radioStatus = 'idle'; refreshRadioChrome() });
+radioAudio.addEventListener('error', () => {
+  if (!state.radioNow) return;
+  state.radioStatus = 'error'; refreshRadioChrome();
+  toast(L('This stream is not responding right now. Try another station.', 'Ce flux ne répond pas pour le moment. Essayez une autre station.'));
+});
+const stationById = id => state.radio?.items?.find(s => s.id === id);
+const stationLive = s => s?.health?.ok === true;
+const stationPlace = s => s?.location?.place ? `${s.location.place}${s.location.province && s.location.province !== s.location.place ? ' · ' + s.location.province : ''}` : L('National & online', 'National et en ligne');
+function radioStations() {
+  const q = norm(state.radioQ.trim());
+  return (state.radio?.items || []).filter(s => (!state.radioLiveOnly || stationLive(s)) && (!state.radioLang || s.languages?.includes(state.radioLang))
+    && (!state.radioPlace || (s.location?.place || '') === state.radioPlace)
+    && (!q || norm([s.name, s.city, s.location?.place, ...(s.tags || []), ...(s.languages || [])].join(' ')).includes(q)));
+}
+async function playStation(id) {
+  const s = stationById(id); if (!s) return;
+  if (state.radioNow === id && !radioAudio.paused) { radioAudio.pause(); state.radioStatus = 'idle'; render(); return }
+  state.radioNow = id; state.radioSel = id; state.radioStatus = 'loading'; radioHash(id);
+  radioAudio.src = s.stream;
+  render();
+  try { await radioAudio.play() } catch (err) {
+    // A blocked autoplay (no user gesture) is not a dead stream: leave it paused and ready.
+    state.radioStatus = err?.name === 'NotAllowedError' ? 'idle' : 'error'; refreshRadioChrome();
+  }
+  api(`/v1/radio/${encodeURIComponent(id)}/listen`, {}).catch(() => {});
+}
+const radioHash = id => { if (state.radioMode && state.view === 'situation') history.replaceState(null, '', '#radio/' + encodeURIComponent(id)) };
+function stopRadio() { radioAudio.pause(); radioAudio.removeAttribute('src'); radioAudio.load(); state.radioNow = ''; state.radioStatus = 'idle'; render() }
+const eqBars = (on, n = 4) => `<span class="eq ${on ? 'on' : ''}" aria-hidden="true">${'<i></i>'.repeat(n)}</span>`;
+/// Topbar "on air" chip, visible on every view while a station plays.
+function onAirChip() {
+  const s = stationById(state.radioNow); if (!s) return '';
+  const label = state.radioStatus === 'playing' ? L('ON AIR', 'EN DIRECT') : state.radioStatus === 'loading' ? L('TUNING', 'RÉGLAGE') : state.radioStatus === 'error' ? L('NO SIGNAL', 'PAS DE SIGNAL') : L('PAUSED', 'EN PAUSE');
+  return `<div class="onair ${state.radioStatus}" id="onair"><button class="onair-main" data-act="radio-open" title="${esc(s.name)}">${eqBars(state.radioStatus === 'playing')}<span class="onair-label">${label}</span><strong>${esc(s.name)}</strong><small>${esc(s.location?.place || '')}</small></button><button class="onair-btn" data-act="radio-toggle" aria-label="${state.radioStatus === 'playing' ? L('Pause', 'Pause') : L('Play', 'Lecture')}">${state.radioStatus === 'playing' ? '❚❚' : '▶'}</button><button class="onair-btn" data-act="radio-stop" aria-label="${L('Stop', 'Arrêter')}">■</button></div>`;
+}
+/// Update player chrome without a full re-render (audio events fire often).
+function refreshRadioChrome() {
+  const chip = $('#onair'); if (chip) chip.outerHTML = onAirChip();
+  const np = $('#now-playing'); if (np && state.radioSel) np.outerHTML = nowPlaying(stationById(state.radioSel));
+  $$('[data-station]').forEach(el => { const on = el.dataset.station === state.radioNow; el.classList.toggle('playing', on && state.radioStatus === 'playing'); el.classList.toggle('tuning', on && state.radioStatus === 'loading'); el.querySelector('.eq')?.classList.toggle('on', on && state.radioStatus === 'playing') });
+  radioMarkers.forEach(m => m.getElement().classList.toggle('playing', m.__place === stationById(state.radioNow)?.location?.place && state.radioStatus === 'playing'));
+}
+function newsNear(lon, lat, km = 60) {
+  return state.items.map(a => {
+    const d = a.places.filter(p => Number.isFinite(p.lon)).map(p => ({ p, km: distanceKm([lon, lat], [p.lon, p.lat]) })).sort((x, y) => x.km - y.km)[0];
+    return d && d.km <= km ? { a, ...d } : null;
+  }).filter(Boolean).sort((x, y) => String(y.a.published_at).localeCompare(String(x.a.published_at)));
+}
+function nowPlaying(s) {
+  if (!s) return `<div class="now-playing empty" id="now-playing"><div class="eyebrow">${L('LIVE RADIO', 'RADIO EN DIRECT')}</div><h2 class="mine-name">${L('Choose a station', 'Choisissez une station')}</h2><p class="muted">${L('Pick a station on the map, in the list or on the dial. Radio Okapi is the national news network.', 'Choisissez une station sur la carte, dans la liste ou sur le cadran. Radio Okapi est le réseau national d’information.')}</p>${stationById('radio-okapi') ? `<button class="btn primary" data-act="radio-play" data-arg="radio-okapi">▶ ${L('Listen to Radio Okapi', 'Écouter Radio Okapi')}</button>` : ''}</div>`;
+  const on = state.radioNow === s.id, playing = on && state.radioStatus === 'playing', h = s.health || {};
+  return `<div class="now-playing ${playing ? 'playing' : ''}" id="now-playing">
+    <div class="np-head">${s.favicon ? `<img class="np-logo" src="${esc(s.favicon)}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.remove()">` : `<span class="np-logo ph">${icon('radio')}</span>`}<div style="min-width:0"><div class="eyebrow">${stationLive(s) ? `<i class="dot ok live"></i>${L('LIVE STREAM', 'FLUX EN DIRECT')}` : `<i class="dot bad"></i>${L('OFF AIR', 'HORS ANTENNE')}`}</div><h2 class="mine-name">${esc(s.name)}</h2><div class="mine-place">${icon('pin')} ${esc(stationPlace(s))}</div></div></div>
+    <div class="np-visual">${eqBars(playing, 24)}</div>
+    <div class="np-controls"><button class="np-play ${playing ? 'on' : ''}" data-act="radio-play" data-arg="${esc(s.id)}" aria-label="${playing ? L('Pause', 'Pause') : L('Play', 'Lecture')}" ${stationLive(s) || on ? '' : 'disabled'}>${playing ? '❚❚' : on && state.radioStatus === 'loading' ? '…' : '▶'}</button>
+      <label class="np-volume">${icon('radio')}<input type="range" min="0" max="1" step="0.05" value="${radioAudio.volume}" data-act="radio-volume" aria-label="${L('Volume', 'Volume')}"></label>${on ? `<button class="btn sm ghost" data-act="radio-stop">■ ${L('Stop', 'Arrêter')}</button>` : ''}</div>
+    <div class="chips" style="margin:12px 0">${(s.languages || []).map(l => `<span class="chip">${esc(l)}</span>`).join('')}${(s.tags || []).slice(0, 5).map(t => `<span class="badge">${esc(t)}</span>`).join('')}</div>
+    <dl class="props np-props">${factRow(L('Coverage', 'Couverture'), esc(s.coverage || ''))}${factRow(L('Stream', 'Flux'), `${esc(h.content_type || s.codec || '—')}${h.icy_bitrate || s.bitrate ? ` · ${esc(h.icy_bitrate || s.bitrate)} kbps` : ''}${h.latency_ms ? ` · ${h.latency_ms} ms` : ''}`)}${factRow(L('Last checked', 'Dernière vérification'), s.checked_at ? `${age(s.checked_at)}${h.error ? ` · <span class="ev-error">${esc(h.error)}</span>` : ''}` : '—')}${factRow(L('Source', 'Source'), s.source === 'curated' ? esc(s.source_note || L('Official station stream', 'Flux officiel de la station')) : 'Radio Browser')}${factRow(L('Website', 'Site web'), s.homepage ? `<a href="${esc(s.homepage)}" target="_blank" rel="noopener noreferrer">${esc(s.homepage.replace(/^https?:\/\//, '').slice(0, 40))} ↗</a>` : '')}</dl>
+    ${s.stream.startsWith('http:') && location.protocol === 'https:' ? `<p class="notice">${L('This station only offers an unencrypted (http) stream, which browsers block on secure pages.', 'Cette station ne propose qu’un flux non chiffré (http), bloqué par les navigateurs sur les pages sécurisées.')}</p>` : ''}</div>`;
+}
+function radioSituation() {
+  const all = state.radio?.items || [], list = radioStations(), live = all.filter(stationLive);
+  const sel = stationById(state.radioSel);
+  const groups = [...list.reduce((m, s) => { const k = stationPlace(s); return m.set(k, [...(m.get(k) || []), s]) }, new Map())].sort((a, b) => (a[0].startsWith(L('National', 'National')) ? 1 : 0) - (b[0].startsWith(L('National', 'National')) ? 1 : 0) || b[1].length - a[1].length);
+  const langs = [...new Set(all.flatMap(s => s.languages || []))].sort();
+  const near = sel?.location ? newsNear(sel.location.lon, sel.location.lat) : [];
+  const nearbyStations = sel?.location ? all.filter(s => s.id !== sel.id && s.location && distanceKm([sel.location.lon, sel.location.lat], [s.location.lon, s.location.lat]) <= 150) : [];
+  const row = s => `<button class="station ${state.radioSel === s.id ? 'selected' : ''} ${state.radioNow === s.id && state.radioStatus === 'playing' ? 'playing' : ''}" data-station="${esc(s.id)}" data-act="radio-select" data-arg="${esc(s.id)}">${eqBars(state.radioNow === s.id && state.radioStatus === 'playing', 3)}<div style="min-width:0"><strong>${esc(s.name)}</strong><small>${esc((s.languages || []).slice(0, 3).join(' · ') || (s.tags || []).slice(0, 2).join(' · '))}</small></div><i class="dot ${stationLive(s) ? 'ok' : 'bad'}" title="${stationLive(s) ? L('Live', 'En direct') : L('Off air', 'Hors antenne')}"></i></button>`;
+  return `<div class="situation radio-mode ${state.mapFocus ? 'map-focus' : ''}">
+    <aside class="filters-pane" data-scroll="radio-list">
+      <div class="pane-section"><div class="eyebrow">DRC · ${L('LIVE RADIO', 'RADIO EN DIRECT')}</div><div style="font-size:13px;color:var(--text-2)"><b class="num" style="color:var(--text)">${live.length}</b> ${L('stations on air', 'stations à l’antenne')} · ${all.length} ${L('listed', 'répertoriées')}</div>
+        <label class="search">${icon('search')}<input id="radio-q" class="input" type="search" data-model="radioQ" value="${esc(state.radioQ)}" placeholder="${L('Station, city, language…', 'Station, ville, langue…')}" aria-label="${L('Search stations', 'Rechercher des stations')}"></label>
+        <select class="select" data-model="radioLang" aria-label="${L('Language', 'Langue')}"><option value="">${L('All languages', 'Toutes les langues')}</option>${langs.map(l => `<option value="${esc(l)}" ${state.radioLang === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+        <label class="check"><input type="checkbox" data-model="radioLiveOnly" ${state.radioLiveOnly ? 'checked' : ''}>${L('Live streams only', 'Flux en direct uniquement')}</label>
+        ${state.radioPlace ? `<div class="chips"><button class="chip active" data-act="radio-place" data-arg="">${icon('pin')}${esc(state.radioPlace)} ×</button></div>` : ''}</div>
+      ${groups.map(([place, ss]) => `<div class="pane-section station-group"><h2>${esc(place)}<span>${ss.length}</span></h2>${ss.map(row).join('')}</div>`).join('') || `<div class="pane-section"><p class="muted">${state.radio ? L('No stations match.', 'Aucune station ne correspond.') : L('Station directory is syncing.', 'Synchronisation du répertoire.')}</p></div>`}
+    </aside>
+    <section class="stage"><div class="map-area">${mapSVG([])}
+      <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i></div>
+      <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
+      <div class="map-float tl glass"><strong>${icon('radio')} ${L('Live radio', 'Radio en direct')}</strong>${live.length} ${L('stations on air', 'à l’antenne')} · ${new Set(live.map(s => s.location?.place).filter(Boolean)).size} ${L('cities on the map', 'villes sur la carte')}</div>
+      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button><button class="active" data-act="map-mode" data-arg="radio">${L('Radio', 'Radio')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels', 'Afficher les panneaux') : L('Expand map', 'Agrandir')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      <div class="map-float bl glass">${L('Streams play directly from the broadcasters. Locations are the station’s listed city, not transmitter coverage.', 'Les flux sont lus directement depuis les diffuseurs. La position est la ville déclarée, pas la zone de couverture.')}</div>
+    </div><div class="timeline dial"><div class="timeline-head"><strong>${L('Dial', 'Cadran')}</strong><span>${L('Live stations · click to tune', 'Stations en direct · cliquez pour écouter')}</span></div><div class="tickers dial-row">${live.map(s => `<button class="ticker dial-station ${state.radioNow === s.id ? 'active' : ''}" data-station="${esc(s.id)}" data-act="radio-play" data-arg="${esc(s.id)}"><span class="t-name">${esc(s.location?.place || L('Online', 'En ligne'))}</span><span class="t-val"><b>${esc(s.name.length > 22 ? s.name.slice(0, 21) + '…' : s.name)}</b></span>${eqBars(state.radioNow === s.id && state.radioStatus === 'playing', 12)}</button>`).join('')}</div></div></section>
+    <aside class="rail-pane"><div class="mine-dossier" data-scroll="np">${nowPlaying(sel)}
+      ${sel?.location ? `<section class="panel market-card"><div class="panel-head"><h2>${L('News from', 'Actualités de')} ${esc(sel.location.place || '')}</h2><small>${L('within 60 km', 'dans un rayon de 60 km')}</small></div>${near.slice(0, 8).map(({ a, p, km }) => `<button class="mineral-result" data-act="report" data-arg="${esc(a.id)}"><strong>${esc(title(a))}</strong><small>${esc(p.name)} · ${km.toFixed(0)} km · ${age(a.published_at)} · ${esc(a.source || '')}</small></button>`).join('') || `<div class="panel-body muted">${L('No loaded reports mention this area.', 'Aucun article chargé ne cite cette zone.')}</div>`}</section>` : ''}
+      ${nearbyStations.length ? `<section class="panel market-card"><div class="panel-head"><h2>${L('Other stations nearby', 'Autres stations proches')}</h2></div><div class="panel-body">${nearbyStations.map(row).join('')}</div></section>` : ''}
+      <p class="notice">${esc(state.radio?.notice || '')}</p></div></aside>
+  </div>`;
+}
+let radioMarkers = [];
+function clearRadioMarkers() { radioMarkers.forEach(m => m.remove()); radioMarkers = []; if (mapInstance) mapInstance.__radioSignature = '' }
+/// One marker per station location; playing location pulses. Mine layers are hidden in this mode.
+function mountRadio() {
+  const map = mapInstance; if (!map) return;
+  const on = state.radioMode && state.view === 'situation';
+  try { for (const id of ['mineral-clusters', 'mineral-counts', 'mineral-sites', 'mineral-selection']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'none' : 'visible') } catch {}
+  if (!on) { if (radioMarkers.length) clearRadioMarkers(); return }
+  const places = [...radioStations().filter(s => s.location).reduce((m, s) => { const k = s.location.place || `${s.location.lat},${s.location.lon}`; const g = m.get(k) || { place: k, lat: s.location.lat, lon: s.location.lon, stations: [] }; g.stations.push(s); return m.set(k, g) }, new Map()).values()];
+  const signature = JSON.stringify(places.map(p => [p.place, p.stations.map(s => s.id)]));
+  if (map.__radioSignature === signature) { refreshRadioChrome(); return }
+  clearRadioMarkers(); map.__radioSignature = signature;
+  for (const p of places) {
+    const el = document.createElement('button');
+    const live = p.stations.filter(stationLive).length;
+    el.className = 'radio-marker' + (live ? '' : ' off') + (state.radioPlace === p.place ? ' selected' : '');
+    el.innerHTML = `<span class="rm-dot">${icon('radio')}</span><span class="rm-label"><b>${esc(p.place)}</b><small>${live} ${L('live', 'en direct')}</small></span>`;
+    el.setAttribute('aria-label', `${p.place}: ${p.stations.map(s => s.name).join(', ')}`);
+    el.dataset.tip = p.stations.map(s => `${stationLive(s) ? '●' : '○'} ${s.name}`).join('\n');
+    el.onclick = () => { state.radioPlace = state.radioPlace === p.place ? '' : p.place; const first = p.stations.find(stationLive) || p.stations[0]; if (first) state.radioSel = first.id; render(); map.flyTo({ center: [p.lon, p.lat], zoom: Math.max(map.getZoom(), 6.5), duration: reducedMotion() ? 0 : 1400 }) };
+    const m = new mapboxgl.Marker({ element: el, anchor: 'left' }).setLngLat([p.lon, p.lat]).addTo(map);
+    m.__place = p.place;
+    radioMarkers.push(m);
+  }
+  refreshRadioChrome();
+}
+
 function mapSVG(ps) {
   if (state.config?.mapbox_public_token && window.mapboxgl && !mapFailed) return '<div id="map-slot"></div>';
   const xy = (lon, lat) => [25 + (lon - 12) * 18, 25 + (5.5 - lat) * 13.8];
@@ -1200,6 +1330,7 @@ function mountMap() {
       mapInstance.on('idle', mountMinerals);
       mapInstance.on('idle', mountGeology);
       mapInstance.on('idle', mountFocus);
+      mapInstance.on('idle', mountRadio);
       // Any manual pan or zoom hands control back to the analyst.
       for (const ev of ['dragstart', 'wheel', 'touchstart']) mapInstance.on(ev, () => { focusTour++ });
       mapInstance.on('click', 'mineral-sites', mineralPopup);
@@ -1226,7 +1357,8 @@ function mountMap() {
   mountMinerals();
   mountGeology();
   mountFocus();
-  if (state.mineralMode) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; markerSignature = ''; return }
+  mountRadio();
+  if (state.mineralMode || state.radioMode) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; markerSignature = ''; return }
   const linked = situationItems(true);
   const places = placesList(linked);
   const signature = JSON.stringify([places, state.lang, state.place, state.layers]);
@@ -1689,7 +1821,7 @@ const ACTIONS = {
   'mineral-reset': () => {Object.assign(state,{mineralSearch:'',mineralQuery:'',mineralProvince:'',mineralKind:'',mineralSelected:'',mineralVisible:15,mineralLayers:['IPIS','USGS']});render()},
   'mineral-export': () => {const f=selectedMineral();if(f) download('congo-signal-site.json',{...f,metadata:state.geology.metadata})},
   'map-focus': () => {state.mapFocus=!state.mapFocus;render()},
-  'map-mode': m => { state.mineralMode = m === 'minerals'; if (!state.mineralMode) { focusTour++; state.focus = null; state.mineralFocusLabels = [] } state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
+  'map-mode': m => { state.radioMode = m === 'radio'; if (state.radioMode && !state.radioSel) state.radioSel = state.radioNow || (stationById('radio-okapi') ? 'radio-okapi' : ''); state.mineralMode = m === 'minerals'; if (!state.mineralMode) { focusTour++; state.focus = null; state.mineralFocusLabels = [] } state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : state.radioMode ? '#radio' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
   market: id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
   'market-open': id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
   'market-sites': id => {
@@ -1770,6 +1902,12 @@ const ACTIONS = {
   'clear-situation': () => { state.place = ''; state.selectedDay = ''; render() },
   base: b => { state.basemap = b; render() },
   tilt: () => { state.tilt = !state.tilt; mapInstance?.easeTo({ pitch: state.tilt ? 55 : 0, bearing: state.tilt ? -12 : 0, duration: 500 }); render() },
+  'radio-select': id => { state.radioSel = id; radioHash(id); const s = stationById(id); render(); if (s?.location) mapInstance?.flyTo({ center: [s.location.lon, s.location.lat], zoom: Math.max(mapInstance.getZoom(), 6), duration: reducedMotion() ? 0 : 1200 }) },
+  'radio-play': id => playStation(id),
+  'radio-toggle': () => { if (radioAudio.paused) playStation(state.radioNow); else radioAudio.pause() },
+  'radio-stop': () => stopRadio(),
+  'radio-open': () => { state.radioMode = true; state.mineralMode = false; state.radioSel = state.radioNow; history.replaceState(null, '', '#radio'); if (state.view !== 'situation') go('situation'); else render() },
+  'radio-place': p => { state.radioPlace = p; render() },
   'reset-map': () => { state.place = ''; render(); mapInstance?.fitBounds([[12, -13.6], [31.4, 5.5]], { padding: 40, duration: 600 }) },
 };
 document.addEventListener('click', async e => {
@@ -1779,7 +1917,7 @@ document.addEventListener('click', async e => {
   if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
   if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
   const fn = ACTIONS[el.dataset.act]; if (!fn) return;
-  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview'].includes(el.dataset.act);
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview', 'radio-select', 'radio-play', 'radio-toggle', 'radio-stop', 'radio-open', 'radio-place'].includes(el.dataset.act);
   if (busy) el.disabled = true;
   try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
 });
@@ -1795,6 +1933,7 @@ function setModel(path, value) {
 document.addEventListener('input', e => {
   const el = e.target.closest('[data-model]');
   if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') { clearTimeout(typing); typing = setTimeout(() => setModel(el.dataset.model, el.value), 140); return }
+  if (e.target.dataset?.act === 'radio-volume') { radioAudio.volume = Number(e.target.value); store.set('congo-radio-volume', e.target.value); return }
   if (e.target.dataset?.act === 'geo-opacity') { state.geoOpacity = Number(e.target.value); if (mapInstance?.getLayer('geology')) mapInstance.setPaintProperty('geology', 'raster-opacity', state.geoOpacity); return }
   if (e.target.id === 'palette-q') { state.palette.q = e.target.value; state.palette.items = paletteItems(e.target.value); state.palette.index = 0; renderPaletteResults() }
 });

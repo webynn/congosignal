@@ -1,0 +1,13 @@
+{
+  "notes": "Curated official streams for important DRC stations missing or broken in Radio Browser. Each 'stream' was taken from the station's own website player. Add stations here; every stream is health-checked before it is offered.",
+  "stations": [
+    {"id": "radio-okapi", "name": "Radio Okapi", "city": "Kinshasa", "homepage": "https://www.radiookapi.net/page/ecouter-radio-okapi-en-ligne",
+     "stream": "https://servidor30-5.brlogic.com:7090/live", "languages": ["french", "lingala", "swahili", "kikongo", "tshiluba"],
+     "tags": ["news", "national", "public service"], "coverage": "National network run with MONUSCO; FM relays across the country",
+     "source_note": "Stream from the official 'Écouter Radio Okapi' player on radiookapi.net"},
+    {"id": "radio-maendeleo", "name": "Radio Maendeleo", "city": "Bukavu", "homepage": "https://radiomaendeleo.org",
+     "stream": "https://cast.az-streamingserver.com/proxy/sazobvdl/stream", "languages": ["french", "swahili"],
+     "tags": ["community", "news", "south kivu"], "coverage": "Community radio, Bukavu and South Kivu",
+     "source_note": "Stream from the player embedded on radiomaendeleo.org"}
+  ]
+}
