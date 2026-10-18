@@ -29,7 +29,8 @@ speech preparation/playback/error status without replacing the text answer.
 Replay reply retries speech; Silence stops audio and disables automatic speech
 until Speak answers is checked again. Closing, hiding, or recording cancels queued
 audio and pending callbacks. Citations and Markdown are stripped from spoken text.
-No microphone is enabled by opening the panel or by finishing a spoken reply.
+Outside voice mode (below), no microphone is enabled by opening the panel or by
+finishing a spoken reply.
 
 Voice mode
 The Voice button next to Ask in the AI command center starts a hands-free conversation. The
