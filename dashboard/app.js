@@ -68,7 +68,7 @@ const state = {
   layers: ['security', 'politics', 'health', 'economy', 'other'], windowDays: 0, selectedDay: '', highOnly: false, basemap: 'base', tilt: false,
   sf: { topic: '', lang: '', kind: '', q: '', sort: 'latest', accountQ: '', visible: 40 },
   af: { kind: 'all', group: '', q: '', sort: 'mentions', visible: 48 }, wf: { category: '', q: '', sort: 'mentions' },
-  actors: null, arms: null, actor: null, weapon: null,
+  actors: null, arms: null, actor: null, weapon: null, hud: {}, enter: false,
   evQuery: '', evRegional: false,
   modal: null, detail: null, detailId: null, detailTab: 'brief', dossier: null, palette: null,
 };
@@ -249,19 +249,40 @@ function feedStatuses() {
     [failed ? 'warn' : 'ok', L('Documents', 'Documents'), src.length ? `${src.length - failed}/${src.length}` : '—'],
   ];
 }
-function shell(content) {
-  return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
-    <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC open-source intelligence', 'Renseignement en sources ouvertes · RDC')}</small></div></a>
-    <nav>${NAV().map(([id, ic, label, count, hot], i) => `${i === 4 ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : ''}</button>`).join('')}</nav>
-    <div class="rail-bottom"><div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
-  </aside><div class="workspace"><header class="topbar">
-    <div class="crumb">CONGO SIGNAL <span>/</span> <strong>${esc(viewLabel(state.view))}</strong></div>
-    <button class="omni" data-act="palette" aria-label="${L('Search everything', 'Tout rechercher')}">${icon('search')}<span>${L('Search reports, places, accounts…', 'Rechercher articles, lieux, comptes…')}</span><kbd>⌘K</kbd></button>
-    <div class="seg" role="group" aria-label="Language"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'active' : ''}">EN</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'active' : ''}">FR</button></div>
-    <button class="iconbtn" data-act="theme" aria-label="${L('Toggle theme', 'Changer de thème')}" title="${L('Toggle theme', 'Changer de thème')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button>
-    <button class="iconbtn" data-act="settings" aria-label="${L('Connection settings', 'Paramètres de connexion')}">${icon('settings')}</button>
-  </header><main class="view view-${state.view}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div></div>`;
+const VIEW_CODES = { briefing: 'BRF', situation: 'SIT', reports: 'RPT', social: 'SOC', sources: 'SRC', actors: 'ACT', arms: 'ARM', saved: 'SAV', method: 'MTH' };
+/// Top-ranked recent reports for the scrolling priority wire.
+function wireItems() {
+  const cutoff = Date.now() - 96 * 3600000;
+  return [...state.items].filter(a => Date.parse(a.published_at) >= cutoff).sort((a, b) => b.rank.score - a.rank.score).slice(0, 14);
 }
+function wire() {
+  const items = wireItems();
+  if (!items.length) return '';
+  const row = items.map(a => `<button class="wire-item" data-act="report" data-arg="${esc(a.id)}"><b class="wire-score ${a.rank.band}">${a.rank.score}</b><span>${esc(title(a))}</span><time>${age(a.published_at)}</time></button>`).join('<i class="wire-sep" aria-hidden="true">◆</i>');
+  return `<div class="wire" aria-label="${L('Priority wire', 'Fil prioritaire')}"><div class="wire-label"><i class="dot bad live"></i>${L('PRIORITY WIRE', 'FIL PRIORITAIRE')}</div><div class="wire-track"><div class="wire-run">${row}<i class="wire-sep" aria-hidden="true">◆</i>${row}</div></div></div>`;
+}
+function shell(content) {
+  const nav = NAV();
+  return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
+    <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC situational awareness', 'Veille de situation · RDC')}</small></div></a>
+    <nav>${nav.map(([id, ic, label, count, hot], i) => `${i === 4 ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)} · ${i + 1}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : `<kbd class="nav-key">${i + 1}</kbd>`}</button>`).join('')}</nav>
+    <div class="rail-bottom"><div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
+  </aside><div class="workspace"><div class="chrome">
+    <div class="classbar"><span>${L('UNCLASSIFIED // OPEN SOURCE', 'NON CLASSIFIÉ // SOURCES OUVERTES')}</span><span class="classbar-mid">CONGO SIGNAL · ${L('DRC SITUATIONAL AWARENESS', 'VEILLE DE SITUATION RDC')}</span><span>${L('ATTRIBUTED · UNVERIFIED UNLESS STATED', 'ATTRIBUÉ · NON VÉRIFIÉ SAUF MENTION')}</span></div>
+    <header class="topbar">
+      <div class="crumb"><span class="crumb-code">${VIEW_CODES[state.view] || 'OPS'}</span><strong>${esc(viewLabel(state.view))}</strong></div>
+      <button class="omni" data-act="palette" aria-label="${L('Search everything', 'Tout rechercher')}">${icon('search')}<span>${L('Search reports, places, actors, weapons…', 'Rechercher articles, lieux, acteurs, armes…')}</span><kbd>⌘K</kbd></button>
+      <div class="clocks" aria-label="${L('Current time', 'Heure actuelle')}"><span><small>UTC</small><b id="clock-utc">${clockText(0)}</b></span><span><small>KIN</small><b id="clock-kin">${clockText(1)}</b></span></div>
+      <span class="live-pill ${state.error ? 'down' : ''}"><i class="dot ${state.error ? 'bad' : 'ok live'}"></i>${state.error ? L('OFFLINE', 'HORS LIGNE') : 'LIVE'}</span>
+      <div class="seg" role="group" aria-label="Language"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'active' : ''}">EN</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'active' : ''}">FR</button></div>
+      <button class="iconbtn" data-act="theme" aria-label="${L('Toggle theme', 'Changer de thème')}" title="${L('Toggle theme', 'Changer de thème')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button>
+      <button class="iconbtn" data-act="settings" aria-label="${L('Connection settings', 'Paramètres de connexion')}">${icon('settings')}</button>
+    </header>${state.view === 'situation' ? '' : wire()}</div>
+    <main class="view view-${state.view} ${state.enter ? 'enter' : ''}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div></div>`;
+}
+/// HH:MM:SS at UTC + offset hours (Kinshasa is UTC+1 year-round).
+function clockText(offset) { return new Date(Date.now() + offset * 3600000).toISOString().slice(11, 19) }
+setInterval(() => { const u = $('#clock-utc'), k = $('#clock-kin'); if (u) u.textContent = clockText(0); if (k) k.textContent = clockText(1) }, 1000);
 const pageHead = (eyebrow, h1, p, actions = '') => `<section class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${h1}</h1>${p ? `<p>${p}</p>` : ''}</div><div class="actions">${actions}</div></section>`;
 const btnExport = () => `<button class="btn" data-act="export">${icon('download')}${L('Export JSON', 'Exporter JSON')}</button>`;
 const btnCollect = () => `<button class="btn" data-act="collect">${icon('refresh')}${L('Collect latest', 'Actualiser la collecte')}</button>`;
@@ -279,10 +300,11 @@ function render() {
   for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
   if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.start, keep.end) } catch {} } }
   mountMap();
+  state.enter = false;
 }
 function go(view) {
   if (!VIEWS.includes(view)) return;
-  state.view = view; state.visible = 20;
+  state.view = view; state.visible = 20; state.enter = true;
   if (location.hash !== '#' + view) history.pushState(null, '', '#' + view);
   render(); window.scrollTo(0, 0);
 }
@@ -568,6 +590,8 @@ function situationView() {
       <div class="pane-section"><h2>${L('Collection', 'Collecte')}</h2>${feedStatuses().map(([c, label, v]) => `<div class="feed-status" style="padding:0"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}<div class="actions">${btnCollect()}</div></div>
     </aside>
     <section class="stage"><div class="map-area">${mapSVG(ps)}
+      <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i><i class="hud-reticle"></i></div>
+      <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
       <div class="map-float tl glass"><strong>${state.place ? esc(state.place) : L('Democratic Republic of the Congo', 'République démocratique du Congo')}</strong>${nf(ps.reduce((n, p) => n + p.count, 0))} ${L('place mentions', 'lieux cités')} · ${nf(items.filter(a => !a.places.length).length)} ${L('unmapped', 'non cartographiés')}</div>
       <div class="map-float tr"><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
       <div class="map-float bl glass">${mapFailed ? L('Interactive map unavailable; showing outline.', 'Carte interactive indisponible ; contour affiché.') : L('Markers are approximate place mentions, not verified incident locations.', 'Les repères sont des lieux cités approximatifs, pas des incidents vérifiés.')}${state.basemap === 'satellite' ? ` ${L('Imagery is not live.', 'Imagerie non en direct.')}` : ''}</div>
@@ -585,6 +609,11 @@ function mapSVG(ps) {
 }
 // Preserve one map instance through re-renders.
 let mapHost = null, mapInstance = null, mapMarkers = [], mapFailed = false, markerSignature = '';
+/// Cursor position and camera readout for the map HUD.
+function hudText(h = {}) {
+  const deg = (v, pos, neg, w) => v == null ? '—'.padEnd(w + 7) : `${Math.abs(v).toFixed(4).padStart(w + 5, '0')}°${v >= 0 ? pos : neg}`;
+  return `LAT ${deg(h.lat, 'N', 'S', 2)}  LON ${deg(h.lon, 'E', 'W', 3)}  Z ${(h.zoom ?? 4).toFixed(1)}  P ${Math.round(h.pitch ?? 0)}°`;
+}
 const mapStyle = () => 'mapbox://styles/mapbox/' + (state.basemap === 'satellite' ? 'satellite-streets-v12' : state.theme === 'light' ? 'light-v11' : 'dark-v11');
 function mountMap() {
   const slot = $('#map-slot'); if (!slot) return;
@@ -595,6 +624,9 @@ function mountMap() {
       mapInstance = new mapboxgl.Map({ container: mapHost, accessToken: state.config.mapbox_public_token, style: mapStyle(), bounds: [[12, -13.6], [31.4, 5.5]], fitBoundsOptions: { padding: 40 }, minZoom: 2, maxZoom: 12, attributionControl: true });
       mapInstance.__style = mapStyle();
       mapInstance.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+      const readout = () => { const el = $('#hud-coords'); if (el) el.textContent = hudText(state.hud) };
+      mapInstance.on('mousemove', e => { state.hud = { ...state.hud, lat: e.lngLat.lat, lon: e.lngLat.lng }; readout() });
+      mapInstance.on('move', () => { state.hud = { ...state.hud, zoom: mapInstance.getZoom(), pitch: mapInstance.getPitch() }; readout() });
       mapInstance.on('error', () => { if (!mapInstance?.isStyleLoaded()) { mapFailed = true; mapInstance?.remove(); mapInstance = null; mapHost = null; render() } });
       mapInstance.on('style.load', () => {
         if (state.geometry && !mapInstance.getSource('drc-outline')) {
@@ -616,7 +648,8 @@ function mountMap() {
   mapMarkers.forEach(m => m.remove()); mapMarkers = [];
   for (const p of places) {
     const b = document.createElement('button');
-    b.className = 'geo-marker' + (state.place === p.name ? ' selected' : '');
+    const hot = linked.some(a => a.rank.band === 'high' && a.places.some(x => x.name === p.name));
+    b.className = 'geo-marker' + (state.place === p.name ? ' selected' : '') + (hot ? ' hot' : '');
     b.textContent = p.count;
     const dominant = countBy(linked.filter(a => a.places.some(x => x.name === p.name)), reportLayer)[0]?.[0];
     b.style.background = layerColor(dominant || 'other');
@@ -805,7 +838,8 @@ async function openActor(id) {
   if (state.actor?.id === id) renderActor();
 }
 function factRow(label, value) { return value ? `<dt>${label}</dt><dd>${value}</dd>` : '' }
-const labelList = list => (list || []).map(x => esc(x.label?.[state.lang] || x.label?.en || x.id)).join(', ');
+// Entries whose Wikidata label is missing are skipped rather than shown as raw IDs.
+const labelList = list => (list || []).map(x => x.label?.[state.lang] || x.label?.en).filter(Boolean).map(esc).join(', ');
 function mentionList(mentions, terms, kindFilter, withGroups = false) {
   const kindIcon = { report: 'layers', post: 'radio', document: 'book' };
   const rows = mentions.filter(m => !kindFilter || m.kind === kindFilter);
@@ -1110,6 +1144,7 @@ document.addEventListener('submit', async e => {
 document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); state.modal === 'palette' ? closeOverlay() : openPalette(); return }
   if (e.key === '/' && !state.modal && !e.target.matches('input,textarea,select')) { e.preventDefault(); openPalette(); return }
+  if (/^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey && !state.modal && !e.target.matches('input,textarea,select')) { const v = NAV()[Number(e.key) - 1]; if (v) { go(v[0]); return } }
   if (e.key === 'Escape' && state.modal) { closeOverlay(); return }
   if (state.modal === 'palette' && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
     e.preventDefault(); const p = state.palette;
@@ -1129,6 +1164,7 @@ window.addEventListener('popstate', () => { const v = viewFromHash(); if (v !== 
 // Boot
 
 try { state.geometry = await fetch('/drc.geo.json').then(r => r.json()) } catch {}
+state.enter = true;
 await load();
 openFromHash();
 setInterval(async () => {

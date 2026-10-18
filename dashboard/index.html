@@ -2,10 +2,20 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Congo Signal — open-source, source-linked monitoring of public reporting and conversation about the Democratic Republic of the Congo."><meta name="color-scheme" content="dark light"><title>Congo Signal</title>
 <script>let t=null;try{t=localStorage.getItem('congo-theme')}catch{}document.documentElement.dataset.theme=t||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap">
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.33.0/mapbox-gl.css"><link rel="stylesheet" href="/styles.css"></head>
 <body>
-<div id="app"><div class="boot"><span class="boot-mark"></span>CONGO SIGNAL<small>Connecting to the research workspace…</small></div></div>
+<div id="app"><div class="boot" role="status" aria-live="polite"><div class="boot-box">
+  <div class="boot-head"><span class="boot-mark"></span><div><strong>CONGO SIGNAL</strong><small>DRC situational awareness · open source</small></div></div>
+  <ol class="boot-log">
+    <li><span>Connecting to collector API</span><b>OK</b></li>
+    <li><span>Loading gazetteer · 5,961 places</span><b>OK</b></li>
+    <li><span>Syncing sanctions registries · UN · US · EU · UK</span><b>OK</b></li>
+    <li><span>Linking X conversation archive</span><b>OK</b></li>
+    <li><span>Composing situation picture</span><b>…</b></li>
+  </ol>
+  <div class="boot-bar"><i></i></div>
+</div></div></div>
 <div id="overlay"></div><div id="tip" role="tooltip" hidden></div><div id="toast" role="status" aria-live="polite"></div>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.33.0/mapbox-gl.js"></script>
 <script type="module" src="/app.js"></script>
