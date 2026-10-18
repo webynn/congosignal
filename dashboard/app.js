@@ -327,6 +327,7 @@ function render() {
   for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
   if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.start, keep.end) } catch {} } }
   mountMap();
+  mountHolo();
   state.enter = false;
 }
 function go(view) {
@@ -1146,6 +1147,237 @@ function focusPanel() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// AI command center: a live holographic DRC rendered from the collection itself (report
+// hotspots as light columns, co-mention links as arcs, mineral sites as a point cloud,
+// radio stations as pulses), framed by an intercept feed, province pressure and the Okapi bar.
+
+const holoLayerList = () => state.holoLayers ??= (store.get('congo-holo-layers') || 'signals,links,minerals,radio').split(',').filter(Boolean);
+const HOLO_LAYERS = () => [['signals', L('Signal columns', 'Colonnes de signaux'), '#6affb9'], ['links', L('Co-mention links', 'Liens de co-citation'), '#82e3f5'], ['minerals', L('Mineral sites', 'Sites miniers'), '#e0b252'], ['radio', L('Radio stations', 'Stations de radio'), '#c99bff']];
+const frac = x => x - Math.floor(x);
+const bandHex = s => s >= 70 ? '#ff5d6c' : s >= 50 ? '#ffc65c' : '#6affb9';
+/// Places aggregated across loaded reports: count, peak priority, latest headline.
+function holoHotspots() {
+  const m = new Map();
+  for (const a of state.items) for (const p of a.places || []) {
+    if (!Number.isFinite(p.lon) || !Number.isFinite(p.lat)) continue;
+    const h = m.get(p.name) || { name: p.name, province: p.province, lon: p.lon, lat: p.lat, count: 0, peak: 0, latest: null };
+    h.count++; h.peak = Math.max(h.peak, a.rank?.score || 0);
+    if (!h.latest || String(a.published_at) > String(h.latest.published_at)) h.latest = a;
+    m.set(p.name, h);
+  }
+  return [...m.values()].sort((a, b) => b.count - a.count).slice(0, 48);
+}
+/// Pairs of places named together in priority reports (score ≥ 55), strongest first.
+function holoLinks(spots) {
+  const at = new Map(spots.map(s => [s.name, s])), m = new Map();
+  for (const a of state.items) {
+    if ((a.rank?.score || 0) < 55) continue;
+    const names = [...new Set((a.places || []).map(p => p.name))].filter(n => at.has(n)).slice(0, 5);
+    for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) {
+      const k = [names[i], names[j]].sort().join('|'); m.set(k, (m.get(k) || 0) + 1);
+    }
+  }
+  return [...m].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([k, n]) => { const [a, b] = k.split('|'); return { a: at.get(a), b: at.get(b), n } });
+}
+const holo = { canvas: null, raf: 0, t0: performance.now(), hover: null, spots: [], links: [], screen: [], size: [0, 0], dpr: 1, ro: null, sig: '' };
+function holoData() {
+  const sig = `${state.items.length}|${state.updated}|${state.geology?.features?.length}|${state.radio?.items?.length}`;
+  if (holo.sig === sig) return;
+  holo.sig = sig; holo.spots = holoHotspots(); holo.links = holoLinks(holo.spots);
+  holo.minerals = (state.geology?.features || []).map(f => f.geometry.coordinates);
+  holo.radio = (state.radio?.items || []).filter(s => s.location && s.health?.ok).map(s => [s.location.lon, s.location.lat]);
+  // Densify the border so the travelling light moves smoothly.
+  const ring = state.geometry?.features?.[0]?.geometry?.coordinates?.[0] || [];
+  holo.border = ring.flatMap((p, i) => { const q = ring[(i + 1) % ring.length]; return [0, .25, .5, .75].map(t => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]) });
+}
+function mountHolo() {
+  const c = $('#holo');
+  if (!c) { cancelAnimationFrame(holo.raf); holo.raf = 0; holo.canvas = null; holo.ro?.disconnect(); return }
+  if (holo.canvas === c) return;
+  holo.canvas = c; holoData();
+  holo.ro?.disconnect(); holo.ro = new ResizeObserver(() => { holoResize(); if (!holoAnimated()) holoFrame(performance.now()) }); holo.ro.observe(c);
+  c.onmousemove = e => { const r = c.getBoundingClientRect(); holoPick(e.clientX - r.left, e.clientY - r.top) };
+  c.onmouseleave = () => { holo.hover = null; holoTip() };
+  c.onclick = () => { const h = holo.hover; if (!h) return; state.place = h.name; state.radioMode = false; state.mineralMode = false; go('situation') };
+  holoResize(); cancelAnimationFrame(holo.raf); holo.raf = requestAnimationFrame(holoLoop);
+}
+const holoAnimated = () => state.aiMotion && !reducedMotion();
+function holoResize() {
+  const c = holo.canvas; if (!c) return;
+  const r = c.getBoundingClientRect(); holo.dpr = Math.min(2, devicePixelRatio || 1); holo.size = [r.width, r.height];
+  c.width = Math.round(r.width * holo.dpr); c.height = Math.round(r.height * holo.dpr);
+}
+let holoLast = 0;
+function holoLoop(now) {
+  if (!holo.canvas?.isConnected) { holo.raf = 0; return }
+  // ~40 fps is plenty for slow motion and halves the work on laptops.
+  if (now - holoLast > 24) { holoLast = now; holoFrame(now) }
+  holo.raf = holoAnimated() ? requestAnimationFrame(holoLoop) : 0;
+}
+function holoPick(x, y) {
+  let best = null, bd = 22;
+  for (const s of holo.screen) { const d = Math.hypot(s.x - x, s.y - y); if (d < bd) { bd = d; best = s } }
+  if (best?.spot !== holo.hover) { holo.hover = best?.spot || null; holoTip(best); if (!holoAnimated()) holoFrame(performance.now()) }
+  holo.canvas.style.cursor = best ? 'pointer' : '';
+}
+function holoTip(s) {
+  const tip = $('#holo-tip'); if (!tip) return;
+  if (!s) { tip.hidden = true; return }
+  const h = s.spot, a = h.latest;
+  tip.hidden = false; tip.style.left = `${s.x}px`; tip.style.top = `${s.y}px`;
+  tip.innerHTML = `<small>${esc(h.province || '')}</small><strong>${esc(h.name)}</strong><span class="holo-tip-n"><b style="color:${bandHex(h.peak)}">${h.count}</b> ${L('reports', 'articles')} · ${L('peak', 'pic')} ${h.peak}</span>${a ? `<p>${esc(title(a))}</p><em>${esc(a.source || '')} · ${age(a.published_at)}</em>` : ''}<i>${L('Click to open in the situation room', 'Cliquez pour ouvrir dans la vue de situation')}</i>`;
+}
+function holoFrame(now) {
+  const c = holo.canvas; if (!c) return;
+  const ctx = c.getContext('2d'), [w, h] = holo.size, t = Math.max(0, now - holo.t0) / 1000;
+  ctx.setTransform(holo.dpr, 0, 0, holo.dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  // Fit the country into the free space between the floating panels, title and command bar:
+  // project the border (and the tallest column) at both ends of the turntable swing, once per size.
+  const wide = w > 1100, box = wide ? [22 + 330 + 24, 210, w - 22 - 290 - 24, h - 228] : [16, 16, w - 16, h - 16];
+  const pitch = 0.9, D = 46, cp = Math.cos(pitch), sp = Math.sin(pitch), SWING = 0.38, BIAS = -0.06;
+  const raw = (lon, lat, z, yw) => { const x = lon - 23.4, y = lat + 4.1, c = Math.cos(yw), s = Math.sin(yw), xr = x * c - y * s, yr = x * s + y * c, f = D / (D + yr * sp - z * cp); return [xr * f, -(yr * cp + z * sp) * f, f] };
+  const fitKey = `${w}x${h}|${(holo.border || []).length}|${holo.spots.length}`;
+  if (holo.fitKey !== fitKey && holo.border?.length) {
+    const zTop = Math.max(0, ...holo.spots.map(s => 0.5 + Math.log2(s.count + 1) * 0.85));
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const yw of [BIAS - SWING, BIAS, BIAS + SWING]) for (const [lon, lat] of holo.border) for (const z of [0, zTop * 0.6]) { const [x, y] = raw(lon, lat, z, yw); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y) }
+    const S = Math.min((box[2] - box[0]) / (x1 - x0), (box[3] - box[1]) / (y1 - y0));
+    holo.fitKey = fitKey; holo.fit = { S, cx: (box[0] + box[2]) / 2 - (x0 + x1) / 2 * S, cy: (box[1] + box[3]) / 2 - (y0 + y1) / 2 * S };
+  }
+  const { S, cx, cy } = holo.fit || { S: Math.min(w, h) / 24, cx: w / 2, cy: h / 2 };
+  const yaw = Math.sin(t * 0.09) * SWING + BIAS;
+  const cy0 = Math.cos(yaw), sy0 = Math.sin(yaw);
+  // World: degrees about the DRC's centre; z up (degrees of "height").
+  const P = (lon, lat, z = 0) => {
+    const x = lon - 23.4, y = lat + 4.1, xr = x * cy0 - y * sy0, yr = x * sy0 + y * cy0;
+    const f = D / (D + yr * sp - z * cp);
+    return [cx + xr * f * S, cy - (yr * cp + z * sp) * f * S, f];
+  };
+  const on = k => holoLayerList().includes(k);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // Ground grid every 2°, fading with distance.
+  ctx.lineWidth = 1;
+  for (let lon = 12; lon <= 32; lon += 2) { const a = P(lon, -14), b = P(lon, 6); ctx.strokeStyle = 'rgba(106,255,185,.055)'; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke() }
+  for (let lat = -14; lat <= 6; lat += 2) { const a = P(12, lat), b = P(32, lat); ctx.strokeStyle = 'rgba(106,255,185,.055)'; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke() }
+  // Radar sweep around the centre of the country.
+  const sweep = t * 0.55, R = 13;
+  const o = P(23.4, -4.1);
+  for (let i = 0; i < 26; i++) {
+    const a0 = sweep - i * 0.035, a1 = a0 - 0.035, p0 = P(23.4 + Math.cos(a0) * R, -4.1 + Math.sin(a0) * R), p1 = P(23.4 + Math.cos(a1) * R, -4.1 + Math.sin(a1) * R);
+    ctx.fillStyle = `rgba(106,255,185,${0.07 * (1 - i / 26)})`; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.closePath(); ctx.fill();
+  }
+  for (const rr of [4, 8, 12]) { ctx.strokeStyle = 'rgba(106,255,185,.07)'; ctx.setLineDash([2, 6]); ctx.beginPath(); for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2, p = P(23.4 + Math.cos(a) * rr, -4.1 + Math.sin(a) * rr); i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]) } ctx.stroke(); ctx.setLineDash([]) }
+  const swept = (lon, lat) => { const a = Math.atan2(lat + 4.1, lon - 23.4); let d = (sweep - a) % (Math.PI * 2); if (d < 0) d += Math.PI * 2; return d < 0.9 ? 1 - d / 0.9 : 0 };
+  // Country slab: underside, walls, top outline with glow and a travelling light.
+  const B = holo.border || [];
+  if (B.length) {
+    const path = z => { ctx.beginPath(); B.forEach((p, i) => { const q = P(p[0], p[1], z); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]) }); ctx.closePath() };
+    path(-0.7); ctx.strokeStyle = 'rgba(106,255,185,.12)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = 'rgba(106,255,185,.06)';
+    for (let i = 0; i < B.length; i += 6) { const a = P(B[i][0], B[i][1], 0), b = P(B[i][0], B[i][1], -0.7); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke() }
+    path(0); const g = ctx.createLinearGradient(0, cy - 8 * S, 0, cy + 8 * S); g.addColorStop(0, 'rgba(106,255,185,.10)'); g.addColorStop(1, 'rgba(130,227,245,.025)'); ctx.fillStyle = g; ctx.fill();
+    ctx.shadowColor = 'rgba(106,255,185,.8)'; ctx.shadowBlur = 14; ctx.strokeStyle = 'rgba(150,255,205,.75)'; ctx.lineWidth = 1.4; ctx.stroke(); ctx.shadowBlur = 0;
+    for (const k of [0, 0.5]) {
+      const head = Math.floor(frac(t * 0.06 + k) * B.length);
+      for (let i = 0; i < 40; i++) { const a = B[(head - i + B.length) % B.length], b = B[(head - i - 1 + B.length) % B.length], p = P(a[0], a[1]), q = P(b[0], b[1]); ctx.strokeStyle = `rgba(210,255,235,${0.9 * (1 - i / 40)})`; ctx.lineWidth = 2.6 * (1 - i / 40) + 0.6; ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke() }
+    }
+  }
+  // Mineral point cloud, brightened as the sweep passes.
+  if (on('minerals')) for (const [lon, lat] of holo.minerals || []) {
+    const p = P(lon, lat), k = swept(lon, lat);
+    ctx.fillStyle = k ? `rgba(255,214,120,${0.3 + 0.6 * k})` : 'rgba(224,178,82,.28)';
+    const s = (k ? 2.2 : 1.3) * p[2]; ctx.fillRect(p[0] - s / 2, p[1] - s / 2, s, s);
+  }
+  // Radio stations: expanding rings.
+  if (on('radio')) for (const [lon, lat] of holo.radio || []) {
+    const p = P(lon, lat);
+    for (const k of [0, 0.5]) { const ph = frac(t * 0.5 + k); ctx.strokeStyle = `rgba(201,155,255,${0.7 * (1 - ph)})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(p[0], p[1], 4 + ph * 22, (4 + ph * 22) * cp, 0, 0, Math.PI * 2); ctx.stroke() }
+    ctx.fillStyle = '#d9bcff'; ctx.beginPath(); ctx.arc(p[0], p[1], 2.4, 0, Math.PI * 2); ctx.fill();
+  }
+  const height = s => 0.5 + Math.log2(s.count + 1) * 0.85;
+  // Co-mention arcs with travelling sparks.
+  if (on('links')) holo.links.forEach((l, i) => {
+    const d = Math.hypot(l.a.lon - l.b.lon, l.a.lat - l.b.lat), hz = Math.max(0.6, d * 0.32) + height(l.a) * 0.3;
+    const pt = u => P(l.a.lon + (l.b.lon - l.a.lon) * u, l.a.lat + (l.b.lat - l.a.lat) * u, Math.sin(Math.PI * u) * hz);
+    const hot = holo.hover && (holo.hover === l.a || holo.hover === l.b);
+    ctx.strokeStyle = hot ? 'rgba(130,227,245,.85)' : `rgba(130,227,245,${0.14 + Math.min(0.3, l.n * 0.05)})`; ctx.lineWidth = hot ? 1.6 : 1;
+    ctx.beginPath(); for (let k = 0; k <= 24; k++) { const p = pt(k / 24); k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]) } ctx.stroke();
+    const u = frac(t * 0.22 + i * 0.137), p = pt(u);
+    ctx.fillStyle = 'rgba(200,245,255,.95)'; ctx.shadowColor = '#82e3f5'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(p[0], p[1], 1.8, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  });
+  // Signal columns, far to near so near ones draw on top.
+  holo.screen = [];
+  if (on('signals')) {
+    const spots = holo.spots.map(s => ({ s, base: P(s.lon, s.lat), top: P(s.lon, s.lat, height(s)) })).sort((a, b) => a.base[2] - b.base[2]);
+    for (const { s, base, top } of spots) {
+      const col = bandHex(s.peak), hov = holo.hover === s, pulse = 0.5 + 0.5 * Math.sin(t * 2.2 + s.lon);
+      const rr = (3 + Math.log2(s.count + 1) * 2.2) * base[2];
+      ctx.strokeStyle = col + (hov ? 'ff' : '66'); ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(base[0], base[1], rr, rr * cp, 0, 0, Math.PI * 2); ctx.stroke();
+      if (s.peak >= 70) { const ph = frac(t * 0.7 + s.lat); ctx.strokeStyle = `rgba(255,93,108,${0.6 * (1 - ph)})`; ctx.beginPath(); ctx.ellipse(base[0], base[1], rr + ph * 26, (rr + ph * 26) * cp, 0, 0, Math.PI * 2); ctx.stroke() }
+      const g = ctx.createLinearGradient(base[0], base[1], top[0], top[1]); g.addColorStop(0, col + '10'); g.addColorStop(1, col + (hov ? 'ff' : 'dd'));
+      ctx.strokeStyle = g; ctx.lineWidth = (hov ? 4 : 2.4) * base[2]; ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
+      ctx.shadowColor = col; ctx.shadowBlur = hov ? 22 : 12 + pulse * 6; ctx.fillStyle = hov ? '#fff' : col; ctx.beginPath(); ctx.arc(top[0], top[1], (hov ? 4 : 2.6) * base[2], 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+      holo.screen.push({ x: top[0], y: top[1], spot: s });
+    }
+    // Labels for the strongest places and the hovered one.
+    ctx.font = '500 10.5px "IBM Plex Mono", ui-monospace, monospace'; ctx.textBaseline = 'middle';
+    // Strongest places first; a label is skipped when it would overlap one already placed.
+    const placed = [], order = [...holo.screen].sort((a, b) => (b.spot === holo.hover) - (a.spot === holo.hover) || b.spot.count - a.spot.count).slice(0, 12);
+    for (const { x, y, spot } of order) {
+      const text = `${spot.name.toUpperCase()}  ${spot.count}`, tw = ctx.measureText(text).width, right = x < cx + 6 * S, lx = right ? x + 18 : x - 18 - tw - 10, ly = y - 14;
+      const box = [lx - 4, ly - 18, tw + 16, 18];
+      if (placed.some(b => box[0] < b[0] + b[2] && b[0] < box[0] + box[2] && box[1] < b[1] + b[3] && b[1] < box[1] + box[3])) continue;
+      placed.push(box);
+      ctx.strokeStyle = 'rgba(160,255,210,.45)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + (right ? 3 : -3), y - 2); ctx.lineTo(right ? lx - 4 : lx + tw + 10, ly); ctx.lineTo(right ? lx + tw + 10 : lx - 4, ly); ctx.stroke();
+      ctx.fillStyle = 'rgba(3,12,10,.72)'; ctx.fillRect(lx - 2, ly - 16, tw + 12, 14);
+      ctx.fillStyle = spot === holo.hover ? '#ffffff' : '#c9ffe4'; ctx.fillText(text, lx + 3, ly - 9);
+    }
+  }
+  // Compass readout fixed to the projection.
+  const n = P(23.4, 7.2); ctx.fillStyle = 'rgba(160,255,210,.55)'; ctx.font = '500 10px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('N', n[0], n[1]); ctx.textAlign = 'left';
+}
+function aiCommandView() {
+  holoData();
+  const items = state.items, now = Date.now();
+  const recent = [...items].sort((a, b) => String(b.published_at).localeCompare(String(a.published_at))).slice(0, 14);
+  const day = 864e5, within = (a, d) => now - Date.parse(a.published_at) < d * day;
+  const high24 = items.filter(a => within(a, 1) && a.rank?.band === 'high').length;
+  const days = Array.from({ length: 14 }, (_, i) => kinDay(new Date(now - (13 - i) * day).toISOString()));
+  const perDay = (list, field) => { const m = new Map(); for (const x of list) { const k = kinDay(x[field]); m.set(k, (m.get(k) || 0) + 1) } return days.map(d => m.get(d) || 0) };
+  const reportDays = perDay(items, 'published_at'), postDays = perDay(state.posts?.items || [], 'created_at');
+  const provinces = [...items.filter(a => within(a, 7)).reduce((m, a) => { for (const pv of new Set((a.places || []).map(p => p.province).filter(Boolean))) { const v = m.get(pv) || { n: 0, score: 0 }; v.n++; v.score += a.rank?.score || 0; m.set(pv, v) } return m }, new Map())].sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+  const pmax = Math.max(1, ...provinces.map(p => p[1].n));
+  const radioLive = (state.radio?.items || []).filter(s => s.health?.ok).length;
+  const metrics = [
+    [L('Reports', 'Articles'), state.total, spark(reportDays, '#6affb9', 120, 30), 'nav', 'reports', L('14 days', '14 jours')],
+    [L('Social posts', 'Publications'), state.social?.archive?.posts ?? state.posts?.items?.length ?? 0, spark(postDays, '#82e3f5', 120, 30), 'nav', 'social', L('14 days', '14 jours')],
+    [L('Mineral sites', 'Sites miniers'), state.geology?.features?.length ?? 0, '', 'map-mode', 'minerals', 'IPIS · USGS'],
+    [L('Radio on air', 'Radios à l’antenne'), radioLive, '', 'map-mode', 'radio', `${state.radio?.items?.length || 0} ${L('listed', 'répertoriées')}`],
+    [L('Agreements', 'Accords'), state.agreements?.items?.length ?? 0, '', 'nav', 'agreements', L('register', 'registre')],
+  ];
+  const prompts = [L('What changed in the last 24 hours?', 'Qu’est-ce qui a changé en 24 heures ?'), L('Show me the mineral sites', 'Montre-moi les sites miniers'), L('Summarize social intelligence', 'Résume la veille sociale'), L('Where is fighting reported?', 'Où signale-t-on des combats ?')];
+  const corner = '<i class="hc tl"></i><i class="hc tr"></i><i class="hc bl"></i><i class="hc br"></i>';
+  return `<div class="holo-stage">
+  <canvas id="holo" class="holo-canvas" role="img" aria-label="${L('Holographic map of the DRC built from the collection: report hotspots, co-mention links, mineral sites and radio stations.', 'Carte holographique de la RDC construite à partir de la collection : points chauds, liens de co-citation, sites miniers et radios.')}"></canvas>
+  <div class="holo-vignette" aria-hidden="true"></div><div class="holo-scan" aria-hidden="true"></div>
+  <div class="holo-tip" id="holo-tip" hidden></div>
+  <header class="holo-title"><div class="holo-kicker"><i class="dot ok live"></i>OKAPI · ${L('INTELLIGENCE SURFACE', 'SURFACE DE RENSEIGNEMENT')}</div>
+    <h1><span class="holo-num">${nf(items.length)}</span> ${L('reports', 'articles')} <span class="holo-sep">/</span> <span class="holo-num">${holo.spots.length}</span> ${L('places', 'lieux')} <span class="holo-sep">/</span> <span class="holo-num ${high24 ? 'hot' : ''}">${high24}</span> ${L('high-priority today', 'prioritaires aujourd’hui')}</h1>
+    <p>${L('Every light on this surface is a source in your collection. Hover a column to read it; click to open the place.', 'Chaque lumière correspond à une source de votre collection. Survolez une colonne pour la lire ; cliquez pour ouvrir le lieu.')}</p></header>
+  <aside class="holo-panel holo-feed">${corner}<div class="holo-panel-head"><span>${L('INTERCEPT FEED', 'FLUX D’INTERCEPTION')}</span><b>${L('LATEST', 'DERNIERS')}</b></div>
+    ${recent.map((a, i) => `<button class="holo-intercept" data-act="report" data-arg="${esc(a.id)}" style="--i:${i}"><time>${esc(age(a.published_at))}</time><i style="background:${bandHex(a.rank?.score || 0)}"></i><div><strong>${esc(title(a))}</strong><small>${esc(a.source || '')}${a.places?.[0] ? ' · ' + esc(a.places[0].name) : ''}</small></div></button>`).join('') || `<p class="muted">${L('No reports loaded.', 'Aucun article chargé.')}</p>`}</aside>
+  <aside class="holo-panel holo-side">${corner}<div class="holo-panel-head"><span>${L('PROVINCE PRESSURE', 'PRESSION PAR PROVINCE')}</span><b>7 ${L('DAYS', 'JOURS')}</b></div>
+    ${provinces.map(([pv, v]) => `<button class="holo-bar" data-act="holo-province" data-arg="${esc(pv)}"><span>${esc(pv)}</span><i><em style="width:${(v.n / pmax * 100).toFixed(0)}%;background:${bandHex(v.score / v.n)}"></em></i><b>${v.n}</b></button>`).join('') || `<p class="muted">${L('No placed reports this week.', 'Aucun article localisé cette semaine.')}</p>`}
+    <div class="holo-panel-head" style="margin-top:18px"><span>${L('LAYERS', 'COUCHES')}</span><b>${L('HOLOGRAM', 'HOLOGRAMME')}</b></div>
+    ${HOLO_LAYERS().map(([k, label, col]) => `<label class="holo-layer"><input type="checkbox" data-act="holo-layer" data-arg="${k}" ${holoLayerList().includes(k) ? 'checked' : ''}><i style="background:${col};box-shadow:0 0 10px ${col}"></i>${esc(label)}</label>`).join('')}
+    <div class="holo-legend"><span><i style="background:#ff5d6c"></i>${L('High', 'Élevée')}</span><span><i style="background:#ffc65c"></i>${L('Medium', 'Moyenne')}</span><span><i style="background:#6affb9"></i>${L('Routine', 'Courante')}</span></div>
+    <button class="holo-motion" data-act="ai-motion" aria-pressed="${!state.aiMotion}">${state.aiMotion ? '❚❚ ' + L('Pause motion', 'Suspendre') : '▶ ' + L('Resume motion', 'Reprendre')}</button></aside>
+  <form class="holo-command" data-form="okapi-ask">${corner}<span class="holo-orb" aria-hidden="true"><i></i><i></i><i></i></span><label class="sr-only" for="okapi-q">${L('Ask Okapi', 'Demander à Okapi')}</label><input id="okapi-q" name="q" autocomplete="off" maxlength="1000" placeholder="${L('Ask Okapi about the DRC…', 'Interrogez Okapi sur la RDC…')}"><button type="button" class="holo-mic" data-act="voice-open" aria-label="${L('Voice', 'Voix')}">${icon('radio')}</button><button type="submit" class="holo-send">${L('Ask', 'Demander')} ${icon('arrow')}</button>
+    <div class="holo-prompts">${prompts.map(q => `<button type="button" data-act="ai-prompt" data-arg="${esc(q)}">${esc(q)}</button>`).join('')}</div></form>
+  <div class="holo-metrics">${metrics.map(([label, n, chart, act, arg, sub]) => `<button data-act="${act}" data-arg="${arg}">${corner}<small>${esc(label)}</small><strong>${nf(n)}</strong><span class="holo-metric-sub">${esc(sub)}</span>${chart}</button>`).join('')}</div>
+  </div>`;
+}
+// ---------------------------------------------------------------------------------------------
 // Live radio: stations on the map, a persistent player, and news from the station's area.
 
 state.radioMode = location.hash === '#radio' || location.hash.startsWith('#radio/'); state.radio = null; state.radioNow = ''; state.radioSel = ''; state.radioStatus = 'idle';
@@ -1489,42 +1721,6 @@ function loadAiModels(){
   for(const p of state.aiSettings?.providers||[])if(p.configured&&discoverableAi.includes(p.id))void fetchAiModels(p.id);
 }
 
-function aiDrcOutline(){
- const rings=state.geometry?.features?.[0]?.geometry?.coordinates||[];
- return rings.map(r=>r.map(([x,y],i)=>`${i?'L':'M'}${((x-12)*14+55).toFixed(1)},${((6-y)*14+65).toFixed(1)}`).join(' ')+'Z').join(' ');
-}
-function aiCommandView(){
- const top=[...state.items].sort((a,b)=>b.rank.score-a.rank.score).slice(0,3);
- const metrics=[
-   [L('Reports collected','Articles collectés'),state.total,'reports'],
-   [L('Social posts archived','Publications archivées'),state.social?.archive?.posts??state.posts?.items?.length??0,'social'],
-   [L('Mineral records','Références minières'),state.geology?.features?.length??0,'minerals'],
-   [L('Agreement records','Références d’accords'),state.agreements?.items?.length??0,'agreements']
- ];
- return `<div class="ai-stage">
- <div class="ai-rain" aria-hidden="true">${Array.from({length:18},(_,i)=>`<span style="--i:${i}">${'01 10 001 101 RDC 011 00 110 '.repeat(7)}</span>`).join('')}</div>
- <div class="ai-stage-head"><span><i class="dot ok"></i> OKAPI / ${L('INTELLIGENCE INTERFACE','INTERFACE INTELLIGENCE')}</span><button class="btn sm" data-act="ai-motion" aria-pressed="${!state.aiMotion}">${state.aiMotion?L('Pause animation','Suspendre les animations'):L('Resume animation','Reprendre les animations')}</button></div>
- <div class="ai-hero">
- <section class="ai-intro"><div class="ai-kicker">CONGO SIGNAL // 01</div><h1>${L('See the signals.','Voir les signaux.')}<br><em>${L('Connect the story.','Relier les faits.')}</em></h1>
- <p>${L('Your intelligence, in conversation. Explore Congo through the reports, places and evidence in your workspace.','Votre veille, en conversation. Explorez le Congo à travers les articles, les lieux et les sources de votre espace.')}</p>
- <button class="ai-engage" data-act="voice-open">${icon('spark')} ${L('Connect with Okapi','Échanger avec Okapi')} ${icon('arrow')}</button>
- <div class="ai-assistant-note"><span class="ai-tiny-orb"></span>${L('Text or voice · microphone off until activated','Texte ou voix · micro désactivé avant activation')}</div>
- <div class="ai-prompts">${[
-   L('What are the main news stories?','Quelles sont les principales actualités ?'),
-   L('Show me the mineral sites','Montre-moi les sites miniers'),
-   L('Summarize social intelligence','Résume la veille sociale')
- ].map(q=>`<button data-act="ai-prompt" data-arg="${esc(q)}">${esc(q)} <span>↗</span></button>`).join('')}</div></section>
- <div class="ai-core" role="img" aria-label="${L('Animated DRC visualization. Decorative, not a live sensor.','Visualisation animée de la RDC. Décorative, pas un capteur en direct.')}">
- <div class="ai-core-halo"></div><div class="ai-orbit orbit-one"></div><div class="ai-orbit orbit-two"></div><div class="ai-orbit orbit-three"></div>
- <svg class="ai-country" viewBox="0 0 420 420" aria-hidden="true"><defs><pattern id="ai-dot-grid" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="1.2" fill="#55f5ba"/></pattern><linearGradient id="ai-country-glow" x2="1" y2="1"><stop stop-color="#00dcab" stop-opacity=".2"/><stop offset="1" stop-color="#71d7ff" stop-opacity=".02"/></linearGradient></defs><path d="${aiDrcOutline()}" fill="url(#ai-country-glow)" stroke="#6effc4" stroke-width="1.3"/><path d="${aiDrcOutline()}" fill="url(#ai-dot-grid)" opacity=".6"/></svg>
- <div class="ai-core-caption"><small>04° S / 21° E</small><strong>R D C</strong><span>${L('EVIDENCE AT THE CENTER','LES SOURCES AU CENTRE')}</span></div>
- <span class="ai-orbit-label label-north">01 / SIGNAL</span><span class="ai-orbit-label label-east">02 / CONTEXT</span><span class="ai-orbit-label label-south">03 / INSIGHT</span>
- </div></div>
- <div class="ai-metrics">${metrics.map(([label,n,target],i)=>`<button data-act="${target==='minerals'?'map-mode':'nav'}" data-arg="${target}"><small>0${i+1} / ${esc(label)}</small><strong>${nf(n)}</strong><span>↗</span></button>`).join('')}</div>
- <div class="ai-bottom"><section class="ai-signals"><div class="ai-section-title"><h2>${L('Priority signals','Signaux prioritaires')}</h2><span>${L('FROM YOUR COLLECTION','DANS VOTRE COLLECTION')}</span></div>${top.map((a,i)=>`<button class="ai-signal-row" data-act="report" data-arg="${esc(a.id)}"><span>0${i+1}</span><div><strong>${esc(title(a))}</strong><small>${esc(a.source_name||a.publisher||a.source||'')} · ${esc(age(a.published_at))}</small></div>${icon('arrow')}</button>`).join('')||'<p>'+L('No reports loaded.','Aucun article chargé.')+'</p>'}</section>
- <section class="ai-context"><div class="ai-section-title"><h2>${L('Workspace snapshot','État de l’espace')}</h2>${icon('activity')}</div><p>${L('Source-linked intelligence. Human judgment.','Une veille sourcée. Un jugement humain.')}</p><dl><div><dt>${L('Collection refreshed','Collection actualisée')}</dt><dd>${state.updated?esc(date(state.updated,true)):'—'}</dd></div><div><dt>${L('Analysis engine','Moteur d’analyse')}</dt><dd>${esc(state.status.provider||'—')}</dd></div><div><dt>${L('AI configuration','Configuration IA')}</dt><dd>${state.status.enabled?L('Enabled','Activée'):L('Disabled','Désactivée')}</dd></div></dl><button class="btn sm" data-act="reload">${icon('refresh')} ${L('Refresh snapshot','Actualiser l’état')}</button><small>${L('Animations are decorative. AI requests follow your budgets.','Animations décoratives. Les requêtes IA respectent vos budgets.')}</small></section></div>
- </div>`;
-}
 function aiSettingsView(){
  const c=state.aiSettings;
  if(state.auth?.user?.role!=='owner')return pageHead('AI',L('Owner access required','Accès propriétaire requis'),'');
@@ -1949,6 +2145,8 @@ const ACTIONS = {
   'ai-mode': () => {state.aiMode=!state.aiMode;store.set('congo-ai-mode',state.aiMode?'1':'0');if(state.aiMode)go('ai-command');else if(state.view==='ai-command')go('briefing');else render();},
   'ai-motion': () => {state.aiMotion=!state.aiMotion;store.set('congo-ai-motion',state.aiMotion?'1':'0');render();},
   'ai-prompt': prompt => voiceCenter.open(prompt),
+  'holo-layer': (k, el) => { state.holoLayers = el.checked ? [...new Set([...holoLayerList(), k])] : holoLayerList().filter(x => x !== k); store.set('congo-holo-layers', state.holoLayers.join(',')); if (!holoAnimated()) holoFrame(performance.now()) },
+  'holo-province': pv => { state.q = pv; state.place = ''; state.radioMode = false; state.mineralMode = false; go('situation') },
   'voice-open': () => voiceCenter.open(),
   'logout': async () => {voiceCenter.close();await api('/v1/auth/logout',{});sessionStorage.removeItem('congo-token');location.reload()},
   'ai-check': provider => fetchAiModels(provider,true),
@@ -2105,6 +2303,7 @@ document.addEventListener('submit', async e => {
     try{state.aiSettings=await api('/v1/settings/ai',body);if(body.api_key){aiModelLists.delete(body.provider);aiModelErrors.delete(body.provider)}form.querySelector('[name=api_key]')?.value && (form.querySelector('[name=api_key]').value='');render();toast(L('AI settings saved','Paramètres IA enregistrés'))}catch(err){toast(err.message)}finally{button.disabled=false}return;
   }
   if(kind==='team'){const f=new FormData(form),body={email:f.get('email'),role:f.get('role'),active:f.has('active'),daily_requests:Number(f.get('daily_requests')),daily_usd:Number(f.get('daily_usd')),monthly_usd:Number(f.get('monthly_usd'))};try{state.team=await api('/v1/team',body);toast(L('Membership saved','Membre enregistré'));await load()}catch(err){toast(err.message)}return}
+  if (kind === 'okapi-ask') { const q = form.q.value.trim(); voiceCenter.open(q || undefined); form.q.value = ''; return }
   if (kind === 'lookup') return openDossier($('#lookup-handle').value);
   if (kind === 'settings') { sessionStorage.setItem('congo-token', $('#token').value.trim()); state.config = null; closeOverlay(); return load() }
   if (kind === 'notes') {
