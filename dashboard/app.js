@@ -888,7 +888,7 @@ function mountGeology() {
 function mountGeologyLayers(map) {
   // Geology and relief sit beneath every Congo Signal layer (outline, focus mask, sites), whatever
   // order those were added in; a mis-ordered stack is corrected on the next mount.
-  const ours = ['drc-fill', 'drc-border', 'focus-mask', 'focus-fill', 'focus-glow', 'focus-line', 'focus-active', 'focus-labels', 'mineral-clusters', 'mineral-counts', 'mineral-sites', 'mineral-selection'];
+  const ours = ['drc-fill', 'drc-glow', 'drc-border', 'drc-comet-glow', 'drc-comet', 'focus-mask', 'focus-fill', 'focus-glow', 'focus-line', 'focus-active', 'focus-labels', 'mineral-clusters', 'mineral-counts', 'mineral-sites', 'mineral-selection'];
   const order = () => map.getStyle().layers.map(l => l.id);
   const before = order().find(id => ours.includes(id));
   if (!map.getSource('macrostrat')) {
@@ -1124,6 +1124,59 @@ function mapSVG(ps) {
 }
 // Preserve one map instance through re-renders.
 let mapHost = null, mapInstance = null, mapMarkers = [], mapFailed = false, markerSignature = '';
+// ---------------------------------------------------------------------------------------------
+// Animated national border: breathing glow, two light pulses travelling the perimeter, crisp line.
+
+const BORDER_LAP_MS = 16000, BORDER_FPS = 30;
+let borderFrame = 0, borderLast = 0;
+function mountBorder() {
+  const map = mapInstance;
+  if (!map || !state.geometry || map.getSource('drc-outline')) return;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c8dd91';
+  // line-progress needs line geometry with metrics, so trace the polygon rings as lines.
+  const rings = state.geometry.features.flatMap(f => f.geometry.type === 'Polygon' ? f.geometry.coordinates : f.geometry.coordinates.flat());
+  const trace = { type: 'FeatureCollection', features: rings.map(r => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: r } })) };
+  map.addSource('drc-outline', { type: 'geojson', data: state.geometry });
+  map.addSource('drc-trace', { type: 'geojson', data: trace, lineMetrics: true });
+  map.addLayer({ id: 'drc-fill', type: 'fill', source: 'drc-outline', paint: { 'fill-color': accent, 'fill-opacity': 0.04 } });
+  map.addLayer({ id: 'drc-glow', type: 'line', source: 'drc-trace', layout: { 'line-join': 'round' }, paint: { 'line-color': accent, 'line-width': 8, 'line-blur': 7, 'line-opacity': 0.22 } });
+  map.addLayer({ id: 'drc-border', type: 'line', source: 'drc-outline', layout: { 'line-join': 'round' }, paint: { 'line-color': accent, 'line-width': 1.3, 'line-opacity': 0.45 } });
+  map.addLayer({ id: 'drc-comet-glow', type: 'line', source: 'drc-trace', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-width': 16, 'line-blur': 10, 'line-gradient': borderGradient(0, accent, 0.9) } });
+  map.addLayer({ id: 'drc-comet', type: 'line', source: 'drc-trace', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-width': 3.4, 'line-gradient': borderGradient(0, '#f4ffd6', 1) } });
+  map.__borderAccent = accent;
+  if (!borderFrame && !reducedMotion()) borderFrame = requestAnimationFrame(animateBorder);
+}
+/// Gradient along the border with two comets (heads at p and p + 0.5) fading over a tail.
+function borderGradient(p, color, alpha) {
+  const tail = 0.09, stops = new Map([[0, 0], [1, 0]]);
+  const rgba = a => { const c = color.replace('#', ''); const n = parseInt(c.length === 3 ? [...c].map(x => x + x).join('') : c, 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${(a * alpha).toFixed(3)})` };
+  const mark = (pos, a) => { const q = Math.min(1, Math.max(0, pos)); stops.set(+q.toFixed(4), Math.max(stops.get(+q.toFixed(4)) || 0, a)) };
+  for (const head of [p, (p + 0.5) % 1]) {
+    for (let k = 0; k <= 6; k++) {
+      const pos = head - tail * k / 6, a = Math.pow(1 - k / 6, 1.6);
+      if (pos >= 0) mark(pos, a); else mark(pos + 1, a);  // wrap the tail across the ring start
+    }
+    mark(head + 0.004, 0);
+  }
+  const sorted = [...stops].sort((a, b) => a[0] - b[0]);
+  return ['interpolate', ['linear'], ['line-progress'], ...sorted.flatMap(([pos, a]) => [pos, rgba(a)])];
+}
+function animateBorder(t) {
+  borderFrame = 0;
+  const map = mapInstance;
+  if (!map || reducedMotion()) return;
+  borderFrame = requestAnimationFrame(animateBorder);
+  if (t - borderLast < 1000 / BORDER_FPS || document.hidden) return;
+  borderLast = t;
+  try {
+    if (!map.getLayer('drc-comet')) return;
+    const p = (t % BORDER_LAP_MS) / BORDER_LAP_MS, accent = map.__borderAccent || '#c6f36b';
+    map.setPaintProperty('drc-comet', 'line-gradient', borderGradient(p, '#f4ffd6', 1));
+    map.setPaintProperty('drc-comet-glow', 'line-gradient', borderGradient(p, accent, 0.9));
+    map.setPaintProperty('drc-glow', 'line-opacity', 0.16 + 0.12 * (0.5 + 0.5 * Math.sin(t / 1400)));
+  } catch {}
+}
+
 /// Cursor position and camera readout for the map HUD.
 function hudText(h = {}) {
   const deg = (v, pos, neg, w) => v == null ? '—'.padEnd(w + 7) : `${Math.abs(v).toFixed(4).padStart(w + 5, '0')}°${v >= 0 ? pos : neg}`;
@@ -1164,12 +1217,7 @@ function mountMap() {
       mapInstance.on('style.load', () => {
         mountMinerals();
         setTimeout(() => { mountGeology(); mountFocus() }, 0);
-        if (state.geometry && !mapInstance.getSource('drc-outline')) {
-          const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c8dd91';
-          mapInstance.addSource('drc-outline', { type: 'geojson', data: state.geometry });
-          mapInstance.addLayer({ id: 'drc-fill', type: 'fill', source: 'drc-outline', paint: { 'fill-color': accent, 'fill-opacity': 0.04 } });
-          mapInstance.addLayer({ id: 'drc-border', type: 'line', source: 'drc-outline', paint: { 'line-color': accent, 'line-width': 1.6, 'line-opacity': 0.7 } });
-        }
+        mountBorder();
       });
     } catch { mapFailed = true; mapInstance?.remove(); mapInstance = null; mapHost = null; render(); return }
   }
