@@ -29,10 +29,13 @@ pub struct Subject {
     pub priority: i64,
 }
 
+/// OPENAI_API_KEY, or OPENAI_KEY as an alias.
 fn api_key() -> Option<String> {
-    std::env::var("OPENAI_API_KEY")
-        .ok()
-        .filter(|k| !k.trim().is_empty())
+    ["OPENAI_API_KEY", "OPENAI_KEY"]
+        .iter()
+        .filter_map(|k| std::env::var(k).ok())
+        .map(|k| k.trim().trim_matches('"').to_string())
+        .find(|k| !k.is_empty())
 }
 fn enabled() -> bool {
     api_key().is_some()

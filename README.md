@@ -352,7 +352,7 @@ Images passing both checks are `verified`; if the source page cannot be fetched 
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | unset | Enables image search (server-side only) |
+| `OPENAI_API_KEY` (or `OPENAI_KEY`) | unset | Enables image search (server-side only) |
 | `OPENAI_IMAGE_MODEL` | `gpt-5-mini` | Model used with the web search tool |
 | `IMAGE_SEARCH_DAILY_LIMIT` | `40` | Searches per UTC day (0–500), reserved before each call |
 | `IMAGE_SEARCH_ENABLED` | enabled | `0` disables; also off when `REFERENCE_SYNC=0` |
