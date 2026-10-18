@@ -140,6 +140,7 @@ cargo build --locked
 node --check dashboard/app.js
 python3 tests/intelligence_smoke.py
 TEST_PROVIDER=claude python3 tests/intelligence_smoke.py
+python3 tests/social_smoke.py
 ```
 
 ### Hosting the AI-enabled version
@@ -158,7 +159,7 @@ Provider references: [Anthropic Messages API](https://platform.claude.com/docs/e
 
 ## Situation room (October 18, 2026)
 
-The default view is a restrained map-first workspace inspired by God's Eye View. It provides selectable topic layers, a high-priority filter, rolling 24-hour/7-day/30-day publication windows, day selection in a publication histogram, map/satellite basemaps, flat/tilted camera views, location shortcuts, and a linked report rail. Search, date and topic selection apply to map counts and reports; selecting a place narrows the rail. Timeline bins use Kinshasa calendar dates (UTC+1), not inferred incident dates. Rolling windows use elapsed hours from the current time. Undated items appear only in the unrestricted window. Marker color represents the most common topic at that place; marker counts represent articles, not incidents. Articles without a recognized place remain in the report list and are counted separately.
+The situation room (`/#situation`) is a map-first workspace inspired by God's Eye View. It provides selectable topic layers, a high-priority filter, rolling 24-hour/7-day/30-day publication windows, day selection in a publication histogram, map/satellite basemaps, flat/tilted camera views, location shortcuts, and a linked report rail. Search, date and topic selection apply to map counts and reports; selecting a place narrows the rail. Timeline bins use Kinshasa calendar dates (UTC+1), not inferred incident dates. Rolling windows use elapsed hours from the current time. Undated items appear only in the unrestricted window. Marker color represents the most common topic at that place; marker counts represent articles, not incidents. Articles without a recognized place remain in the report list and are counted separately.
 
 The existing overview, library, saved reports, bilingual Claude analysis, translation, evidence and notes remain accessible. The loaded collection starts at 200 recent reports and can expand to 500; filters and the timeline describe that loaded set, not an exhaustive DRC event database. Satellite imagery is a basemap, not a live feed. No aircraft, vessel, camera or satellite-tracking feeds have been added.
 
@@ -219,32 +220,63 @@ Archive listing requests support a bounded integer `page` query (0–10000), for
 Both `POLL_SECONDS` (news) and `EVIDENCE_POLL_SECONDS` (primary sources) are configured to 21600 in the local environment. Avoid overriding `POLL_SECONDS` with 900 when restarting. Immediate manual jobs do not wait for the next scheduled poll.
 
 
-## X social signals pilot
+## Dashboard (October 18, 2026 redesign)
 
-The bilingual **Social signals / Signaux sociaux** screen is available at `/#social`.
-`GET /v1/social` (same API authentication as other private routes) returns aggregate topic snapshots, query definitions, UTC daily request usage, and collection errors. It does not return or store post objects, user IDs, political affiliations, or account scores. No data is sent to an AI provider.
+The dashboard is one app shell with a persistent navigation rail, live collector status, an EN/FR switch and a dark/light theme toggle (defaults to the operating-system preference; the choice is remembered per browser). Views are addressable by URL hash:
 
-The worker requests `https://api.x.com/2/tweets/counts/recent` for four bundled queries in `config/x-topics.json`. Each snapshot covers the previous 24 complete UTC hours, using hourly bins and a 30-second indexing buffer. It includes reposts. Topics overlap: do not sum their counts as distinct posts. Keywords are not exhaustive; regional-language vocabulary needs review. Counts and X search results can differ.
+| View | Hash | Purpose |
+| --- | --- | --- |
+| Briefing | `#briefing` (default) | KPIs, priority queue, X conversation pulse, hotspots, most active accounts, collection health |
+| Situation room | `#situation` | Map, layers, publication timeline and report rail |
+| Reports / Saved | `#reports`, `#saved` | Filterable ranked library with analyst bookmarks |
+| Social intelligence | `#social` | X topic volume, post archive, accounts, hashtags, mentions and linked domains |
+| Account dossier | `#account/<handle>` | Shareable dossier for one X account |
+| Primary sources | `#sources` | Collected documents, in-site PDF reader, source status |
+| Methodology | `#method` | Scoring, AI, mapping and social-signal method notes |
+
+Press **⌘K / Ctrl+K** (or `/`) for the command palette: jump to views, reports, places or `@accounts`, or search reports and X posts. Charts carry hover tooltips; all filtered lists export as JSON. The frontend remains dependency-free vanilla JavaScript embedded in the binary; rebuild after edits.
+
+## X social signals
+
+`GET /v1/social` returns aggregate topic snapshots, a rolling hourly count history (up to 7 days shown), query definitions, per-budget daily usage and archive size. The worker requests `https://api.x.com/2/tweets/counts/recent` for the bundled queries in `config/x-topics.json`. Each snapshot covers the previous 24 complete UTC hours with hourly bins and includes reposts. Topics overlap: do not sum their counts as distinct posts. Every snapshot's hourly bins are also stored (`x_counts`), so the volume history grows over time. Keywords are not exhaustive; regional-language vocabulary needs review.
 
 Configure only on the server in the Git-ignored `.env` (permissions 0600):
 
 ```dotenv
 X_BEARER_TOKEN=your-app-only-token
 X_ENABLED=1
-X_DAILY_REQUEST_LIMIT=24
+X_DAILY_REQUEST_LIMIT=24      # counts requests per UTC day (0–96)
+X_POST_REQUEST_LIMIT=4        # topic post samples per UTC day (0–24)
+X_POSTS_PER_TOPIC=10          # posts per topic sample (10–100)
+X_ACCOUNT_REQUEST_LIMIT=10    # account-history requests per UTC day (0–100)
+X_ACCOUNT_HISTORY_PAGES=1     # timeline pages (100 posts each) per dossier fetch (1–5)
+X_RETENTION_DAYS=90           # archive retention for posts and counts (1–3650)
 ```
 
-Collection is disabled unless explicitly enabled and a token is present. Each topic is checked at most every four hours. The UTC request cap defaults to 24 and is bounded to 0–96. Reservations are persisted before requests, including failed attempts, preventing restarts from resetting the cap. X rate-limit resets on 429 defer all topics. No redirects are followed with the bearer credential. No auto-recharge is configured. At the documented $0.005/count request, 24 successful requests correspond to an estimated $0.12/day; X billing remains authoritative. The cap counts requests, not currency.
+Collection is disabled unless explicitly enabled and a token is present. Every request is reserved against its daily cap in SQLite *before* it is sent, so failures and restarts cannot reset a budget. X rate-limit resets on 429 defer scheduled collection. No redirects are followed with the bearer credential. Refreshing the dashboard only reads SQLite and never triggers a paid request. X bills counts, post reads and user reads; check X billing for current prices.
 
-Refreshing the dashboard only reads SQLite and does not trigger paid collection. Snapshots become stale after 270 minutes. Errors retain the previous successful snapshot visibly, never replacing unavailable coverage with zero counts. A volume flag requires >=20 posts in the latest complete hour and >=3 times the preceding six-hour mean (minimum baseline 1). This is an exploratory indicator, not event confirmation, bot detection, political affiliation or independent corroboration. No external alerts, post collection, translation or claim summaries are enabled in this first slice.
+A volume flag requires ≥20 posts in the latest complete hour and ≥3× the preceding six-hour mean (minimum baseline 1). It is an exploratory indicator, not event confirmation.
 
-Official API references: https://docs.x.com/x-api/posts/counts/introduction and https://docs.x.com/x-api/getting-started/pricing . Use remains subject to your approved X use case and developer terms.
+### Post archive and topic rules
 
+Topic samples (`/2/tweets/search/recent`, once per topic per day) and analyst-requested account histories are stored in a retained archive (`x_posts`, `x_accounts`, `x_post_matches`). A post is archived **only if it matches at least one topic rule**. A local evaluator applies the same query syntax used in `config/x-topics.json` (terms, quoted phrases, `OR`, implicit AND, parentheses, `-` negation) and records which terms matched. It approximates X's server-side matching; posts returned by an X topic query are always tagged with that topic. Posts keep text, language, type (post/reply/quote/repost), public engagement metrics, hashtags, mentions and linked domains. Accounts keep their public profile (name, bio, location, creation date, public metrics, verification) and previously seen handles. Posts older than `X_RETENTION_DAYS` are purged, along with accounts that have no remaining posts. The earlier 24-hour snapshot format is migrated on startup by re-arming the daily sample.
 
-### Public post feed
+### Account dossiers
 
-`GET /v1/social/posts` serves the authenticated dashboard a bounded snapshot of public posts and their author attribution. It is separate from the news JSON export. The Social signals screen shows original text, author display names and handles, publication/collection times, source links, topic and language filters. It assigns no account labels or inferred political beliefs, and does not send posts to AI services.
+Open any author, @mention or handle (Social intelligence → **Account dossier**, the command palette, or `/#account/<handle>`). A dossier shows the account's archived topic posts with matched terms highlighted, topic mix, post types, languages, posting hours (Kinshasa time), daily activity, hashtags, mentions and linked domains. Dossiers export as JSON.
 
-When X collection is enabled, recent search fetches at most 10 posts per topic once per 24 hours, with author expansions. `X_POST_REQUEST_LIMIT` defaults to 4 requests per UTC day (bounded 0–24). Attempts reserve quota before sending; restart cannot reset it. No pagination or thread expansion occurs. This samples at most 40 posts daily across four topics, which may overlap; it is not every post represented in the count charts. Post reads and author expansions are separately billable by X, in addition to counts. Failure clears that topic's cached posts, and snapshots older than 24 hours are hidden and purged. Disabling collection does not make stale posts visible. Author data is retained only as attribution alongside the short-lived post snapshot. Query vocabulary, not an account label, determines inclusion.
+**Fetch history** calls `/2/users/{id}/tweets` (preceded by `/2/users/by/username/{handle}` for accounts not yet in the archive), reads up to 100 recent posts per page and archives only those matching the topic rules. Later fetches request only newer posts (`since_id`). Each account can be fetched at most once per 10 minutes. This is on demand only; nothing fetches account histories automatically.
 
-The earlier aggregate-only description applies to the count endpoint; the post endpoint now adds this separate public-source feed. No external alerts or AI summaries are enabled.
+Accounts are attributed, never labeled: no stance, affiliation, automation, coordination or credibility scores are inferred, and activity volume is not influence. Posts are not sent to AI services.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/v1/social` | Topic counts, hourly history, budgets, archive size |
+| GET | `/v1/social/posts?topic=&lang=&q=&since=&limit=&offset=` | Archived topic posts, newest first (limit ≤ 500) |
+| GET | `/v1/social/accounts?q=&topic=&limit=` | Accounts ranked by archived topic posts, with per-topic counts |
+| GET | `/v1/social/accounts/{handle}` | Dossier: profile, history status, up to 1,000 archived posts |
+| POST | `/v1/social/accounts/{handle}/history` | Budgeted fetch of the account's recent posts filtered to topic rules |
+
+`X_API_URL` overrides the X origin for offline tests only; the bearer token is sent to it. `python3 tests/social_smoke.py` exercises the account-history flow against a mock X server.
+
+Official API references: https://docs.x.com/x-api/posts/counts/introduction, https://docs.x.com/x-api/users/user-posts-timeline-by-user-id and https://docs.x.com/x-api/getting-started/pricing . Use remains subject to your approved X use case and developer terms.

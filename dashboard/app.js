@@ -1,159 +1,918 @@
-const $ = (s, root=document) => root.querySelector(s);
-const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const paths={grid:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',map:'m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z M9 3v15 M15 6v15',bookmark:'M6 3h12v18l-6-4-6 4Z',layers:'m12 3 10 5-10 5L2 8Z M2 12l10 5 10-5 M2 16l10 5 10-5',search:'M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',arrow:'M5 12h14 M13 6l6 6-6 6',download:'M12 3v12 m-5-5 5 5 5-5 M4 16v5h16v-5',refresh:'M20 10a8 8 0 1 0-2 8 M20 3v7h-7',globe:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M3 12h18 M12 3c-6 6-6 12 0 18 6-6 6-12 0-18',spark:'m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z',activity:'M2 12h5l3-8 4 16 3-8h5',clock:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',pin:'M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0 M14 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0',shield:'m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z M8 12l3 3 5-6',book:'M3 4h6c2 0 3 1 3 2 0-1 1-2 3-2h6v16h-6c-2 0-3 1-3 1s-1-1-3-1H3Z M12 6v15',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v3 M12 19v3 M2 12h3 M19 12h3 M5 5l2 2 M17 17l2 2 M19 5l-2 2 M7 17l-2 2',close:'m6 6 12 12 M6 18 18 6',external:'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',chevron:'m9 5 7 7-7 7',check:'m4 12 5 5L20 6'};
-const icon=n=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[n]||paths.grid}"/></svg>`;
-const strings={en:{workspace:'Research workspace',overview:'Overview',reports:'Report library',map:'Geographic view',saved:'Saved reports',method:'Methodology',nav:'WORKSPACE',research:'RESEARCH',region:'Area of interest',country:'Democratic Republic of Congo',analyst:'Research analyst',local:'Local workspace',live:'Collector online',offline:'Connection interrupted',title:'A clearer view of Congo.',subtitle:'Public reporting. Local context. A more informed perspective.',eyebrow:'DRC INTELLIGENCE WORKSPACE',export:'Export JSON',collect:'Collect latest',total:'Reports collected',high:'High priority',places:'Places mentioned',translated:'AI briefs ready',totalFoot:'articles in the collection',highFoot:'flagged for analyst attention',placesFoot:'approximate place references',translatedFoot:'English + French summaries',feed:'Intelligence feed',sortLabel:'Priority ranking',latest:'Latest first',search:'Search reports, places, public actors…',all:'All reports',security:'Security',politics:'Politics',health:'Health',economy:'Economy',other:'Other',showing:'reports',priority:'priority',medium:'Medium',low:'Low',sourceFrench:'French source',unverified:'Single source · unverified',mapTitle:'Geographic focus',mapSub:'Reported place mentions',mapCaption:'DEMOCRATIC REPUBLIC OF THE CONGO',mapNote:'Markers show approximate places mentioned in reporting, not verified incident locations.',briefLabel:'AI · RESEARCH ASSISTANT',briefTitle:'From reporting to understanding.',briefText:'Generate bilingual briefs and an impact assessment for the five highest-ranked reports without a brief.',briefButton:'Analyze top 5 reports',sourceTitle:'Source coverage',sourceText:'News comes from Actualite.cd. Primary publications are collected separately in Sources & reports. Multiple sources do not automatically corroborate a claim.',sourceCount:'News + primary documents',footer:'Open-source research · Source-linked by design',refreshAt:'Updated',empty:'No reports match this view',emptyText:'Try another topic, place, or search term.',reset:'Clear filters',loading:'Loading reports…',open:'Read source',brief:'AI brief',original:'Original · FR',english:'English translation',evidence:'Evidence',notes:'Analyst notes',generate:'Generate bilingual brief',translate:'Translate full article',pending:'Queued for AI',running:'AI is working',failed:'AI task failed',retry:'Retry',notReady:'This report has not been analyzed yet.',translationNotReady:'Generate a full English translation. Paragraphs stay aligned with the French source.',aiNotice:'AI-generated interpretation; verify against the original source. Priority indicates relevance for review, not factual certainty.',rank:'Why this report ranks here',actors:'Public actors mentioned',source:'Source',published:'Published',fetched:'Collected',hash:'Content fingerprint · SHA-256',author:'Byline',noAuthor:'Not extracted',save:'Save report',unsave:'Unsave report',saveNotes:'Save notes',reviewStatus:'Review status',unreviewed:'Not reviewed',reviewed:'Reviewed',follow_up:'Needs follow-up',noteLabel:'Your research notes',notePlaceholder:'Record observations, missing context, or sources to check…',settings:'Connection settings',token:'API bearer token (if configured)',tokenNote:'Stored only for this browser tab. No token is needed for the default local setup.',apply:'Apply',cancel:'Cancel',error:'Unable to connect to the API.',authError:'This API requires a token. Open connection settings.',aiOff:'AI is unavailable. Check the server’s AI provider settings.',queued:'report(s) queued for AI analysis',savedToast:'Research notes saved',collectToast:'Collection queued. New reports appear automatically.',exportToast:'Filtered reports exported',allPlaces:'All places',filterPlace:'Place filter',more:'Load more reports',noBrief:'No AI brief yet',covered:'AI-assisted ranking',rules:'Rule-based ranking',methodTitle:'Evidence before conclusions.',methodIntro:'Congo Signal is a bilingual research workspace for public reporting about the DRC. It borrows source evaluation and report-management ideas from OpenCTI, and geographic exploration from Ushahidi. This is an original implementation, not a fork of either platform.',methodRank:'Explainable priority, not a truth score',methodRankText:'Priority combines the source category (5–35 points), impact-related words in the source (up to 24), recency (up to 20), recognized DRC place mentions (6), and an optional AI impact assessment (up to 15). Scores range from 0 to 100. High is 65+, medium 40–64. Rankings apply to loaded recent articles; a mention or allegation is not an independently established event.',methodAI:'Two languages, one source trail',methodAIText:'The French article is preserved. The configured AI provider generates an English headline, English and French briefs, and an impact explanation. Full English translations are generated on demand with aligned paragraphs. Model, generation time, source fingerprint, and analysis status are retained. AI can make mistakes; translated wording is not an additional source.',methodMap:'Place mentions, not verified events',methodMapText:'A small DRC gazetteer matches explicit place names in text. Map coordinates are approximate town centers. A place may be mentioned as background; no incident location is inferred. Missing markers do not imply an absence of reporting. The gazetteer currently covers 20 places, not every territory.',methodReview:'Analyst-controlled review',methodReviewText:'Bookmarks, review status and notes are stored in SQLite. Marking a report reviewed does not certify its claims. No automatic credibility rating is assigned, and only one news source is currently connected.',references:'Design references & map attribution',readMore:'Open original article',ongoing:'AI tasks in progress',loadLimit:'Showing the latest',date:'Publication time',sourceTime:'Source time normalized to UTC',copy:'Copy source URL',copied:'Source URL copied'},fr:{workspace:'Espace de recherche',overview:'Vue d’ensemble',reports:'Bibliothèque',map:'Vue géographique',saved:'Articles sauvegardés',method:'Méthodologie',nav:'ESPACE DE TRAVAIL',research:'RECHERCHE',region:'Zone d’intérêt',country:'République démocratique du Congo',analyst:'Analyste de recherche',local:'Espace local',live:'Collecteur connecté',offline:'Connexion interrompue',title:'Mieux comprendre le Congo.',subtitle:'Sources ouvertes. Contexte local. Une perspective éclairée.',eyebrow:'ESPACE DE VEILLE · RDC',export:'Exporter JSON',collect:'Actualiser la collecte',total:'Articles collectés',high:'Priorité élevée',places:'Lieux mentionnés',translated:'Synthèses IA prêtes',totalFoot:'articles dans la collection',highFoot:'à examiner en priorité',placesFoot:'références géographiques',translatedFoot:'synthèses en anglais + français',feed:'Fil d’information',sortLabel:'Par priorité',latest:'Plus récents',search:'Rechercher articles, lieux, acteurs publics…',all:'Tous les articles',security:'Sécurité',politics:'Politique',health:'Santé',economy:'Économie',other:'Autres',showing:'articles',priority:'priorité',medium:'Moyenne',low:'Faible',sourceFrench:'Source française',unverified:'Source unique · non corroboré',mapTitle:'Focus géographique',mapSub:'Lieux cités dans les articles',mapCaption:'RÉPUBLIQUE DÉMOCRATIQUE DU CONGO',mapNote:'Les repères indiquent les lieux approximatifs cités, pas des positions d’incidents vérifiées.',briefLabel:'IA · ASSISTANT DE RECHERCHE',briefTitle:'De l’information à la compréhension.',briefText:'Générez des synthèses bilingues et une analyse d’impact pour les cinq articles prioritaires sans synthèse.',briefButton:'Analyser les 5 premiers articles',sourceTitle:'Couverture des sources',sourceText:'Les articles proviennent d’Actualite.cd. Les publications primaires figurent dans Sources et rapports. Plusieurs sources ne prouvent pas une affirmation.',sourceCount:'Articles + documents primaires',footer:'Recherche en sources ouvertes · Traçabilité intégrée',refreshAt:'Mis à jour',empty:'Aucun article ne correspond',emptyText:'Essayez un autre thème, lieu ou terme de recherche.',reset:'Effacer les filtres',loading:'Chargement des articles…',open:'Lire la source',brief:'Synthèse IA',original:'Original · FR',english:'Traduction anglaise',evidence:'Traçabilité',notes:'Notes d’analyse',generate:'Générer une synthèse bilingue',translate:'Traduire l’article en anglais',pending:'En attente de l’IA',running:'Analyse IA en cours',failed:'Échec de l’analyse IA',retry:'Réessayer',notReady:'Cet article n’a pas encore été analysé.',translationNotReady:'Générez une traduction anglaise intégrale. Les paragraphes restent alignés sur la source française.',aiNotice:'Interprétation générée par IA ; à vérifier avec la source originale. La priorité indique l’intérêt pour l’analyse, pas la certitude des faits.',rank:'Pourquoi cette priorité ?',actors:'Acteurs publics mentionnés',source:'Source',published:'Publié',fetched:'Collecté',hash:'Empreinte du contenu · SHA-256',author:'Signature',noAuthor:'Non extraite',save:'Sauvegarder',unsave:'Retirer des sauvegardes',saveNotes:'Enregistrer les notes',reviewStatus:'Statut de lecture',unreviewed:'Non examiné',reviewed:'Examiné',follow_up:'À approfondir',noteLabel:'Vos notes de recherche',notePlaceholder:'Consignez vos observations, le contexte manquant ou les sources à consulter…',settings:'Paramètres de connexion',token:'Jeton API (si configuré)',tokenNote:'Conservé uniquement dans cet onglet. Aucun jeton n’est requis pour la configuration locale par défaut.',apply:'Appliquer',cancel:'Annuler',error:'Impossible de joindre l’API.',authError:'Cette API nécessite un jeton. Ouvrez les paramètres de connexion.',aiOff:'IA indisponible. Vérifiez la configuration IA du serveur.',queued:'article(s) ajouté(s) à la file IA',savedToast:'Notes de recherche enregistrées',collectToast:'Collecte ajoutée. Les nouveaux articles apparaîtront automatiquement.',exportToast:'Articles filtrés exportés',allPlaces:'Tous les lieux',filterPlace:'Filtre géographique',more:'Charger plus d’articles',noBrief:'Pas encore de synthèse IA',covered:'Classement assisté par IA',rules:'Classement par règles',methodTitle:'Les sources avant les conclusions.',methodIntro:'Congo Signal est un espace de recherche bilingue dédié aux informations publiques sur la RDC. Il s’inspire de l’évaluation des sources et de la gestion des rapports d’OpenCTI, et de l’exploration géographique d’Ushahidi. Il s’agit d’une réalisation originale, pas d’une copie de leur code.',methodRank:'Une priorité explicable, pas un score de vérité',methodRankText:'La priorité combine la catégorie source (5–35 points), les termes d’impact du texte (jusqu’à 24), la récence (jusqu’à 20), les lieux de RDC reconnus (6), et une analyse d’impact IA facultative (jusqu’à 15). Le score va de 0 à 100. Élevé : 65+, moyen : 40–64. Le classement porte sur les articles récents chargés. Une mention ou allégation ne constitue pas un événement établi indépendamment.',methodAI:'Deux langues, une même traçabilité',methodAIText:'L’article français est conservé. Le service IA configuré génère un titre anglais, des synthèses en français et en anglais et une explication d’impact. La traduction anglaise intégrale est produite à la demande, avec des paragraphes alignés. Le modèle, la date, l’empreinte source et le statut sont conservés. L’IA peut se tromper ; une traduction n’est pas une source supplémentaire.',methodMap:'Des lieux cités, pas des incidents vérifiés',methodMapText:'Un petit répertoire géographique de RDC repère les noms de lieux explicites. Les coordonnées correspondent aux centres approximatifs des villes. Un lieu peut être mentionné en contexte ; aucune position d’incident n’est déduite. L’absence de repère ne signifie pas l’absence d’information. Le répertoire couvre actuellement 20 lieux.',methodReview:'Un examen contrôlé par l’analyste',methodReviewText:'Les sauvegardes, statuts et notes sont conservés dans SQLite. Marquer un article comme examiné ne certifie pas ses affirmations. Aucune note automatique de crédibilité n’est attribuée, et les documents primaires sont consultables dans Sources et rapports.',references:'Références & attribution cartographique',readMore:'Ouvrir l’article original',ongoing:'Tâches IA en cours',loadLimit:'Affichage des derniers',date:'Date de publication',sourceTime:'Date source normalisée en UTC',copy:'Copier le lien source',copied:'Lien source copié'}};
-const state={config:null,lang:localStorage.getItem('congo-lang')||'en',items:[],total:0,limit:200,view:location.hash==='#social'?'social':'map',layers:['security','politics','health','economy','other'],windowDays:0,selectedDay:'',highOnly:false,basemap:'light',tilt:false,q:'',category:'all',place:'',sort:'priority',status:{},error:'',updated:null,detail:null,detailTab:'brief',detailId:null,geometry:null,visible:12,modal:null};
-const t=k=>k==='map'?(state.lang==='fr'?'Vue de situation':'Situation room'):strings[state.lang][k]||k;
-const categoryName=c=>state.lang==='en'?({'Sécurité':'Security','Santé':'Health','Politique':'Politics','Société':'Society','Économie':'Economy','Femme':'Women','Culture':'Culture','Afrique':'Africa','Sport':'Sport','Opinion':'Opinion','Caricature':'Cartoon',"Offre d'emploi":'Job notice',"Appel d'offre":'Tender notice'}[c]||c):c;
-function toast(text){$('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').style.display='none',4000)}
-async function api(path,data){const token=sessionStorage.getItem('congo-token');const r=await fetch(path,{method:data?'POST':'GET',headers:{...(data?{'Content-Type':'application/json'}:{}),...(token?{'Authorization':`Bearer ${token}`}:{})},...(data?{body:JSON.stringify(data)}:{})});if(!r.ok){let e;try{e=await r.json()}catch{}throw Error(r.status===401?t('authError'):(e?.error||`${t('error')} (${r.status})`))}return r.json()}
-function date(s,short=false){if(!s)return '—';return new Date(s).toLocaleString(state.lang==='fr'?'fr-FR':'en-GB',{day:'2-digit',month:'short',...(short?{}:{year:'numeric'}),hour:'2-digit',minute:'2-digit',timeZone:'Africa/Kinshasa'})}
-function age(s){if(!s)return '—';const h=Math.max(0,Math.floor((Date.now()-Date.parse(s))/3600000));return h<1?(state.lang==='fr'?'récent':'just now'):h<24?`${h} h`:`${Math.floor(h/24)} ${state.lang==='fr'?'j':'d'}`}
-const brief=a=>a.brief?.status==='completed'?a.brief.data:null;
-const title=a=>state.lang==='en'&&brief(a)?.title_en?brief(a).title_en:a.title;
-const summary=a=>brief(a)?.[`summary_${state.lang}`]||a.description||'';
-const norm=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-const cats={all:null,security:['Sécurité'],politics:['Politique','Justice'],health:['Santé'],economy:['Économie'],other:['Société','Culture','Femme','Afrique','Sport','Opinion','Caricature',"Offre d'emploi","Appel d'offre"]};
-function filtered(){if(state.view==='map')return situationItems();return state.items.filter(a=>(!state.publisher||a.source===state.publisher)&&(state.view!=='saved'||a.analyst.saved)&&(!state.place||a.places.some(p=>p.name===state.place))&&(state.category==='all'||cats[state.category].includes(a.category)||(state.category==='other'&&!a.category))&&(!state.q||norm([a.title,a.description,a.search_text,JSON.stringify(brief(a)),...a.places.map(p=>p.name+' '+p.province)].join(' ')).includes(norm(state.q)))).sort((a,b)=>state.sort==='latest'?String(b.published_at).localeCompare(String(a.published_at)):b.rank.score-a.rank.score)}
-function placesList(items=state.items){const m=new Map();for(const a of items)for(const p of a.places)m.set(p.name,{...p,count:(m.get(p.name)?.count||0)+1});return [...m.values()].sort((a,b)=>b.count-a.count)}
-const navButton=(id,label,ic)=>`<button data-nav="${id}" class="${state.view===id?'active':''}" title="${esc(t(label))}" aria-label="${esc(t(label))}" ${state.view===id?'aria-current="page"':''}>${icon(ic)}<span>${t(label)}</span>${id==='saved'?`<b class="count">${state.items.filter(a=>a.analyst.saved).length}</b>`:''}</button>`;
-function metric(label,value,foot,ic){return `<div class="metric"><div class="metric-label">${t(label)}${icon(ic)}</div><div class="metric-value">${value}</div><div class="metric-foot">${t(foot)}</div></div>`}
-function render(){if(state.view==='social'){renderSocial();return}if(state.view==='sources'){renderEvidence();return}if(state.view==='map'){renderSituation();return}document.body.classList.remove('situation-mode');mapHost?.remove();document.documentElement.lang=state.lang;const items=filtered();const ps=placesList();$('#app').innerHTML=`<div class="layout"><aside class="sidebar"><div class="brand"><div class="brandmark">${icon('globe')}</div><span>CONGO SIGNAL</span></div><div class="brand-sub">CONTEXT. CLARITY. CONGO.</div><div class="nav-label">${t('nav')}</div><nav class="nav">${navButton('overview','overview','grid')}${navButton('reports','reports','layers')}${navButton('map','map','map')}</nav><div class="nav-sep"></div><div class="nav-label">${t('research')}</div><nav class="nav">${navButton('sources','sources','book')}<button data-nav="social">${evLabel('Social signals','Signaux sociaux')}</button>${navButton('saved','saved','bookmark')}${navButton('method','method','book')}</nav><div class="sidebar-bottom"><div class="region-label">${t('region')}</div><div class="region"><i class="flag"></i> ${state.lang==='fr'?'Congo, RDC':'Congo, DRC'}</div><div class="profile"><div class="avatar">CS</div><div><strong>${t('analyst')}</strong><small>${t('local')}</small></div></div></div></aside><div class="shell"><header class="topbar"><div class="breadcrumb">${t('workspace')} <span>/ &nbsp; ${t(state.view)}</span></div><div class="mobile-brand">CONGO SIGNAL</div><div class="top-actions"><div class="live"><i class="dot"></i>${state.error?t('offline'):t('live')}</div><div class="lang-switch" aria-label="Language"><button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button><button data-lang="fr" class="${state.lang==='fr'?'active':''}">FR</button></div><button class="iconbtn" data-action="settings" aria-label="${t('settings')}">${icon('settings')}</button></div></header><main class="main"><section class="hero"><div><div class="eyebrow">${t('eyebrow')}</div><h1>${state.view==='overview'?t('title'):t(state.view)}</h1><p>${t('subtitle')}</p></div><div class="buttons"><button class="btn" data-action="export">${icon('download')}${t('export')}</button><button class="btn primary" data-action="collect">${icon('refresh')}${t('collect')}</button></div></section>${state.error?`<div class="errorbar">${esc(state.error)} <button data-action="settings">${t('settings')}</button></div>`:''}${state.view!=='method'?`<section class="metrics">${metric('total',state.total,'totalFoot','layers')}${metric('high',state.items.filter(a=>a.rank.band==='high').length,'highFoot','activity')}${metric('places',ps.length,'placesFoot','pin')}${metric('translated',state.items.filter(a=>brief(a)).length,'translatedFoot','spark')}</section>`:''}${state.view==='method'?methodView():state.view==='map'?`<div class="grid"><section class="panel large-map"><div class="panel-head"><h2>${t('mapTitle')}</h2><small>${t('mapSub')}</small></div>${mapSVG(ps)}<div class="map-note">${t('mapNote')}</div></section><aside class="right-column"><div class="panel"><div class="panel-head"><h2>${t('places')}</h2><small>${ps.length}</small></div>${placeRows(ps)}</div>${sourcePanel()}</aside></div>`:`<div class="grid"><section class="panel"><div class="panel-head"><h2>${state.view==='saved'?t('saved'):t('feed')}</h2><small>${t('sortLabel')} ${icon('activity')}</small></div><div class="filters">${Object.keys(cats).map(k=>`<button class="chip ${state.category===k?'active':''}" data-category="${k}">${t(k)}</button>`).join('')}</div>${publisherFilter()}<div class="search-row"><label class="search">${icon('search')}<input id="search" type="search" placeholder="${t('search')}" value="${esc(state.q)}" aria-label="${t('search')}"></label><select id="sort" class="sort" aria-label="${t('sortLabel')}"><option value="priority" ${state.sort==='priority'?'selected':''}>${t('sortLabel')}</option><option value="latest" ${state.sort==='latest'?'selected':''}>${t('latest')}</option></select></div>${state.place?`<div class="filters"><button class="chip active" data-action="clear-place">${icon('pin')}${esc(state.place)} ×</button></div>`:''}<div class="list-info"><span id="results-count">${items.length} ${t('showing')}</span><span>${t('unverified')}</span></div><div id="report-list">${reportList(items)}</div>${activeTasks()?`<div class="activity">${activeTasks()} ${t('ongoing')}</div>`:''}<div id="more-area">${moreButton(items)}</div></section><aside class="right-column"><section class="panel"><div class="panel-head"><h2>${t('mapTitle')}</h2><small>${icon('map')}</small></div>${mapSVG(ps)}<div class="map-caption">${t('mapCaption')}</div>${placeRows(ps.slice(0,3))}<div class="map-note">${t('mapNote')}</div></section><section class="brief-panel"><div class="eyebrow">${icon('spark')}${t('briefLabel')} · ${esc(state.status.provider==='claude'?'CLAUDE':'OLLAMA')}</div><h3>${t('briefTitle')}</h3><p>${t('briefText')}</p><button class="btn" data-action="batch">${icon('spark')}${t('briefButton')}${icon('arrow')}</button></section>${sourcePanel()}</aside></div>`}<footer class="footer"><span>${t('footer')}</span><span>${state.updated?`${t('refreshAt')} ${date(state.updated,true)} · Kinshasa`:''} &nbsp; <a href="#method" data-nav="method">${t('method')} ↗</a></span></footer></main></div></div>`;bind();mountMap();}
-function activeTasks(){return state.status.tasks?.filter(x=>['pending','running'].includes(x.status)).reduce((n,x)=>n+x.count,0)||0}
-function reportList(items){return items.length?items.slice(0,state.visible).map(a=>`<article class="report" data-report="${a.id}" tabindex="0" role="button" aria-label="${esc(title(a))}"><div class="report-top"><span class="badge ${a.rank.band}">${a.rank.band==='high'?(state.lang==='fr'?'PRIORITÉ ÉLEVÉE':'HIGH PRIORITY'):t(a.rank.band).toUpperCase()}</span><span class="category">${esc(categoryName(a.category))}</span><time class="report-time" title="${esc(date(a.published_at))}">${age(a.published_at)}</time></div><div class="report-body"><div style="flex:1;min-width:0"><h3>${esc(title(a))}</h3><p>${esc(summary(a))}</p></div><div class="score" title="${t('rank')}"><b>${a.rank.score}</b><small>${t('priority')}</small></div></div><div class="report-footer"><span class="source-tag">${icon('globe')}${esc(a.source)}</span>${a.places[0]?`<span>${esc(a.places[0].name)}</span>`:''}<span>·</span><span>${brief(a)?`<span class="mini-tag">${t('covered')}</span>`:(['pending','running'].includes(a.brief.status)?t(a.brief.status):(a.language==='fr'?t('sourceFrench'):evLabel('Original source','Source originale')))}</span>${a.record_type!=='evidence'?`<button class="save ${a.analyst.saved?'saved':''}" data-save="${a.id}" aria-label="${a.analyst.saved?t('unsave'):t('save')}">${icon('bookmark')}</button>`:''}</div></article>`).join(''):`<div class="empty">${icon('search')}<h3>${t('empty')}</h3><p>${t('emptyText')}</p><button class="btn" data-action="reset">${t('reset')}</button></div>`}
-function moreButton(items){return items.length>state.visible||(state.items.length<state.total&&state.limit<500)?`<button class="btn loadmore" data-action="more">${t('more')}</button>`:''}
-function sourcePanel(){return `<section class="panel source-panel"><div class="source-row"><strong>${t('sourceTitle')}</strong>${icon('shield')}</div><div class="coverage"><i></i></div><div class="source-row"><span>${t('sourceCount')}</span><span class="dot"></span></div><p>${t('sourceText')}</p></section>`}
-function placeRows(ps){const max=ps[0]?.count||1;return `<div class="places-list">${ps.map(p=>`<button class="place-row" data-place="${esc(p.name)}"><span>${esc(p.name)}</span><span class="place-bar"><i style="width:${p.count/max*100}%"></i></span><span>${p.count}</span></button>`).join('')}</div>`}
-function mapSVG(ps){if(state.config?.mapbox_public_token&&window.mapboxgl&&!mapFailed)return '<div id="map-slot"></div>';const xy=(lon,lat)=>[25+(lon-12)*18,25+(5.5-lat)*13.8];let path='';if(state.geometry){const rings=state.geometry.features[0].geometry.coordinates;path=rings.map(r=>r.map((p,i)=>`${i?'L':'M'}${xy(...p).join(',')}`).join(' ')+'Z').join(' ')}return `<div class="map-wrap"><svg viewBox="0 0 405 290" role="img" aria-label="${t('mapTitle')}"><defs><pattern id="dots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".65" fill="#d5dfc9"/></pattern></defs><rect width="405" height="290" fill="url(#dots)"/><path class="map-country" d="${path}"/><text class="map-label" x="150" y="140">CONGO · DRC</text><text class="map-label" x="15" y="74" transform="rotate(-75 15 74)">CONGO</text><text class="map-label" x="300" y="274">ZAMBIA</text><text class="map-label" x="66" y="236">ANGOLA</text>${ps.map((p,i)=>{const [x,y]=xy(p.lon,p.lat);const show=['Kinshasa','Goma','Kisangani','Lubumbashi','Bunia','Popokabaka'].includes(p.name);return `<g class="map-place ${state.place===p.name?'active':''}" data-place="${esc(p.name)}" tabindex="0" role="button" aria-label="${esc(p.name)}, ${p.count} ${t('showing')}"><title>${esc(p.name)} · ${p.count} ${t('showing')}</title><circle cx="${x}" cy="${y}" r="${Math.min(4+Math.sqrt(p.count),10)}"/>${show?`<text x="${x+9}" y="${y-7}">${esc(p.name)}</text>`:''}</g>`}).join('')}</svg></div>`}
-function methodView(){return `<section class="panel methodology"><div class="eyebrow">CONGO SIGNAL / V0.3</div><h2>${t('methodTitle')}</h2><p>${t('methodIntro')}</p>${['Rank','AI','Map','Review'].map(x=>`<h3>${t('method'+x)}</h3><p>${t('method'+x+'Text')}</p>`).join('')}<h3>${t('references')}</h3><p><a target="_blank" rel="noopener noreferrer" href="https://github.com/bilawalsidhu/gods-eye-view">God’s Eye View — map workspace inspiration ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.opencti.io/latest/usage/reliability-confidence/">OpenCTI — Reliability & confidence ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.ushahidi.com/platform-user-manual/5.-modes-for-visualizing-and-managing-data-on-your-deployment">Ushahidi — Geographic report views ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://github.com/johan/world.geo.json">World GeoJSON / Natural Earth — country boundary ↗</a></p></section>`}
-function bind(){document.querySelectorAll('[data-regional-feed]').forEach(el=>el.onchange=async()=>{state.includeRegional=el.checked;state.publisher='';state.visible=12;await load()});document.querySelectorAll('[data-publisher-filter]').forEach(el=>el.onchange=()=>{state.publisher=el.value;state.visible=12;render()});document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=e=>{e.preventDefault();state.view=b.dataset.nav;state.visible=12;render()});document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;localStorage.setItem('congo-lang',state.lang);render();if(state.detail)renderDetail()});document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{state.category=b.dataset.category;state.visible=12;render()});document.querySelectorAll('[data-place]').forEach(b=>{b.onclick=()=>{state.place=b.dataset.place;state.view=state.view==='map'?'map':'reports';state.visible=12;render()};b.onkeydown=e=>{if(e.key==='Enter')b.click()}});document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>action(b.dataset.action,b));bindReports();const input=$('#search');if(input)input.oninput=()=>{state.q=input.value;state.visible=12;renderReportsOnly()};if($('#sort'))$('#sort').onchange=e=>{state.sort=e.target.value;renderReportsOnly()}}
-function renderReportsOnly(){const items=filtered();$('#report-list').innerHTML=reportList(items);$('#results-count').textContent=`${items.length} ${t('showing')}`;$('#more-area').innerHTML=moreButton(items);bindReports();$('#more-area button')?.addEventListener('click',e=>action('more',e.currentTarget));$('#report-list [data-action="reset"]')?.addEventListener('click',()=>action('reset'))}
-function bindReports(){document.querySelectorAll('[data-report]').forEach(b=>{b.onclick=()=>openDetail(b.dataset.report);b.onkeydown=e=>{if(e.target===b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();b.click()}}});document.querySelectorAll('[data-save]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=state.items.find(a=>a.id===b.dataset.save);try{a.analyst=await api(`/v1/intelligence/${a.id}/notes`,{...a.analyst,saved:!a.analyst.saved});render();}catch(e){toast(e.message)}})}
-async function action(name,button){try{if(name==='settings'){settings();return}if(name==='reset'){state.q='';state.place='';state.category='all';state.publisher='';render();return}if(name==='clear-place'){state.place='';render();return}if(name==='more'){state.visible+=12;if(state.visible>state.items.length&&state.items.length<state.total){state.limit=Math.min(500,state.limit+100);await load()}else render();return}if(name==='export'){const out={exported_at:new Date().toISOString(),language:state.lang,verification:'single_source_unverified',articles:filtered()};const url=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='congo-signal-reports.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast(t('exportToast'));return}if(button)button.disabled=true;if(name==='collect'){await api('/v1/jobs',{url:'https://actualite.cd/'});toast(t('collectToast'))}if(name==='batch'){if(!state.status.enabled||!state.status.available)throw Error(t('aiOff'));const todo=filtered().filter(a=>['not_requested','failed'].includes(a.brief.status)).slice(0,5);for(const a of todo)await (a.record_type==='evidence'?api(`/v1/evidence/${a.id}/analyze`,{}):api('/v1/intelligence/analyze',{article_id:a.id,task:'brief'}));toast(`${todo.length} ${t('queued')}`)}await load()}catch(e){toast(e.message)}finally{if(button)button.disabled=false}}
-async function load(){try{const [data,status,config,ev,sources,social,posts]=await Promise.all([api(`/v1/intelligence?limit=${state.limit}${state.includeRegional?'&scope=regional':''}`),api('/v1/intelligence/status'),state.config?Promise.resolve(state.config):api('/v1/config'),api('/v1/evidence-feed?scope=regional'),api('/v1/sources'),api('/v1/social').catch(()=>null),api('/v1/social/posts').catch(()=>null)]);state.posts=posts;state.social=social;state.ev=ev;state.sources=sources;state.config=config;state.items=data.items;state.total=data.total;state.updated=data.generated_at;state.status=status;state.error='';render();}catch(e){state.error=e.message;render()}}
-async function openDetail(id){if(state.items.find(a=>a.id===id)?.record_type==='evidence'){await openEvidence(id);return}state.detailId=id;state.detailTab='brief';state.detail=null;$('#overlay').innerHTML=`<div class="shade"><section class="drawer"><div class="drawer-top"><span>${t('loading')}</span><button class="iconbtn" id="close-detail">${icon('close')}</button></div></section></div>`;$('#close-detail').onclick=closeDetail;try{const data=await api(`/v1/intelligence/${id}`);if(state.detailId!==id)return;state.detail=data;renderDetail();}catch(e){closeDetail();toast(e.message)}}
-function closeDetail(){state.detailId=null;state.detail=null;$('#overlay').innerHTML='';document.body.style.overflow='';}
-function taskBox(task,info){if(info.status==='completed')return '';const active=['pending','running'].includes(info.status);return `<div class="analysis-box">${active?'<div class="loading-line"></div>':''}<p>${active?t(info.status):info.status==='failed'?`${t('failed')}: ${esc(info.error)}`:task==='brief'?t('notReady'):t('translationNotReady')}</p>${!active?`<button class="btn primary" data-ai="${task}">${icon('spark')}${info.status==='failed'?t('retry'):task==='brief'?t('generate'):t('translate')}</button>`:''}</div>`}
-function renderDetail(){if(!state.detail)return;const d=state.detail,a=d.article,b=d.brief.status==='completed'?d.brief.data:null;const item=state.items.find(x=>x.id===a.id);const heading=state.lang==='en'&&b?.title_en?b.title_en:a.title;const tab=state.detailTab;let content='';if(tab==='brief'){content=taskBox('brief',d.brief)+(b?`<div class="analysis-box"><h3>${icon('spark')}${t('brief')} · ${esc(d.brief.model)}</h3><p>${esc(b['summary_'+state.lang])}</p></div><div class="notice">${t('aiNotice')}${b.input_truncated?` ${state.lang==='fr'?'Analyse limitée aux 14 000 premiers caractères.':'Analysis limited to the first 14,000 characters.'}`:''}</div><h3 style="font-size:12px">${t('actors')}</h3><div class="actor-list">${b.actors.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:'')+`<h3 style="font-size:13px;margin-top:25px">${t('rank')} · ${item?.rank.score??'—'}/100</h3>${(item?.rank.reasons||[]).map(r=>`<div class="reason"><span>${esc(r[state.lang])}</span><b>+${r.points}</b></div>`).join('')}<div class="notice">${t('unverified')}</div>`}if(tab==='original')content=`<div class="article-text" lang="fr">${a.paragraphs.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`;if(tab==='english')content=taskBox('translation',d.translation)+(d.translation.status==='completed'?`<div class="notice">${t('aiNotice')} · ${esc(d.translation.model)}</div><div class="article-text" lang="en">${d.translation.data.paragraphs.map(p=>`<p>${esc(p)}</p>`).join('')}</div>`:'');if(tab==='evidence')content=`<div class="evidence"><div class="notice">${t('unverified')}</div><dl><dt>${t('source')}</dt><dd><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a></dd><dt>${t('author')}</dt><dd>${esc(a.author||t('noAuthor'))} ${a.author_method?`(${esc(a.author_method)})`:''}</dd><dt>${t('published')}</dt><dd>${esc(a.published_at||'—')}</dd><dt>${t('fetched')}</dt><dd>${esc(a.fetched_at)}</dd><dt>${t('hash')}</dt><dd><code>${esc(a.content_sha256)}</code></dd><dt>HTML SHA-256</dt><dd><code>${esc(a.html_sha256)}</code></dd><dt>${state.lang==='fr'?'Extracteur':'Extractor'}</dt><dd>${esc(a.extractor_version)}</dd><dt>${t('brief')}</dt><dd>${esc(d.brief.status)} · ${esc(d.brief.model||'—')} · ${esc(d.brief.completed_at||'—')}</dd></dl></div>`;if(tab==='notes')content=`<form id="notes-form" class="fields"><label>${t('reviewStatus')}<select id="review">${['unreviewed','reviewed','follow_up'].map(x=>`<option value="${x}" ${d.analyst.review===x?'selected':''}>${t(x)}</option>`).join('')}</select></label><label>${t('noteLabel')}<textarea id="note" maxlength="10000" placeholder="${t('notePlaceholder')}">${esc(d.analyst.note)}</textarea></label><div><button class="btn primary" type="submit">${icon('check')}${t('saveNotes')}</button></div></form>`;
-$('#overlay').innerHTML=`<div class="shade" id="detail-shade"><section class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="drawer-top"><span class="eyebrow" style="margin:0">CONGO SIGNAL / ${t('reports')}</span><button class="iconbtn" id="close-detail" aria-label="Close">${icon('close')}</button></div><div class="drawer-main"><span class="badge ${item?.rank.band||'low'}">${esc(categoryName(a.category))}</span><h1 id="detail-title">${esc(heading)}</h1><div class="drawer-meta">ACTUALITE.CD &nbsp;·&nbsp; ${date(a.published_at)} (Kinshasa)<br>${t('unverified')}</div><div class="buttons"><a class="btn" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${t('readMore')}</a><button class="btn" id="detail-save">${icon('bookmark')}${d.analyst.saved?t('unsave'):t('save')}</button></div><div class="drawer-tabs" role="tablist">${['brief','original','english','evidence','notes'].map(k=>`<button data-tab="${k}" class="${tab===k?'active':''}" role="tab" aria-selected="${tab===k}">${t(k)}</button>`).join('')}</div><section role="tabpanel">${content}</section></div></section></div>`;document.body.style.overflow='hidden';$('#close-detail').onclick=closeDetail;$('#close-detail').focus();$('#detail-shade').onclick=e=>{if(e.target.id==='detail-shade')closeDetail()};document.querySelectorAll('[data-tab]').forEach(el=>el.onclick=()=>{state.detailTab=el.dataset.tab;renderDetail()});document.querySelectorAll('[data-ai]').forEach(el=>el.onclick=async()=>{el.disabled=true;try{await api('/v1/intelligence/analyze',{article_id:a.id,task:el.dataset.ai});state.detail=await api(`/v1/intelligence/${a.id}`);renderDetail();await load()}catch(e){toast(e.message);el.disabled=false}});$('#detail-save').onclick=async()=>{try{d.analyst=await api(`/v1/intelligence/${a.id}/notes`,{...d.analyst,saved:!d.analyst.saved});renderDetail();await load()}catch(e){toast(e.message)}};if($('#notes-form'))$('#notes-form').onsubmit=async e=>{e.preventDefault();try{d.analyst=await api(`/v1/intelligence/${a.id}/notes`,{saved:d.analyst.saved,review:$('#review').value,note:$('#note').value});toast(t('savedToast'));await load()}catch(e){toast(e.message)}};}
-function settings(){state.modal='settings';$('#overlay').innerHTML=`<div class="shade"><form class="dialog" id="settings-form" role="dialog" aria-modal="true" aria-labelledby="settings-title"><h2 id="settings-title">${t('settings')}</h2><div class="fields"><label>${t('token')}<input id="token" type="password" value="${esc(sessionStorage.getItem('congo-token')||'')}" autocomplete="off"></label></div><p>${t('tokenNote')}</p><div class="buttons"><button class="btn" id="cancel-settings" type="button">${t('cancel')}</button><button class="btn primary" type="submit">${t('apply')}</button></div></form></div>`;$('#cancel-settings').onclick=()=>{state.modal=null;$('#overlay').innerHTML=''};$('#settings-form').onsubmit=async e=>{e.preventDefault();sessionStorage.setItem('congo-token',$('#token').value.trim());state.config=null;state.modal=null;$('#overlay').innerHTML='';await load()};$('#token').focus()}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){state.modal=null;closeDetail()}if(e.key==='Tab'&&$('#overlay [role="dialog"]')){const nodes=[...$('#overlay [role="dialog"]').querySelectorAll('button,a[href],input,textarea,select')].filter(n=>!n.disabled);const first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}});
-// Preserve one map instance through feed refreshes and language/view changes.
-let mapHost=null, mapInstance=null, mapMarkers=[], mapFailed=false, markerSignature='';
-function mountMap(){
- const slot=$('#map-slot');if(!slot)return;
- if(!mapHost){mapHost=document.createElement('div');mapHost.className='interactive-map';mapHost.setAttribute('aria-label',t('mapTitle'))}
- slot.append(mapHost);
- if(!mapInstance){
-  try{
-   mapInstance=new mapboxgl.Map({container:mapHost,accessToken:state.config.mapbox_public_token,style:'mapbox://styles/mapbox/light-v11',center:[23.65,-3.8],zoom:4,minZoom:2,maxZoom:12,attributionControl:true});
-   mapInstance.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-right');
-   mapInstance.scrollZoom.disable();
-   mapInstance.on('error',()=>{if(!mapInstance?.isStyleLoaded()){mapFailed=true;mapInstance?.remove();mapInstance=null;mapHost=null;render()}});
-   mapInstance.on('style.load',()=>{if(state.geometry&&!mapInstance.getSource('drc-outline')){mapInstance.addSource('drc-outline',{type:'geojson',data:state.geometry});mapInstance.addLayer({id:'drc-border',type:'line',source:'drc-outline',paint:{'line-color':'#557455','line-width':2,'line-opacity':0.6}})}});
-  }catch{mapFailed=true;mapInstance?.remove();mapInstance=null;mapHost=null;render();return}
- }
- mapHost.setAttribute('aria-label',t('mapTitle'));
- requestAnimationFrame(()=>mapInstance?.resize());
- const places=placesList(state.view==='map'?situationItems(true):state.items);const signature=JSON.stringify([places,state.lang,state.place]);
- if(signature===markerSignature)return;markerSignature=signature;
- mapMarkers.forEach(m=>m.remove());mapMarkers=[];
- for(const p of places){
-  const button=document.createElement('button');button.className='geo-marker'+(state.place===p.name?' selected':'');button.textContent=p.count;
-  button.setAttribute('aria-label',`${p.name}, ${p.count} ${t('showing')}`);button.title=`${p.name} · ${p.province} · ${p.count} ${t('showing')}`;if(state.view==='map'){const linked=situationItems(true).filter(a=>a.places.some(x=>x.name===p.name));const counts={};for(const a of linked){const k=reportLayer(a);counts[k]=(counts[k]||0)+1}const dominant=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0];button.style.background=layerColors[dominant]||'#294e40'}
-  button.onclick=()=>{if(state.view==='map'){selectSituationPlace(p.name);return}state.place=p.name;state.view='reports';state.visible=12;render()};
-  mapMarkers.push(new mapboxgl.Marker({element:button}).setLngLat([p.lon,p.lat]).addTo(mapInstance));button.setAttribute('role','button');
- }
+// Congo Signal dashboard — vanilla ES module, no build step.
+// Every untrusted string (articles, posts, profiles, errors) passes through esc() before it reaches innerHTML.
+
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = {
+  get: k => { try { return localStorage.getItem(k) } catch { return null } },
+  set: (k, v) => { try { localStorage.setItem(k, v) } catch {} },
+};
+
+const paths = {
+  grid: 'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+  map: 'm3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z M9 3v15 M15 6v15',
+  bookmark: 'M6 3h12v18l-6-4-6 4Z',
+  layers: 'm12 3 10 5-10 5L2 8Z M2 12l10 5 10-5 M2 16l10 5 10-5',
+  search: 'M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+  arrow: 'M5 12h14 M13 6l6 6-6 6',
+  download: 'M12 3v12 m-5-5 5 5 5-5 M4 16v5h16v-5',
+  refresh: 'M20 10a8 8 0 1 0-2 8 M20 3v7h-7',
+  globe: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M3 12h18 M12 3c-6 6-6 12 0 18 6-6 6-12 0-18',
+  spark: 'm12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z',
+  activity: 'M2 12h5l3-8 4 16 3-8h5',
+  clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',
+  pin: 'M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0 M14 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
+  shield: 'm12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z M8 12l3 3 5-6',
+  book: 'M3 4h6c2 0 3 1 3 2 0-1 1-2 3-2h6v16h-6c-2 0-3 1-3 1s-1-1-3-1H3Z M12 6v15',
+  settings: 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6',
+  close: 'm6 6 12 12 M6 18 18 6',
+  external: 'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',
+  check: 'm4 12 5 5L20 6',
+  radio: 'M4.9 19.1a10 10 0 0 1 0-14.2 M19.1 4.9a10 10 0 0 1 0 14.2 M7.8 16.2a6 6 0 0 1 0-8.4 M16.2 7.8a6 6 0 0 1 0 8.4 M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
+  user: 'M20 21a8 8 0 0 0-16 0 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
+  users: 'M17 21a6 6 0 0 0-12 0 M15 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M22 21a6 6 0 0 0-4-5.6 M16 3.2a4 4 0 0 1 0 7.6',
+  hash: 'M4 9h16 M4 15h16 M10 3 8 21 M16 3l-2 18',
+  at: 'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8',
+  link: 'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7 M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7',
+  copy: 'M9 9h12v12H9z M5 15H3V3h12v2',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10 M12 1v2 M12 21v2 M4.2 4.2l1.4 1.4 M18.4 18.4l1.4 1.4 M1 12h2 M21 12h2 M4.2 19.8l1.4-1.4 M18.4 5.6l1.4-1.4',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z',
+  reply: 'M9 14 4 9l5-5 M4 9h11a5 5 0 0 1 5 5v6',
+  repost: 'm17 2 4 4-4 4 M3 11V9a3 3 0 0 1 3-3h15 M7 22l-4-4 4-4 M21 13v2a3 3 0 0 1-3 3H3',
+  heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z',
+  quote: 'M3 21c3 0 7-1 7-8V5H3v8h4 M14 21c3 0 7-1 7-8V5h-7v8h4',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',
+  trend: 'm22 7-8.5 8.5-5-5L2 17 M16 7h6v6',
+  history: 'M3 12a9 9 0 1 0 3-6.7L3 8 M3 3v5h5 M12 7v5l4 2',
+  alert: 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z M12 9v4 M12 17h.01',
+  calendar: 'M3 5h18v16H3z M3 10h18 M8 3v4 M16 3v4',
+};
+const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[n] || paths.grid}"/></svg>`;
+
+// ---------------------------------------------------------------------------------------------
+// State
+
+const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'saved', 'method'];
+const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('account/')) return 'social'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
+const state = {
+  lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
+  loaded: false, error: '', items: [], total: 0, limit: 200, status: {}, config: null, ev: null, sources: null, social: null, posts: null, accounts: null, updated: null, geometry: null,
+  q: '', category: 'all', place: '', sort: 'priority', publisher: '', includeRegional: false, visible: 20,
+  layers: ['security', 'politics', 'health', 'economy', 'other'], windowDays: 0, selectedDay: '', highOnly: false, basemap: 'base', tilt: false,
+  sf: { topic: '', lang: '', kind: '', q: '', sort: 'latest', accountQ: '', visible: 40 },
+  evQuery: '', evRegional: false,
+  modal: null, detail: null, detailId: null, detailTab: 'brief', dossier: null, palette: null,
+};
+const L = (en, fr) => state.lang === 'fr' ? fr : en;
+const locale = () => state.lang === 'fr' ? 'fr-FR' : 'en-GB';
+const nf = n => Number(n || 0).toLocaleString(locale());
+const compact = n => new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n || 0));
+const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+function date(s, short = false) {
+  if (!s) return '—';
+  return new Date(s).toLocaleString(locale(), { day: '2-digit', month: 'short', ...(short ? {} : { year: 'numeric' }), hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Kinshasa' });
 }
-const situationText={en:{map:'Situation room',layers:'Report layers',context:'DRC · PUBLIC SOURCE MONITORING',title:'Congo, in context.',period:'Publication window',allTime:'All collected',day:'Selected day',days:'days',priorityOnly:'High priority only',locations:'Quick locations',resetMap:'Reset map',basemap:'Basemap',street:'Map',satellite:'Satellite',tilt:'Tilt view',flat:'Flat view',reportsHere:'Matching reports',clear:'Clear selection',noLocation:'without a mapped place',sourceStatus:'Source status',coverage:'Collection coverage',dateNote:'Publication dates · Kinshasa (UTC+1)',timeline:'Publication timeline',dateUnknown:'Undated reports appear in All collected.',imagery:'Satellite basemap imagery is not live.',emptyLayers:'Select a layer or widen the date window.',allLayers:'All layers',mapUnavailable:'Interactive map unavailable; showing place outline.',mentions:'place mentions',loaded:'loaded',latestSource:'Latest collection',oneSource:'One news source · no independent corroboration',mapHelp:'Select a numbered place to inspect its reporting.',allDays:'All days'},fr:{map:'Vue de situation',layers:'Couches d’articles',context:'RDC · VEILLE EN SOURCES OUVERTES',title:'Le Congo, en contexte.',period:'Période de publication',allTime:'Toute la collecte',day:'Jour sélectionné',days:'jours',priorityOnly:'Priorité élevée uniquement',locations:'Accès aux lieux',resetMap:'Recentrer',basemap:'Fond de carte',street:'Carte',satellite:'Satellite',tilt:'Vue inclinée',flat:'Vue à plat',reportsHere:'Articles de la sélection',clear:'Effacer la sélection',noLocation:'sans lieu cartographié',sourceStatus:'État des sources',coverage:'Couverture de la collecte',dateNote:'Dates de publication · Kinshasa (UTC+1)',timeline:'Chronologie des publications',dateUnknown:'Les articles non datés figurent dans Toute la collecte.',imagery:'Le fond satellite n’est pas en direct.',emptyLayers:'Sélectionnez une couche ou élargissez la période.',allLayers:'Toutes les couches',mapUnavailable:'Carte interactive indisponible ; aperçu des lieux affiché.',mentions:'lieux cités',loaded:'chargés',latestSource:'Dernière collecte',oneSource:'Fil Actualite.cd · sans corroboration indépendante',mapHelp:'Sélectionnez un lieu numéroté pour consulter ses articles.',allDays:'Tous les jours'}};
-const st=k=>situationText[state.lang][k]||t(k);
-const layerColors={security:'#b65f4c',politics:'#8973a5',health:'#428b83',economy:'#b48d42',other:'#74858c'};
-function reportLayer(a){return Object.keys(cats).find(k=>k!=='all'&&cats[k].includes(a.category))||'other'}
-function publicationDay(a){const n=Date.parse(a.published_at);return Number.isFinite(n)?new Date(n+3600000).toISOString().slice(0,10):''}
-function inSituation(a,ignoreDay=false){const ts=Date.parse(a.published_at);return (!state.publisher||a.source===state.publisher)&&state.layers.includes(reportLayer(a))&&(!state.highOnly||a.rank.band==='high')&&(!state.windowDays||(Number.isFinite(ts)&&ts>=Date.now()-state.windowDays*86400000&&ts<=Date.now()))&&(ignoreDay||!state.selectedDay||publicationDay(a)===state.selectedDay)}
-function situationItems(ignorePlace=false,ignoreDay=false){return state.items.filter(a=>inSituation(a,ignoreDay)&&(!state.place||ignorePlace||a.places.some(p=>p.name===state.place))&&(!state.q||norm([a.title,a.description,a.search_text,JSON.stringify(brief(a))].join(' ')).includes(norm(state.q)))).sort((a,b)=>state.sort==='latest'?String(b.published_at).localeCompare(String(a.published_at)):b.rank.score-a.rank.score)}
-function situationCounts(){const items=situationItems();return `${items.length} ${t('showing')} · ${items.filter(a=>!a.places.length).length} ${st('noLocation')}`}
-function situationRows(){const items=situationItems();return items.length?items.slice(0,state.visible).map(a=>`<button class="situation-report" data-report="${esc(a.id)}"><div class="report-kicker"><i style="background:${layerColors[reportLayer(a)]}"></i>${esc(a.relevance?.scope==='regional'?evLabel('Regional context','Contexte régional'):categoryName(a.category||t('other')))}<span>${date(a.published_at).split(',')[0]}</span></div><h3>${esc(title(a))}</h3><p>${esc(summary(a))}</p><div class="report-bottom"><span class="report-location-source"><span>${esc(a.places.map(p=>p.name).join(' · ')||'—')}</span><span aria-hidden="true">·</span><span class="report-publisher">${esc(a.source||t('source'))}</span></span><b class="badge ${a.rank.band}">${a.rank.score}/100</b></div></button>`).join(''):`<div class="empty"><h3>${t('empty')}</h3><p>${st('emptyLayers')}</p></div>`}
-function timelineHTML(){const counts=new Map();for(const a of situationItems(false,true)){const d=publicationDay(a);if(d)counts.set(d,(counts.get(d)||0)+1)}const days=[...counts].sort((a,b)=>a[0].localeCompare(b[0]));const max=Math.max(1,...days.map(d=>d[1]));return `<div class="timeline-title"><strong>${st('timeline')}</strong><span>${st('dateNote')}</span><button class="text-button" data-all-days>${st('allDays')}</button></div><div class="day-bars">${days.map(([d,n])=>`<button data-day="${d}" aria-pressed="${state.selectedDay===d}" aria-label="${d}: ${n} ${t('showing')}" class="day-bar ${state.selectedDay===d?'active':''}"><span class="day-number">${n}</span><i style="height:${Math.max(5,n/max*36)}px"></i><span>${d.slice(5)}</span></button>`).join('')||`<small>${t('empty')}</small>`}</div>`}
-function renderSituation(){
- document.documentElement.lang=state.lang;document.body.classList.add('situation-mode');mapHost?.remove();
- const items=situationItems(),ps=placesList(situationItems(true));const lastFetch=state.items.map(a=>a.fetched_at).filter(Boolean).sort().at(-1);
- $('#app').innerHTML=`<div class="situation-shell"><header class="situation-header"><a class="situation-brand" href="#" data-nav="map">${icon('globe')}<strong>CONGO SIGNAL</strong><span> / ${st('map')}</span></a><nav><button data-nav="map" class="active">${st('map')}</button><button data-nav="overview">${t('overview')}</button><button data-nav="reports">${t('reports')}</button><button data-nav="sources">${evLabel('Sources & reports','Sources et rapports')}</button><button data-nav="social">${evLabel('Social signals','Signaux sociaux')}</button><button data-nav="saved">${t('saved')}</button></nav><div class="top-actions"><div class="lang-switch"><button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button><button data-lang="fr" class="${state.lang==='fr'?'active':''}">FR</button></div><button class="iconbtn" data-action="settings" aria-label="${t('settings')}">${icon('settings')}</button></div></header>
- <div class="situation-body"><aside class="layer-panel"><div class="situation-intro"><span class="eyebrow">${st('context')}</span><h1>${st('title')}</h1><p>${state.total} ${t('showing')} · ${state.items.length} ${st('loaded')}</p></div><label class="situation-search">${icon('search')}<input id="situation-search" placeholder="${t('search')}" aria-label="${t('search')}" value="${esc(state.q)}"></label><div class="layer-heading"><h2>${st('layers')}</h2><button class="text-button" data-all-layers>${st('allLayers')}</button></div>${Object.keys(layerColors).map(k=>`<label class="layer-row"><input type="checkbox" data-layer="${k}" ${state.layers.includes(k)?'checked':''}><i style="background:${layerColors[k]}"></i><span>${t(k)}</span><b>${state.items.filter(a=>reportLayer(a)===k).length}</b></label>`).join('')}<label class="priority-switch"><input type="checkbox" id="high-only" ${state.highOnly?'checked':''}>${st('priorityOnly')}</label><label class="period-label">${st('period')}<select id="period">${[0,1,7,30].map(n=>`<option value="${n}" ${state.windowDays===n?'selected':''}>${n?n===1?'24 h':`${n} ${st('days')}`:st('allTime')}</option>`).join('')}</select></label><h2>${st('locations')}</h2><div class="location-shortcuts">${['Kinshasa','Goma','Bukavu','Bunia','Lubumbashi'].map(n=>`<button data-focus-place="${n}" class="${state.place===n?'active':''}">${icon('pin')}${n}</button>`).join('')}</div><div class="source-health"><h2>${st('sourceStatus')}</h2>${sourceHealthHTML(lastFetch)}<button class="btn" data-action="collect">${icon('refresh')}${t('collect')}</button><button class="btn" data-nav="sources">${evLabel('All sources & reports','Toutes les sources et rapports')} ↗</button><a href="#method" data-nav="method">${t('method')} ↗</a></div></aside>
- <main class="map-stage"><div class="map-toolbar"><div><span class="eyebrow">${st('coverage')}</span><strong>RÉPUBLIQUE DÉMOCRATIQUE DU CONGO</strong></div><button class="btn" data-reset-map>${icon('globe')}${st('resetMap')}</button></div><div class="situation-map">${mapSVG(ps)}<div class="map-controls"><div class="base-switch" aria-label="${st('basemap')}"><button data-base="light" aria-pressed="${state.basemap==='light'}" class="${state.basemap==='light'?'active':''}">${st('street')}</button><button data-base="satellite" aria-pressed="${state.basemap==='satellite'}" class="${state.basemap==='satellite'?'active':''}">${st('satellite')}</button></div><button class="btn" data-tilt aria-pressed="${state.tilt}">${state.tilt?st('flat'):st('tilt')}</button></div><div class="map-instruction">${mapFailed?st('mapUnavailable'):st('mapHelp')}<br><small>${state.basemap==='satellite'?st('imagery'):t('mapNote')}</small></div></div><div class="situation-timeline">${timelineHTML()}</div></main>
- <aside class="report-rail"><div class="rail-header"><div class="eyebrow">${state.place?esc(state.place):st('reportsHere')}</div><h2>${t('feed')}</h2><p id="situation-count">${situationCounts()}</p>${publisherFilter()}<div class="rail-actions"><select id="situation-sort" aria-label="${t('sortLabel')}"><option value="priority" ${state.sort==='priority'?'selected':''}>${t('sortLabel')}</option><option value="latest" ${state.sort==='latest'?'selected':''}>${t('latest')}</option></select><button class="iconbtn" data-action="export" aria-label="${t('export')}">${icon('download')}</button></div>${state.place||state.selectedDay?`<button class="selection-clear" data-clear-situation>${esc([state.place,state.selectedDay].filter(Boolean).join(' · '))} ×</button>`:''}${state.error?`<p class="errorbar">${esc(state.error)}</p>`:''}</div><div class="situation-results">${situationRows()}</div><div class="rail-footer"><button class="btn" data-action="more">${t('more')}</button><small>${t('unverified')}</small></div></aside></div></div>`;
- bind();bindSituation();mountMap();
+function dayLabel(d) { return new Date(d + 'T12:00:00Z').toLocaleDateString(locale(), { day: 'numeric', month: 'short', timeZone: 'UTC' }) }
+function age(s) {
+  if (!s) return '—';
+  const m = Math.max(0, Math.floor((Date.now() - Date.parse(s)) / 60000));
+  if (m < 1) return L('now', 'maint.');
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h} h` : `${Math.floor(h / 24)} ${L('d', 'j')}`;
 }
-function updateSituationResults(){const el=$('.situation-results');if(!el)return;el.innerHTML=situationRows();$('#situation-count').textContent=situationCounts();$('.situation-timeline').innerHTML=timelineHTML();bindTimeline();bindReports();mountMap()}
-function selectSituationPlace(name){state.place=name;state.visible=12;render();const p=placesList().find(p=>p.name===name);if(p)mapInstance?.flyTo({center:[p.lon,p.lat],zoom:6,duration:500})}
-function bindTimeline(){document.querySelectorAll('[data-day]').forEach(el=>el.onclick=()=>{state.selectedDay=state.selectedDay===el.dataset.day?'':el.dataset.day;state.visible=12;render()});$('[data-all-days]').onclick=()=>{state.selectedDay='';render()};}
-function bindSituation(){
- document.querySelectorAll('[data-layer]').forEach(el=>el.onchange=()=>{state.layers=el.checked?[...new Set([...state.layers,el.dataset.layer])]:state.layers.filter(x=>x!==el.dataset.layer);state.visible=12;render()});
- $('[data-all-layers]').onclick=()=>{state.layers=Object.keys(layerColors);render()};
- $('#high-only').onchange=e=>{state.highOnly=e.target.checked;render()};$('#period').onchange=e=>{state.windowDays=Number(e.target.value);state.selectedDay='';state.visible=12;render()};
- $('#situation-search').oninput=e=>{state.q=e.target.value;state.visible=12;updateSituationResults()};$('#situation-sort').onchange=e=>{state.sort=e.target.value;updateSituationResults()};
- document.querySelectorAll('[data-focus-place]').forEach(el=>el.onclick=()=>selectSituationPlace(el.dataset.focusPlace));
- bindTimeline();
- if($('[data-clear-situation]'))$('[data-clear-situation]').onclick=()=>{state.place='';state.selectedDay='';render()};
- document.querySelectorAll('[data-base]').forEach(el=>el.onclick=()=>{if(!mapInstance)return;state.basemap=el.dataset.base;mapInstance.setStyle('mapbox://styles/mapbox/'+(state.basemap==='satellite'?'satellite-streets-v12':'light-v11'));render()});
- $('[data-tilt]').onclick=()=>{if(!mapInstance)return;state.tilt=!state.tilt;mapInstance.easeTo({pitch:state.tilt?50:0,duration:400});render()};
- $('[data-reset-map]').onclick=()=>{state.place='';render();mapInstance?.fitBounds([[12,-13.6],[31.4,5.5]],{padding:45,duration:500})};
+// Kinshasa is UTC+1 year-round.
+const kinDay = s => { const n = Date.parse(s); return Number.isFinite(n) ? new Date(n + 3600000).toISOString().slice(0, 10) : '' };
+const kinHour = s => { const n = Date.parse(s); return Number.isFinite(n) ? new Date(n + 3600000).getUTCHours() : null };
+
+// ---------------------------------------------------------------------------------------------
+// Domain helpers
+
+const CATS = { all: null, security: ['Sécurité'], politics: ['Politique', 'Justice'], health: ['Santé'], economy: ['Économie'], other: ['Société', 'Culture', 'Femme', 'Afrique', 'Sport', 'Opinion', 'Caricature', "Offre d'emploi", "Appel d'offre"] };
+const LAYERS = ['security', 'politics', 'health', 'economy', 'other'];
+const layerName = k => ({ all: L('All', 'Tous'), security: L('Security', 'Sécurité'), politics: L('Politics', 'Politique'), health: L('Health', 'Santé'), economy: L('Economy', 'Économie'), other: L('Other', 'Autres') })[k];
+const layerColor = k => `var(--series-${LAYERS.indexOf(k) + 1})`;
+const reportLayer = a => LAYERS.find(k => CATS[k].includes(a.category)) || 'other';
+const categoryName = c => state.lang === 'en' ? ({ 'Sécurité': 'Security', 'Santé': 'Health', 'Politique': 'Politics', 'Société': 'Society', 'Économie': 'Economy', 'Femme': 'Women', 'Culture': 'Culture', 'Afrique': 'Africa', 'Sport': 'Sport', 'Opinion': 'Opinion', 'Caricature': 'Cartoon', 'Justice': 'Justice', "Offre d'emploi": 'Job notice', "Appel d'offre": 'Tender notice' }[c] || c) : c;
+const brief = a => a.brief?.status === 'completed' ? a.brief.data : null;
+const title = a => state.lang === 'en' && brief(a)?.title_en ? brief(a).title_en : a.title;
+const summary = a => brief(a)?.[`summary_${state.lang}`] || a.description || '';
+const bandLabel = b => ({ high: L('High', 'Élevée'), medium: L('Medium', 'Moyenne'), low: L('Low', 'Faible') })[b] || b;
+
+const topicsList = () => state.social?.items?.map(i => i.topic) || [];
+const topicIndex = id => topicsList().findIndex(t => t.id === id);
+const topicColor = id => `var(--series-${topicIndex(id) + 1 || 5})`;
+const topicName = id => topicsList().find(t => t.id === id)?.[state.lang] || id;
+const kindName = k => ({ post: L('Post', 'Publication'), reply: L('Reply', 'Réponse'), quote: L('Quote', 'Citation'), repost: L('Repost', 'Republication') })[k] || k;
+const engagement = p => ['like_count', 'retweet_count', 'reply_count', 'quote_count'].reduce((n, k) => n + (p.metrics?.[k] || 0), 0);
+const hue = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+const initials = (name, handle) => (String(name || handle).normalize('NFKC').replace(/[^\p{L}\p{N} ]/gu, '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || handle?.[0] || '?');
+const avatar = (name, handle, size = '') => `<span class="avatar ${size}" style="--h:${hue(handle)}" aria-hidden="true">${esc(initials(name, handle))}</span>`;
+const validHandle = h => /^[A-Za-z0-9_]{1,15}$/.test(h);
+
+function countBy(list, key) {
+  const m = new Map();
+  for (const x of list) for (const k of [].concat(key(x) ?? [])) if (k !== '' && k != null) m.set(k, (m.get(k) || 0) + 1);
+  return [...m].sort((a, b) => b[1] - a[1]);
+}
+function placesList(items = state.items) {
+  const m = new Map();
+  for (const a of items) for (const p of a.places) m.set(p.name, { ...p, count: (m.get(p.name)?.count || 0) + 1 });
+  return [...m.values()].sort((a, b) => b.count - a.count);
+}
+function matchesQuery(a, q) {
+  return !q || norm([a.title, a.description, a.search_text, JSON.stringify(brief(a)), ...a.places.map(p => p.name + ' ' + p.province)].join(' ')).includes(norm(q));
+}
+const bySort = (a, b) => state.sort === 'latest' ? String(b.published_at).localeCompare(String(a.published_at)) : b.rank.score - a.rank.score;
+function libraryItems() {
+  return state.items.filter(a => (!state.publisher || a.source === state.publisher)
+    && (state.view !== 'saved' || a.analyst.saved)
+    && (!state.place || a.places.some(p => p.name === state.place))
+    && (state.category === 'all' || CATS[state.category].includes(a.category) || (state.category === 'other' && !a.category))
+    && matchesQuery(a, state.q)).sort(bySort);
+}
+function inSituation(a, ignoreDay = false) {
+  const ts = Date.parse(a.published_at);
+  return (!state.publisher || a.source === state.publisher) && state.layers.includes(reportLayer(a)) && (!state.highOnly || a.rank.band === 'high')
+    && (!state.windowDays || (Number.isFinite(ts) && ts >= Date.now() - state.windowDays * 86400000 && ts <= Date.now()))
+    && (ignoreDay || !state.selectedDay || kinDay(a.published_at) === state.selectedDay);
+}
+function situationItems(ignorePlace = false, ignoreDay = false) {
+  return state.items.filter(a => inSituation(a, ignoreDay) && (ignorePlace || !state.place || a.places.some(p => p.name === state.place)) && matchesQuery(a, state.q)).sort(bySort);
+}
+function filteredPosts() {
+  const f = state.sf, q = norm(f.q.trim());
+  const rows = (state.posts?.items || []).filter(p => (!f.topic || p.topics?.some(t => t.topic === f.topic)) && (!f.lang || p.lang === f.lang) && (!f.kind || p.kind === f.kind)
+    && (!q || norm(`${p.text} @${p.author_handle} ${p.author_name}`).includes(q)));
+  return f.sort === 'engagement' ? rows.sort((a, b) => engagement(b) - engagement(a)) : rows;
+}
+const activeTasks = () => state.status.tasks?.filter(x => ['pending', 'running'].includes(x.status)).reduce((n, x) => n + x.count, 0) || 0;
+
+// ---------------------------------------------------------------------------------------------
+// API
+
+async function api(path, data) {
+  const token = sessionStorage.getItem('congo-token');
+  const r = await fetch(path, { method: data ? 'POST' : 'GET', headers: { ...(data ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
+  if (!r.ok) {
+    let e; try { e = await r.json() } catch {}
+    const err = Error(r.status === 401 ? L('This API requires a token. Open connection settings.', 'Cette API nécessite un jeton. Ouvrez les paramètres de connexion.') : (e?.error || `${L('Unable to connect to the API.', 'Impossible de joindre l’API.')} (${r.status})`));
+    err.status = r.status;
+    throw err;
+  }
+  return r.json();
+}
+async function load() {
+  try {
+    const [data, status, config, ev, sources, social, posts, accounts] = await Promise.all([
+      api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
+      api('/v1/intelligence/status'),
+      state.config ? state.config : api('/v1/config'),
+      api('/v1/evidence-feed?scope=regional').catch(() => null),
+      api('/v1/sources').catch(() => null),
+      api('/v1/social').catch(() => null),
+      api('/v1/social/posts?limit=500').catch(() => null),
+      api('/v1/social/accounts?limit=200').catch(() => null),
+    ]);
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, error: '' });
+  } catch (e) { state.error = e.message }
+  state.loaded = true;
+  render();
 }
 
-strings.en.sources='Sources & reports';strings.fr.sources='Sources et rapports';
+// ---------------------------------------------------------------------------------------------
+// Charts (dataviz: thin marks, 2px gaps, rounded data-ends on the baseline, hover tooltips)
 
-function publisherFilter(){const publishers=[...new Set(state.items.map(a=>a.source))].sort();return `<label class="publisher-filter">${evLabel('Publisher','Source')}<select data-publisher-filter aria-label="${evLabel('Publisher','Source')}"><option value="">${evLabel('All sources','Toutes les sources')}</option>${publishers.map(p=>`<option value="${esc(p)}" ${state.publisher===p?'selected':''}>${esc(p)} (${state.items.filter(a=>a.source===p).length})</option>`).join('')}</select><span><input type="checkbox" aria-label="${evLabel('Include regional context','Inclure le contexte régional')}" data-regional-feed ${state.includeRegional?'checked':''}> ${evLabel('Include regional context','Inclure le contexte régional')}</span></label>`}
-function sourceHealthHTML(lastFetch){
- const groups=new Map();for(const s of state.sources?.items||[]){const group=groups.get(s.publisher)||[];group.push(s);groups.set(s.publisher,group)}
- return `<div class="source-health-item"><strong>ACTUALITE.CD</strong><small>${state.error?evLabel('Connection unavailable','Connexion indisponible'):evLabel('News feed','Fil d’articles')} · ${lastFetch?date(lastFetch,true):'—'}</small></div>`+[...groups].map(([publisher,rows])=>{const ready=rows.filter(s=>s.status==='ready').length;const failed=rows.filter(s=>s.status==='failed').length;const active=rows.some(s=>['pending','running'].includes(s.status));const latest=rows.map(s=>s.checked_at).filter(Boolean).sort().at(-1);return `<div class="source-health-item"><strong>${esc(publisher)}</strong><small>${ready} ${evLabel('collected','collectés')}${failed?` · ${failed} ${evLabel('unavailable','indisponibles')}`:''}${active?' · '+evLabel('collecting','collecte en cours'):''}</small>${latest?`<small>${date(latest,true)}</small>`:''}</div>`}).join('')+`<p>${evLabel('The feed combines collected DRC reporting. Counts are source records, not verified events.','Le fil regroupe les publications collectées sur la RDC. Les comptes indiquent des documents sources, pas des événements vérifiés.')}</p>`;
+function bars(values, color = 'var(--series-1)', cls = '') {
+  const max = Math.max(1, ...values.map(v => v.value));
+  return `<div class="bars ${cls}" style="--c:${color}" role="img" aria-label="${esc(values.map(v => v.tip).join('; '))}">${values.map(v => `<i class="${v.value ? '' : 'zero'}" style="height:${v.value ? Math.max(5, v.value / max * 100) : 3}%" data-tip="${esc(v.tip)}"></i>`).join('')}</div>`;
 }
-let evidenceBlob=null, evidenceGeneration=0;
-function closeEvidence(){evidenceGeneration++;if(evidenceBlob)URL.revokeObjectURL(evidenceBlob);evidenceBlob=null;$('#overlay').innerHTML='';state.modal=false;}
-function showEvidenceDialog(title,body){closeEvidence();state.modal=true;$('#overlay').innerHTML=`<div class="shade"><section class="drawer evidence-reader" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="drawer-top"><strong>${esc(title)}</strong><button id="ev-close" class="iconbtn" aria-label="${evLabel('Close','Fermer')}">${icon('close')}</button></div>${body}</section></div>`;$('#ev-close').onclick=closeEvidence;}
-async function openEvidence(id){
- try{const d=await api(`/v1/evidence/${id}`);showEvidenceDialog(d.source.title,`<div class="notice">${esc(d.source.publisher)} · ${esc(d.source.reference_date||'—')}<br>${esc(d.source.notes)}</div>${state.items.find(a=>a.id===id)?.brief?.data?`<section class="analysis-box"><h3>${t('brief')}</h3><p>${esc(state.items.find(a=>a.id===id).brief.data['summary_'+state.lang])}</p><small>${t('aiNotice')}</small></section>`:''}${d.source.format==='pdf'?`<div id="pdf-status" role="status">${evLabel('Loading archived PDF…','Chargement du PDF archivé…')}</div><div id="pdf-view"></div>`:''}<details ${d.source.format==='pdf'?'':'open'}><summary>${evLabel('Extracted text and provenance','Texte extrait et provenance')}</summary><p class="pdf-hash">SHA-256: ${esc(d.sha256)}</p><div class="article-text">${d.pages.map(p=>`<section><h3>${p.page?'Page '+p.page:evLabel('Original text','Texte original')}</h3><p style="white-space:pre-wrap">${esc(p.text)}</p></section>`).join('')}</div></details>`);
- if(d.source.format==='pdf'){const generation=evidenceGeneration;const token=sessionStorage.getItem('congo-token');const r=await fetch(`/v1/evidence/${encodeURIComponent(id)}/pdf`,{headers:token?{Authorization:`Bearer ${token}`}:{}});if(!r.ok)throw Error(evLabel('The archived PDF could not be loaded. Extracted text is still available.','Le PDF archivé ne peut pas être chargé. Le texte extrait reste disponible.'));const blob=await r.blob();if(generation!==evidenceGeneration)return;evidenceBlob=URL.createObjectURL(blob);$('#pdf-view').innerHTML=`<iframe title="${esc(d.source.title)}" src="${evidenceBlob}#page=${d.source.pages?.[0]||1}" class="pdf-frame"></iframe>`;$('#pdf-status').textContent=evLabel('Archived original PDF · use the viewer controls to change pages.','PDF original archivé · utilisez les commandes du lecteur pour changer de page.');}
- }catch(e){if($('#pdf-status'))$('#pdf-status').textContent=e.message;else toast(e.message)}
+function spark(values, color = 'var(--series-1)', w = 84, h = 30) {
+  if (values.length < 2) return '';
+  const max = Math.max(1, ...values), step = w / (values.length - 1);
+  const pts = values.map((v, i) => [i * step, h - 2 - (v / max) * (h - 4)]);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
+  return `<svg class="chart spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path class="area" fill="${color}" d="${line}L${w},${h}L0,${h}Z"/><path class="line" stroke="${color}" d="${line}"/></svg>`;
 }
-function evLabel(en,fr){return state.lang==='fr'?fr:en}
-function renderEvidence(){
- document.body.classList.remove('situation-mode');mapHost?.remove();document.documentElement.lang=state.lang;
- const docs=(state.ev?.items||[]).filter(d=>(state.evRegional||d.relevance.scope==='drc')&&(!state.evQuery||norm(d.source.title+' '+d.excerpt+' '+JSON.stringify(d.brief.data)).includes(norm(state.evQuery))));
- $('#app').innerHTML=`<div class="evidence-workspace"><header class="topbar"><strong>CONGO SIGNAL</strong><nav><button class="btn" data-nav="map">${st('map')}</button> <button class="btn" data-nav="reports">${t('reports')}</button></nav><div class="lang-switch"><button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button><button data-lang="fr" class="${state.lang==='fr'?'active':''}">FR</button></div><button class="iconbtn" data-action="settings" aria-label="${t('settings')}">${icon('settings')}</button></header><main class="main"><div class="hero"><div><span class="eyebrow">${evLabel('PRIMARY SOURCE MONITORING','VEILLE DES SOURCES PRIMAIRES')}</span><h1>${evLabel('Sources & reports','Sources et rapports')}</h1><p>${evLabel('Publications, original evidence and bilingual research briefs.','Publications, documents originaux et synthèses bilingues.')}</p></div><span>${state.ev?.schedule_seconds?evLabel('Automatic checks every ','Vérification automatique toutes les ')+(state.ev.schedule_seconds/3600)+' h':evLabel('Scheduled collection disabled','Collecte périodique désactivée')}</span></div>${state.error?`<p class="errorbar">${esc(state.error)}</p>`:''}<div class="grid"><section class="panel"><div class="search-row"><label class="search">${icon('search')}<input id="ev-search" value="${esc(state.evQuery||'')}" aria-label="${t('search')}" placeholder="${t('search')}"></label><label><input type="checkbox" id="ev-regional" ${state.evRegional?'checked':''}> ${evLabel('Include regional context','Inclure le contexte régional')}</label></div><div class="notice">${evLabel('Explicit DRC mentions are screened automatically. Relevance is not verification. Reports also appear in the combined feed; map markers indicate place mentions.','Les mentions explicites de la RDC sont filtrées automatiquement. La pertinence ne prouve pas les faits. Ces rapports figurent aussi dans le fil commun ; la carte indique les lieux cités.')}</div><div id="ev-results">${evidenceCards(docs)}</div></section><aside class="right-column"><section class="panel source-panel"><h2>${evLabel('Collection status','État de la collecte')}</h2><p>${evLabel('Latest source checks, including unavailable publishers.','Dernières vérifications, y compris les sources indisponibles.')}</p>${(state.sources?.items||[]).filter(s=>!s.id.startsWith('discovered-')).map(s=>`<div class="ev-source"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a><small>${esc(evStatus(s.status))} · ${s.checked_at?date(s.checked_at,true):'—'}</small>${s.error?`<small class="ev-error">${esc(s.error)}</small>`:''}${s.format==='pdf'?`<button class="btn" data-source-document="${esc(s.id)}">${evLabel('Read PDF here','Lire le PDF ici')}</button>`:''}${s.enabled?`<button class="btn" data-source-refresh="${esc(s.id)}">${evLabel('Check now','Vérifier')}</button>`:''}</div>`).join('')}</section></aside></div></main></div>`;
- bind();bindEvidence();
+function areaChart(points, color, h = 56) {
+  if (points.length < 2) return `<div class="muted" style="font-size:12px">${L('History builds as snapshots accumulate.', 'L’historique se constitue au fil des instantanés.')}</div>`;
+  const w = 300, max = Math.max(1, ...points.map(p => p.value)), step = w / (points.length - 1);
+  const xy = points.map((p, i) => [i * step, h - 2 - (p.value / max) * (h - 6)]);
+  const line = xy.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('');
+  const hits = points.map((p, i) => `<rect class="hit" x="${Math.max(0, i * step - step / 2)}" y="0" width="${step}" height="${h}" data-tip="${esc(p.tip)}"/>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px" role="img" aria-label="${esc(L('Hourly matching posts, last 7 days', 'Publications horaires, 7 derniers jours'))}"><line class="grid" x1="0" x2="${w}" y1="${h - 0.5}" y2="${h - 0.5}"/><path class="area" fill="${color}" d="${line}L${w},${h}L0,${h}Z"/><path class="line" stroke="${color}" d="${line}" vector-effect="non-scaling-stroke"/>${hits}</svg>`;
 }
-function evStatus(s){return ({ready:evLabel('Collected','Collecté'),failed:evLabel('Unavailable','Indisponible'),pending:evLabel('Queued','En attente'),running:evLabel('Collecting','Collecte en cours'),not_requested:evLabel('Not checked','Non vérifié'),reference_only:evLabel('Reference only','Référence uniquement')})[s]||s}
-function evidenceCards(docs){return docs.length?docs.map(d=>`<article class="report"><div class="report-top"><span class="badge">${d.relevance.scope==='drc'?'DRC / RDC':evLabel('Regional context','Contexte régional')}</span><span>${esc(d.source.publisher)}</span></div><h3>${esc(state.lang==='en'&&d.brief.data?.title_en?d.brief.data.title_en:d.source.title)}</h3><small>${evLabel('Source date','Date de la source')}: ${esc(d.source.reference_date||evLabel('Unknown','Inconnue'))} · ${evLabel('Collected','Collecté')}: ${date(d.fetched_at,true)}</small><p>${esc(d.brief.data?.['summary_'+state.lang]||d.excerpt)}</p>${d.brief.data?`<div class="notice">${t('aiNotice')} ${d.brief.data.input_truncated?evLabel('Based on the first 14,000 characters.','Basé sur les 14 000 premiers caractères.'):''}</div>`:`<small>${evLabel('Original-language excerpt','Extrait dans la langue originale')}</small>`}<p><small>${evLabel('Matched terms','Termes détectés')}: ${esc(d.relevance.matched_terms.join(', ')||'—')}</small></p><div class="buttons"><a class="btn" href="${esc(d.source.url)}" target="_blank" rel="noopener noreferrer">${t('open')} ↗</a><button class="btn" data-evidence-open="${d.id}">${d.source.format==='pdf'?evLabel('Read PDF here','Lire le PDF ici'):evLabel('Read report here','Lire le rapport ici')}</button><button class="btn primary" data-evidence-ai="${d.id}" ${['pending','running','completed'].includes(d.brief.status)?'disabled':''}>${d.brief.status==='completed'?evLabel('EN + FR ready','EN + FR disponibles'):['pending','running'].includes(d.brief.status)?t(d.brief.status):d.brief.status==='failed'?t('retry'):t('generate')}</button></div>${d.brief.error?`<p class="ev-error">${esc(d.brief.error)}</p>`:''}</article>`).join(''):`<div class="empty">${evLabel('No collected reports match. Collection may still be running.','Aucun rapport correspondant. La collecte peut être en cours.')}</div>`}
-function bindEvidence(){
- $('#ev-search').oninput=e=>{state.evQuery=e.target.value;$('#ev-results').innerHTML=evidenceCards((state.ev?.items||[]).filter(d=>(state.evRegional||d.relevance.scope==='drc')&&norm(d.source.title+' '+d.excerpt+' '+JSON.stringify(d.brief.data)).includes(norm(state.evQuery))));bindEvidenceButtons()};
- $('#ev-regional').onchange=e=>{state.evRegional=e.target.checked;render()};bindEvidenceButtons();
- document.querySelectorAll('[data-source-refresh]').forEach(b=>b.onclick=async()=>{try{b.disabled=true;await api(`/v1/sources/${b.dataset.sourceRefresh}/refresh`,{});await load()}catch(e){toast(e.message);b.disabled=false}});
+const meter = (value, max, color = 'var(--accent)') => `<span class="meter" style="--c:${color}"><i style="width:${Math.min(100, max ? value / max * 100 : 0)}%"></i></span>`;
+function topicMix(counts) {
+  const entries = Object.entries(counts || {}).sort((a, b) => topicIndex(a[0]) - topicIndex(b[0]));
+  const total = entries.reduce((n, [, v]) => n + v, 0) || 1;
+  return `<div class="mix" role="img" aria-label="${esc(entries.map(([k, v]) => `${topicName(k)}: ${v}`).join(', '))}">${entries.map(([k, v]) => `<i style="flex:${v / total};background:${topicColor(k)}" data-tip="${esc(`${topicName(k)}: ${v}`)}"></i>`).join('')}</div>`;
 }
-function bindEvidenceButtons(){
- document.querySelectorAll('[data-evidence-ai]').forEach(b=>b.onclick=async()=>{try{b.disabled=true;await api(`/v1/evidence/${b.dataset.evidenceAi}/analyze`,{});await load()}catch(e){toast(e.message);b.disabled=false}});
- document.querySelectorAll('[data-evidence-open]').forEach(b=>b.onclick=()=>openEvidence(b.dataset.evidenceOpen));
- document.querySelectorAll('[data-source-document]').forEach(b=>b.onclick=async()=>{try{const r=await api(`/v1/evidence?source_id=${encodeURIComponent(b.dataset.sourceDocument)}&limit=1`);if(r.items.length){await openEvidence(r.items[0].document_id);return}const s=state.sources.items.find(s=>s.id===b.dataset.sourceDocument);showEvidenceDialog(s.title,`<div class="notice">${evLabel('This PDF has not been downloaded. The publisher is currently unavailable to the collector. Once downloaded, it will open here.','Ce PDF n’a pas encore été téléchargé. La source est actuellement inaccessible au collecteur. Après téléchargement, il s’ouvrira ici.')}</div><p>${esc(evStatus(s.status))}</p>`)}catch(e){toast(e.message)}});
+
+// ---------------------------------------------------------------------------------------------
+// Shell
+
+const NAV = () => [
+  ['briefing', 'grid', L('Briefing', 'Synthèse'), state.items.filter(a => a.rank.band === 'high').length, true],
+  ['situation', 'map', L('Situation room', 'Vue de situation')],
+  ['reports', 'layers', L('Reports', 'Articles'), state.total],
+  ['social', 'radio', L('Social intelligence', 'Veille sociale'), state.social?.archive?.posts],
+  ['sources', 'book', L('Primary sources', 'Sources primaires'), state.ev?.items?.length],
+  ['saved', 'bookmark', L('Saved', 'Sauvegardés'), state.items.filter(a => a.analyst.saved).length],
+  ['method', 'shield', L('Methodology', 'Méthodologie')],
+];
+const viewLabel = v => NAV().find(n => n[0] === v)?.[2] || v;
+function feedStatuses() {
+  const lastFetch = state.items.filter(a => a.record_type !== 'evidence').map(a => a.fetched_at).filter(Boolean).sort().at(-1);
+  const s = state.social, src = state.sources?.items?.filter(x => !x.id.startsWith('discovered-')) || [];
+  const failed = src.filter(x => x.status === 'failed').length;
+  return [
+    [state.error ? 'bad' : 'ok live', L('News collector', 'Collecteur d’articles'), lastFetch ? age(lastFetch) : '—'],
+    [!s ? 'bad' : s.enabled && s.configured ? (s.items.some(i => i.error) ? 'warn' : 'ok') : 'warn', 'X / Twitter', !s ? '—' : s.enabled && s.configured ? `${s.requests_today}/${s.daily_request_limit}` : L('paused', 'pause')],
+    [state.status.available ? 'ok' : 'warn', L('AI analyst', 'Analyste IA'), state.status.provider || '—'],
+    [failed ? 'warn' : 'ok', L('Documents', 'Documents'), src.length ? `${src.length - failed}/${src.length}` : '—'],
+  ];
 }
-function socialPosts(){
- const all=state.posts?.items||[], seen=new Set();
- const rows=all.filter(p=>(!state['post-topic']||p.topic===state['post-topic'])&&(!state['post-language']||p.lang===state['post-language'])).filter(p=>{if(seen.has(p.id))return false;seen.add(p.id);return true});
- const languages=[...new Set(all.map(p=>p.lang))].sort();
- return `<section class="panel social-posts"><div class="social-post-head"><div><h2>${evLabel('Public posts & authors','Publications et auteurs publics')}</h2><p>${evLabel('Latest 10 matching posts per topic · daily sample · no account labels','10 publications récentes par thème · échantillon quotidien · aucun classement des comptes')}</p><small>${state.posts?.requests_today||0} / ${state.posts?.daily_request_limit||4} ${evLabel('post-search requests today','recherches de publications aujourd’hui')}</small></div><div class="social-post-filters"><label>${evLabel('Topic','Thème')}<select id="post-topic" aria-label="${evLabel('Topic','Thème')}"><option value="">${evLabel('All topics','Tous les thèmes')}</option>${(state.social?.items||[]).map(i=>`<option value="${esc(i.topic.id)}" ${state['post-topic']===i.topic.id?'selected':''}>${esc(i.topic[state.lang])}</option>`).join('')}</select></label><label>${evLabel('Original language','Langue originale')}<select id="post-language" aria-label="${evLabel('Original language','Langue originale')}"><option value="">${evLabel('All languages','Toutes les langues')}</option>${languages.map(l=>`<option ${state['post-language']===l?'selected':''} value="${esc(l)}">${esc(l)}</option>`).join('')}</select></label></div></div>
- ${(state.posts?.sources||[]).filter(s=>s.error).map(s=>`<p class="ev-error">${esc(s.topic)}: ${esc(s.error)}</p>`).join('')}
- <div class="social-post-list">${rows.length?rows.map(p=>`<article class="social-post"><div class="social-post-byline"><a href="${esc(p.author_url)}" target="_blank" rel="noopener noreferrer"><strong>${esc(p.author_name)}</strong> <span>@${esc(p.author_handle)}</span></a><span>X · ${esc(p.lang)}</span></div><p class="social-post-text">${esc(p.text)}</p><div class="social-post-meta"><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">${date(p.created_at)} ↗</a><span>${evLabel('Collected','Collecté')}: ${date(p.collected_at,true)}</span></div><small>${evLabel('Public post · claims have not been independently verified','Publication publique · affirmations non vérifiées indépendamment')}</small></article>`).join(''):`<p class="social-empty">${!state.posts?evLabel('Post feed unavailable. Try refreshing the view.','Fil indisponible. Essayez d’actualiser la vue.'):evLabel('No collected posts match these filters. The first collection may still be running.','Aucune publication ne correspond. La première collecte peut être en cours.')}</p>`}</div></section>`;
+function shell(content) {
+  return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
+    <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC open-source intelligence', 'Renseignement en sources ouvertes · RDC')}</small></div></a>
+    <nav>${NAV().map(([id, ic, label, count, hot], i) => `${i === 4 ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : ''}</button>`).join('')}</nav>
+    <div class="rail-bottom"><div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
+  </aside><div class="workspace"><header class="topbar">
+    <div class="crumb">CONGO SIGNAL <span>/</span> <strong>${esc(viewLabel(state.view))}</strong></div>
+    <button class="omni" data-act="palette" aria-label="${L('Search everything', 'Tout rechercher')}">${icon('search')}<span>${L('Search reports, places, accounts…', 'Rechercher articles, lieux, comptes…')}</span><kbd>⌘K</kbd></button>
+    <div class="seg" role="group" aria-label="Language"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'active' : ''}">EN</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'active' : ''}">FR</button></div>
+    <button class="iconbtn" data-act="theme" aria-label="${L('Toggle theme', 'Changer de thème')}" title="${L('Toggle theme', 'Changer de thème')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button>
+    <button class="iconbtn" data-act="settings" aria-label="${L('Connection settings', 'Paramètres de connexion')}">${icon('settings')}</button>
+  </header><main class="view view-${state.view}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div></div>`;
 }
-function renderSocial(){
- document.body.classList.remove('situation-mode');mapHost?.remove();document.documentElement.lang=state.lang;
- const social=state.social, items=social?.items||[];
- const status=!social?evLabel('Connection unavailable','Connexion indisponible'):!social.configured?evLabel('Token needed','Jeton requis'):!social.enabled?evLabel('Configured · paused','Configuré · en pause'):social.budget_paused?evLabel('Daily request cap reached','Plafond quotidien atteint'):evLabel('Scheduled collection enabled','Collecte programmée activée');
- $('#app').innerHTML=`<div class="evidence-workspace"><header class="topbar"><strong>CONGO SIGNAL</strong><nav><button class="btn" data-nav="map">${st('map')}</button> <button class="btn" data-nav="sources">${evLabel('Sources & reports','Sources et rapports')}</button></nav><div class="lang-switch"><button data-lang="en" class="${state.lang==='en'?'active':''}">EN</button><button data-lang="fr" class="${state.lang==='fr'?'active':''}">FR</button></div><button class="iconbtn" data-action="settings" aria-label="${t('settings')}">${icon('settings')}</button></header><main class="main"><div class="hero"><div><span class="eyebrow">X · ${evLabel('PUBLIC CONVERSATION TRENDS','TENDANCES DES CONVERSATIONS PUBLIQUES')}</span><h1>${evLabel('Social signals','Signaux sociaux')}</h1><p>${evLabel('Follow discussion about eastern Congo, diplomacy and humanitarian developments.','Suivez les discussions sur l’est du Congo, la diplomatie et la situation humanitaire.')}</p></div><button class="btn" id="social-reload">${evLabel('Refresh view','Actualiser la vue')}</button></div>
- <section class="panel social-status"><strong>${esc(status)}</strong><span>${social?.requests_today??0} / ${social?.daily_request_limit??24} ${evLabel('requests today (UTC)','requêtes aujourd’hui (UTC)')}</span><span>${evLabel('Pilot: every 4 hours · last 24 complete hours','Pilote : toutes les 4 heures · dernières 24 heures complètes')}</span></section>
- <p class="notice">${evLabel('Aggregate counts only. Topics overlap and include reposts; totals are not independent sources or verified events. Public author attribution is shown separately; no political labels are assigned.','Comptages agrégés uniquement. Les thèmes se chevauchent et incluent les republications ; les totaux ne représentent ni des sources indépendantes ni des faits vérifiés. Les auteurs publics sont affichés séparément ; aucune étiquette politique n’est attribuée.')}</p>
- ${socialPosts()}<div class="social-grid">${items.map(item=>{const d=item.data;const peak=Math.max(1,...(d?.buckets||[]).map(b=>b.tweet_count));return `<section class="panel social-topic"><div class="report-top"><span class="badge">X</span><span>${item.error?evLabel('Collection error','Erreur de collecte'):!d?evLabel('Awaiting first collection','Première collecte en attente'):item.stale?evLabel('Snapshot · not live','Instantané · non direct'):evLabel('Recent snapshot','Instantané récent')}</span></div><h2>${esc(item.topic[state.lang])}</h2>${d?`<div class="social-number">${d.total.toLocaleString()} <small>${evLabel('matching posts / 24h','publications correspondantes / 24 h')}</small></div><div class="social-chart" role="img" aria-label="${evLabel('Hourly matching post counts','Nombre horaire de publications correspondantes')}">${d.buckets.map(b=>`<div style="height:${Math.max(2,100*b.tweet_count/peak)}%" title="${esc(date(b.start))}: ${b.tweet_count}"></div>`).join('')}</div><small>${date(d.window_start)} → ${date(d.window_end)}</small><p>${evLabel('Last complete hour','Dernière heure complète')}: <strong>${d.latest_hour}</strong> · ${evLabel('Previous 6h average','Moyenne des 6 h précédentes')}: ${Number(d.baseline_hourly).toFixed(1)}</p>${d.rising?`<p class="notice">${evLabel('Discussion increase in this snapshot — not a confirmed event.','Hausse des discussions dans cet instantané — événement non confirmé.')}</p>`:''}`:`<div class="social-empty">${evLabel('No X data collected yet. Real counts will appear after the collector connects.','Aucune donnée X collectée. Les comptages réels apparaîtront après connexion du collecteur.')}</div>`}${item.error?`<p class="ev-error">${esc(item.error)}</p>`:''}<p><small>${evLabel('Last successful check','Dernière vérification réussie')}: ${date(item.checked_at,true)}</small></p><details><summary>${evLabel('Query & methodology','Requête et méthode')}</summary><p class="social-query">${esc(item.topic.query)}</p><p>${evLabel('An increase means at least 20 posts in the latest complete hour and at least 3× the mean of the preceding six hours (minimum baseline: 1). This is a simple volume signal, not a confidence score. Keyword coverage is incomplete. Regional-language terms need continued review.','Une hausse correspond à au moins 20 publications dans la dernière heure complète et au moins 3× la moyenne des six heures précédentes (minimum : 1). Il s’agit d’un signal de volume, pas d’un score de fiabilité. La couverture par mots-clés est incomplète. Les termes en langues régionales restent à réviser.')}</p></details><a class="btn" target="_blank" rel="noopener noreferrer" href="${esc(item.search_url)}">${evLabel('Explore this topic on X','Explorer ce thème sur X')} ↗</a></section>`}).join('')}</div>
- <p class="notice">${evLabel('Topic charts include matching reposts. The post feed is a limited daily sample, not every post counted above. Refreshing this screen does not make a paid X request.','Les graphiques incluent les republications correspondantes. Le fil est un échantillon quotidien limité, pas toutes les publications comptées. Actualiser cet écran ne déclenche aucune requête X payante.')}</p></main></div>`;
- bind();$('#social-reload').onclick=async()=>{await load()};for(const id of ['post-topic','post-language'])$('#'+id).onchange=e=>{state[id]=e.target.value;renderSocial()};
+const pageHead = (eyebrow, h1, p, actions = '') => `<section class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${h1}</h1>${p ? `<p>${p}</p>` : ''}</div><div class="actions">${actions}</div></section>`;
+const btnExport = () => `<button class="btn" data-act="export">${icon('download')}${L('Export JSON', 'Exporter JSON')}</button>`;
+const btnCollect = () => `<button class="btn" data-act="collect">${icon('refresh')}${L('Collect latest', 'Actualiser la collecte')}</button>`;
+const btnBatch = () => `<button class="btn primary" data-act="batch">${icon('spark')}${L('Analyze top 5', 'Analyser les 5 premiers')}</button>`;
+
+function render() {
+  if (!state.loaded) return;
+  const active = document.activeElement;
+  const keep = active?.id && !active.closest('#overlay') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+  const scrolls = $$('#app [data-scroll]').map(el => [el.dataset.scroll, el.scrollTop]);
+  document.documentElement.lang = state.lang;
+  mapHost?.remove();
+  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, method: methodView };
+  $('#app').innerHTML = shell(views[state.view]());
+  for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
+  if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.start, keep.end) } catch {} } }
+  mountMap();
 }
-try{state.geometry=await fetch('/drc.geo.json').then(r=>r.json())}catch{}
+function go(view) {
+  if (!VIEWS.includes(view)) return;
+  state.view = view; state.visible = 20;
+  if (location.hash !== '#' + view) history.pushState(null, '', '#' + view);
+  render(); window.scrollTo(0, 0);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shared fragments
+
+function reportRow(a, compactRow = false) {
+  const places = a.places.map(p => p.name);
+  const tags = [
+    brief(a) ? `<span class="badge accent">${icon('spark')}${L('AI brief', 'Synthèse IA')}</span>` : ['pending', 'running'].includes(a.brief?.status) ? `<span class="badge">${L('AI working', 'IA en cours')}</span>` : '',
+    a.analyst?.review === 'follow_up' ? `<span class="badge medium">${L('Follow-up', 'À approfondir')}</span>` : a.analyst?.review === 'reviewed' ? `<span class="badge good">${L('Reviewed', 'Examiné')}</span>` : '',
+    a.record_type === 'evidence' ? `<span class="badge">${L('Primary document', 'Document primaire')}</span>` : '',
+    a.relevance?.scope === 'regional' ? `<span class="badge">${L('Regional context', 'Contexte régional')}</span>` : '',
+  ].join('');
+  return `<div class="report" role="button" tabindex="0" data-act="report" data-arg="${esc(a.id)}">
+    <div class="score ${a.rank.band}" style="--v:${a.rank.score}" data-tip="${esc(`${L('Priority', 'Priorité')} ${a.rank.score}/100 · ${bandLabel(a.rank.band)}`)}"><span>${a.rank.score}</span></div>
+    <div><div class="report-kicker"><span class="tag"><i class="swatch" style="background:${layerColor(reportLayer(a))}"></i>${esc(categoryName(a.category) || (a.record_type === 'evidence' ? L('Document', 'Document') : L('Other', 'Autres')))}</span>${compactRow ? '' : `<span class="sep">·</span><span>${esc(a.source)}</span>`}${places.length ? `<span class="sep">·</span><span>${icon('pin')} ${esc(places.slice(0, 3).join(', '))}</span>` : ''}<span class="sep">·</span><time title="${esc(date(a.published_at))}">${age(a.published_at)}</time></div>
+    <h3>${esc(title(a))}</h3>${compactRow ? '' : `<p>${esc(summary(a))}</p>${tags ? `<div class="report-tags">${tags}</div>` : ''}`}</div>
+    ${compactRow || a.record_type === 'evidence' ? '' : `<button class="save ${a.analyst.saved ? 'saved' : ''}" data-act="save" data-arg="${esc(a.id)}" aria-label="${a.analyst.saved ? L('Unsave report', 'Retirer des sauvegardes') : L('Save report', 'Sauvegarder')}" title="${a.analyst.saved ? L('Unsave report', 'Retirer des sauvegardes') : L('Save report', 'Sauvegarder')}">${icon('bookmark')}</button>`}
+  </div>`;
+}
+function placeRanking(ps, max = 8) {
+  const top = ps[0]?.count || 1;
+  return ps.slice(0, max).map(p => `<button class="rank-row" data-act="place" data-arg="${esc(p.name)}"><span>${esc(p.name)} <small class="muted">${esc(p.province || '')}</small></span>${meter(p.count, top, 'var(--series-1)')}<b>${p.count}</b></button>`).join('') || `<div class="muted" style="font-size:12px">${L('No places recognized in this view.', 'Aucun lieu reconnu dans cette vue.')}</div>`;
+}
+function accountRow(a) {
+  return `<button class="account-row" data-act="account" data-arg="${esc(a.handle)}">${avatar(a.name, a.handle, 'sm')}<div style="min-width:0"><strong>${esc(a.name)}</strong><small>@${esc(a.handle)} · ${L('last', 'dernier')} ${age(a.last_post)}</small>${topicMix(a.topic_counts)}</div><div class="n">${nf(a.posts)}<small>${L('posts', 'publ.')}</small></div></button>`;
+}
+function richText(text, terms) {
+  const re = /(https?:\/\/[^\s]+)|(@[A-Za-z0-9_]{1,15})|(#[\p{L}\p{N}_]+)/gu;
+  let out = '', last = 0;
+  for (const m of text.matchAll(re)) {
+    out += highlight(text.slice(last, m.index), terms);
+    const s = m[0];
+    if (m[1]) out += `<a href="${esc(s)}" target="_blank" rel="noopener noreferrer nofollow">${esc(s.replace(/^https?:\/\//, '').slice(0, 42))}</a>`;
+    else if (m[2]) out += `<button class="ent" data-act="account" data-arg="${esc(s.slice(1))}">${esc(s)}</button>`;
+    else out += `<button class="ent" data-act="hashtag" data-arg="${esc(s.slice(1))}">${highlight(s, terms)}</button>`;
+    last = m.index + s.length;
+  }
+  return out + highlight(text.slice(last), terms);
+}
+function highlight(s, terms) {
+  const parts = terms.map(t => t.split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^\\p{L}\\p{N}]+')).filter(Boolean);
+  if (!parts.length) return esc(s);
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${parts.join('|')})(?![\\p{L}\\p{N}])`, 'giu');
+  let out = '', last = 0;
+  for (const m of s.matchAll(re)) { out += esc(s.slice(last, m.index)) + `<mark>${esc(m[0])}</mark>`; last = m.index + m[0].length }
+  return out + esc(s.slice(last));
+}
+function postCard(p, withAuthor = true) {
+  const terms = [...new Set((p.topics || []).flatMap(t => t.terms || []))];
+  const m = p.metrics || {};
+  const metric = (ic, v, label) => `<span class="metric" data-tip="${esc(label)}">${icon(ic)}${compact(v)}</span>`;
+  return `<article class="post">${withAuthor ? avatar(p.author_name, p.author_handle) : ''}<div style="min-width:0;${withAuthor ? '' : 'grid-column:1/-1'}">
+    <div class="post-head">${withAuthor ? `<button class="who" data-act="account" data-arg="${esc(p.author_handle)}">${esc(p.author_name)}</button><span class="handle">@${esc(p.author_handle)}</span><span class="muted">·</span>` : ''}<time title="${esc(date(p.created_at))} (Kinshasa)">${date(p.created_at, true)}</time><span class="kind">${p.kind && p.kind !== 'post' ? `<span class="badge">${esc(kindName(p.kind))}</span> ` : ''}<span class="badge">${esc(p.lang)}</span></span></div>
+    <div class="post-text ${(p.text || '').length > 480 ? 'clamp' : ''}">${richText(p.text || '', terms)}</div>${(p.text || '').length > 480 ? `<button class="linkbtn" data-act="expand">${L('Show full post', 'Afficher tout')}</button>` : ''}
+    <div class="post-foot">${metric('reply', m.reply_count, L('Replies', 'Réponses'))}${metric('repost', m.retweet_count, L('Reposts', 'Republications'))}${metric('quote', m.quote_count, L('Quotes', 'Citations'))}${metric('heart', m.like_count, L('Likes', 'J’aime'))}${m.impression_count ? metric('eye', m.impression_count, L('Impressions', 'Impressions')) : ''}<span class="grow"></span><button class="linkbtn" data-act="copy" data-arg="${esc(p.url)}">${L('Copy link', 'Copier le lien')}</button><a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">${L('Open on X', 'Ouvrir sur X')} ↗</a></div>
+    <div class="post-topics">${(p.topics || []).map(t => `<span class="tag" data-tip="${esc(t.via === 'account_history' ? L('Matched locally during an account-history scan', 'Correspondance locale lors d’un historique de compte') : L('Returned by the X topic query', 'Renvoyé par la requête X du thème'))}"><i class="swatch" style="background:${topicColor(t.topic)}"></i>${esc(topicName(t.topic))}${t.terms?.length ? ` <em>· ${esc(t.terms.join(', '))}</em>` : ''}</span>`).join('')}</div>
+  </div></article>`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Briefing
+
+function briefingView() {
+  const news = state.items.filter(a => a.record_type !== 'evidence');
+  const high = state.items.filter(a => a.rank.band === 'high');
+  const days = [...Array(14)].map((_, i) => new Date(Date.now() + 3600000 - (13 - i) * 86400000).toISOString().slice(0, 10));
+  const perDay = days.map(d => news.filter(a => kinDay(a.published_at) === d).length);
+  const s = state.social, items = s?.items || [];
+  const rising = items.filter(i => i.data?.rising).length;
+  const srcs = state.sources?.items?.filter(x => !x.id.startsWith('discovered-')) || [];
+  const ready = srcs.filter(x => x.status === 'ready').length;
+  const queue = [...state.items].sort((a, b) => b.rank.score - a.rank.score).slice(0, 8);
+  const today = new Date().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Kinshasa' });
+  const kpi = (label, ic, value, foot, extra = '', cls = '') => `<div class="panel kpi ${cls}"><div class="kpi-label">${icon(ic)}${label}</div><div class="kpi-value">${value}</div><div class="kpi-foot">${foot}</div>${extra}</div>`;
+  return pageHead(`DRC · ${L('OPEN-SOURCE MONITORING', 'VEILLE EN SOURCES OUVERTES')} · ${esc(today)}`, L('Daily briefing', 'Synthèse du jour'), L('What changed across news, primary documents and public conversation — ranked for analyst attention, linked to every source.', 'Ce qui a changé dans les articles, les documents primaires et la conversation publique — classé pour l’analyste, relié à chaque source.'), `${btnExport()}${btnCollect()}${btnBatch()}`)
+    + `<div class="kpis">
+      ${kpi(L('Reports loaded', 'Articles chargés'), 'layers', nf(state.items.length), `${nf(state.total)} ${L('news articles collected', 'articles collectés')}`, `<span data-tip="${esc(L('Publications per day, last 14 days', 'Publications par jour, 14 derniers jours'))}">${spark(perDay)}</span>`)}
+      ${kpi(L('High priority', 'Priorité élevée'), 'alert', nf(high.length), L('score ≥ 65 · attention, not truth', 'score ≥ 65 · attention, pas vérité'), '', high.length ? 'alert' : '')}
+      ${kpi(L('X topics rising', 'Thèmes X en hausse'), 'trend', `${rising}<small class="muted" style="font-size:14px"> / ${items.length}</small>`, L('volume ≥ 3× six-hour mean', 'volume ≥ 3× moyenne sur 6 h'))}
+      ${kpi(L('Accounts archived', 'Comptes archivés'), 'users', nf(s?.archive?.accounts), `${nf(s?.archive?.posts)} ${L('topic posts retained', 'publications conservées')}`)}
+      ${kpi(L('AI briefs ready', 'Synthèses IA prêtes'), 'spark', nf(state.items.filter(brief).length), activeTasks() ? `${activeTasks()} ${L('in progress', 'en cours')}` : `${esc(state.status.model || '—')}`)}
+      ${kpi(L('Primary sources', 'Sources primaires'), 'book', `${ready}<small class="muted" style="font-size:14px"> / ${srcs.length}</small>`, `${nf(state.ev?.items?.length)} ${L('documents collected', 'documents collectés')}`)}
+    </div>
+    <div class="brief-grid">
+      <section class="panel"><div class="panel-head"><h2>${icon('alert')}${L('Priority queue', 'File prioritaire')}</h2><button class="linkbtn" data-act="nav" data-arg="reports">${L('All reports', 'Tous les articles')} →</button></div><div class="report-list">${queue.map(a => reportRow(a)).join('') || emptyState(L('No reports yet', 'Aucun article'), L('Collection may still be running.', 'La collecte peut être en cours.'))}</div></section>
+      <section class="panel"><div class="panel-head"><h2>${icon('radio')}${L('Conversation pulse · X', 'Pouls des conversations · X')}</h2><button class="linkbtn" data-act="nav" data-arg="social">${L('Open', 'Ouvrir')} →</button></div>
+        ${items.map(i => { const d = i.data; return `<div class="pulse-row" role="button" tabindex="0" data-act="social-topic" data-arg="${esc(i.topic.id)}"><strong><i class="swatch" style="background:${topicColor(i.topic.id)}"></i>${esc(i.topic[state.lang])}${d?.rising ? ` <span class="badge high">${icon('trend')}${L('Rising', 'Hausse')}</span>` : ''}</strong>${d ? bars(d.buckets.map(b => ({ value: b.tweet_count, tip: `${date(b.start, true)} · ${nf(b.tweet_count)}` })), topicColor(i.topic.id)) : '<span></span>'}<span><span class="big">${d ? compact(d.total) : '—'}</span> <small>${L('posts / 24 h', 'publ. / 24 h')} · ${L('last hour', 'dernière heure')} ${d ? nf(d.latest_hour) : '—'}</small></span></div>` }).join('') || `<div class="panel-body muted">${L('X monitoring is not configured.', 'La veille X n’est pas configurée.')}</div>`}
+        <div class="panel-body notice" style="margin:0 16px 14px">${L('Topics overlap and include reposts. Volume is a signal, not an event.', 'Les thèmes se chevauchent et incluent les republications. Le volume est un signal, pas un événement.')}</div></section>
+      <div class="stack">
+        <section class="panel"><div class="panel-head"><h2>${icon('pin')}${L('Hotspots', 'Points chauds')}</h2><small>${L('place mentions', 'lieux cités')}</small></div><div class="panel-body">${placeRanking(placesList(), 7)}</div></section>
+        <section class="panel"><div class="panel-head"><h2>${icon('users')}${L('Most active accounts', 'Comptes les plus actifs')}</h2><small>${L('on monitored topics', 'sur les thèmes suivis')}</small></div>${(state.accounts?.items || []).slice(0, 5).map(accountRow).join('') || `<div class="panel-body muted" style="font-size:12px">${L('Accounts appear once posts are archived.', 'Les comptes apparaissent après archivage des publications.')}</div>`}</section>
+        <section class="panel"><div class="panel-head"><h2>${icon('shield')}${L('Collection health', 'État de la collecte')}</h2></div><div class="panel-body">${feedStatuses().map(([c, label, v]) => `<div class="health-row"><i class="dot ${c}"></i><div><strong>${esc(label)}</strong><small>${esc(v)}</small></div></div>`).join('')}</div></section>
+      </div>
+    </div>`;
+}
+const emptyState = (h, p, action = '') => `<div class="empty">${icon('search')}<h3>${h}</h3><p>${p}</p>${action}</div>`;
+
+// ---------------------------------------------------------------------------------------------
+// Reports library + saved
+
+function reportsView() {
+  const saved = state.view === 'saved';
+  const items = libraryItems(), ps = placesList(items);
+  const publishers = [...new Set(state.items.map(a => a.source))].sort();
+  return pageHead(saved ? L('ANALYST WORKSPACE', 'ESPACE ANALYSTE') : L('NEWS + PRIMARY DOCUMENTS', 'ARTICLES + DOCUMENTS PRIMAIRES'), saved ? L('Saved reports', 'Articles sauvegardés') : L('Report library', 'Bibliothèque'), L('Ranked by an explainable attention score. Every report links to its original source and provenance.', 'Classés selon un score d’attention explicable. Chaque article renvoie à sa source et à sa provenance.'), `${btnExport()}${btnCollect()}${btnBatch()}`)
+    + `<div class="split"><section class="panel">
+      <div class="toolbar"><label class="search">${icon('search')}<input id="report-q" class="input" type="search" data-model="q" value="${esc(state.q)}" placeholder="${L('Search title, text, places, AI briefs…', 'Rechercher titre, texte, lieux, synthèses…')}" aria-label="${L('Search reports', 'Rechercher')}"></label>
+        <select class="select" data-model="publisher" aria-label="${L('Publisher', 'Source')}"><option value="">${L('All publishers', 'Toutes les sources')}</option>${publishers.map(p => `<option value="${esc(p)}" ${state.publisher === p ? 'selected' : ''}>${esc(p)} (${state.items.filter(a => a.source === p).length})</option>`).join('')}</select>
+        <select class="select" data-model="sort" aria-label="${L('Sort', 'Tri')}"><option value="priority" ${state.sort === 'priority' ? 'selected' : ''}>${L('Priority', 'Priorité')}</option><option value="latest" ${state.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récents')}</option></select>
+        <div class="chips" style="width:100%">${Object.keys(CATS).map(k => `<button class="chip ${state.category === k ? 'active' : ''}" data-act="category" data-arg="${k}">${k !== 'all' ? `<i class="swatch" style="background:${layerColor(k)}"></i>` : ''}${layerName(k)}</button>`).join('')}${state.place ? `<button class="chip active" data-act="clear-place">${icon('pin')}${esc(state.place)} ×</button>` : ''}<span style="flex:1"></span><label class="check"><input type="checkbox" data-model="includeRegional" ${state.includeRegional ? 'checked' : ''}>${L('Include regional context', 'Inclure le contexte régional')}</label></div>
+      </div>
+      <div class="list-meta"><span class="num">${nf(items.length)} ${L('reports', 'articles')}${activeTasks() ? ` · ${activeTasks()} ${L('AI tasks in progress', 'tâches IA en cours')}` : ''}</span><span>${L('Single source · unverified', 'Source unique · non corroboré')}</span></div>
+      <div class="report-list">${items.slice(0, state.visible).map(a => reportRow(a)).join('') || emptyState(saved ? L('Nothing saved yet', 'Rien de sauvegardé') : L('No reports match this view', 'Aucun article ne correspond'), saved ? L('Use the bookmark on any report to keep it here.', 'Utilisez le signet d’un article pour le conserver ici.') : L('Try another topic, place, or search term.', 'Essayez un autre thème, lieu ou terme.'), `<button class="btn" data-act="reset">${L('Clear filters', 'Effacer les filtres')}</button>`)}</div>
+      ${items.length > state.visible || (state.items.length < state.total && state.limit < 500) ? `<div class="loadmore"><button class="btn" data-act="more">${L('Load more reports', 'Charger plus d’articles')}</button></div>` : ''}
+    </section><div class="stack">
+      <section class="panel"><div class="panel-head"><h2>${icon('pin')}${L('Places in view', 'Lieux de la sélection')}</h2><small>${ps.length}</small></div><div class="panel-body">${placeRanking(ps, 10)}</div></section>
+      <section class="panel"><div class="panel-head"><h2>${icon('spark')}${L('AI research assistant', 'Assistant de recherche IA')}</h2><span class="badge accent">${esc((state.status.provider || '—').toUpperCase())}</span></div><div class="panel-body"><p style="margin:0 0 12px;color:var(--text-2);font-size:13px">${L('Generate bilingual briefs and an impact assessment for the five highest-ranked reports in this view that lack one.', 'Générez des synthèses bilingues et une analyse d’impact pour les cinq articles prioritaires de cette vue sans synthèse.')}</p>${btnBatch()}<div class="notice">${L('AI output is interpretation; verify against the original source.', 'Les sorties IA sont des interprétations ; vérifiez la source originale.')}</div></div></section>
+    </div></div>`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Social intelligence
+
+function socialView() {
+  const s = state.social, items = s?.items || [], f = state.sf;
+  const posts = filteredPosts();
+  const all = state.posts?.items || [];
+  const langs = countBy(all, p => p.lang);
+  const status = !s ? [L('Connection unavailable', 'Connexion indisponible'), 'bad'] : !s.configured ? [L('Token needed', 'Jeton requis'), 'warn'] : !s.enabled ? [L('Configured · paused', 'Configuré · en pause'), 'warn'] : s.budget_paused ? [L('Daily request cap reached', 'Plafond quotidien atteint'), 'warn'] : [L('Collecting', 'Collecte active'), 'ok live'];
+  const budget = (label, used, limit) => `<span class="budget" data-tip="${esc(L('Requests reserved today (UTC). Caps are enforced server-side.', 'Requêtes réservées aujourd’hui (UTC). Plafonds appliqués côté serveur.'))}">${label} <b class="num">${used ?? 0}/${limit ?? 0}</b>${meter(used, limit, (used >= limit ? 'var(--critical)' : 'var(--accent)'))}</span>`;
+  const aq = norm(f.accountQ.trim());
+  const accounts = (state.accounts?.items || []).filter(a => (!aq || norm(a.handle + ' ' + a.name).includes(aq)) && (!f.topic || a.topic_counts?.[f.topic]));
+  const hashtags = countBy(posts, p => p.hashtags).slice(0, 14);
+  const mentions = countBy(posts, p => p.mentions).slice(0, 10);
+  const domains = countBy(posts, p => p.domains).slice(0, 8);
+  return pageHead(`X · ${L('PUBLIC CONVERSATION', 'CONVERSATION PUBLIQUE')}`, L('Social intelligence', 'Veille sociale'), L('Volume, voices and account histories on the topics we monitor. Posts are public, attributed and keyword-matched — never labeled.', 'Volume, voix et historiques de comptes sur les thèmes suivis. Publications publiques, attribuées et repérées par mots-clés — jamais étiquetées.'),
+    `<form class="lookup" data-form="lookup"><input id="lookup-handle" class="input" placeholder="@handle" aria-label="${L('Look up an X account', 'Rechercher un compte X')}" autocomplete="off" spellcheck="false"><button class="btn primary" type="submit">${icon('user')}${L('Account dossier', 'Dossier de compte')}</button></form>`)
+    + `<section class="panel status-strip"><strong><i class="dot ${status[1]}"></i>${status[0]}</strong>
+        ${budget(L('Counts', 'Comptages'), s?.requests_today, s?.daily_request_limit)}${budget(L('Topic samples', 'Échantillons'), s?.post_requests_today, s?.post_request_limit)}${budget(L('Account lookups', 'Historiques'), s?.account_requests_today, s?.account_request_limit)}
+        <span>${L('Archive', 'Archive')}: <b class="num">${nf(s?.archive?.posts)}</b> ${L('posts', 'publ.')} · <b class="num">${nf(s?.archive?.accounts)}</b> ${L('accounts', 'comptes')} · ${s?.archive?.retention_days ?? '—'} ${L('day retention', 'jours de conservation')}</span>
+        <button class="btn sm ghost" data-act="reload" style="margin-left:auto">${icon('refresh')}${L('Refresh view', 'Actualiser')}</button></section>
+      <div class="topic-grid">${items.map(topicCard).join('')}</div>
+      <div class="split"><section class="panel">
+        <div class="panel-head"><h2>${icon('radio')}${L('Post archive', 'Archive des publications')}</h2><small class="num">${nf(posts.length)} ${L('shown', 'affichées')}${state.posts?.total > all.length ? ` · ${L('latest', 'derniers')} ${nf(all.length)} / ${nf(state.posts.total)}` : ''}</small></div>
+        <div class="toolbar" style="padding-top:4px">
+          <div class="chips" style="width:100%"><button class="chip ${!f.topic ? 'active' : ''}" data-act="social-topic" data-arg="">${L('All topics', 'Tous les thèmes')} <b>${nf(all.length)}</b></button>${topicsList().map(t => `<button class="chip ${f.topic === t.id ? 'active' : ''}" data-act="social-topic" data-arg="${esc(t.id)}"><i class="swatch" style="background:${topicColor(t.id)}"></i>${esc(t[state.lang])} <b>${nf(all.filter(p => p.topics?.some(x => x.topic === t.id)).length)}</b></button>`).join('')}</div>
+          <label class="search">${icon('search')}<input id="post-q" class="input" type="search" data-model="sf.q" value="${esc(f.q)}" placeholder="${L('Search text, #hashtag, @handle…', 'Rechercher texte, #hashtag, @compte…')}" aria-label="${L('Search posts', 'Rechercher des publications')}"></label>
+          <select class="select" data-model="sf.lang" aria-label="${L('Language', 'Langue')}"><option value="">${L('All languages', 'Toutes les langues')}</option>${langs.map(([l, n]) => `<option value="${esc(l)}" ${f.lang === l ? 'selected' : ''}>${esc(l)} (${n})</option>`).join('')}</select>
+          <select class="select" data-model="sf.kind" aria-label="${L('Post type', 'Type')}"><option value="">${L('All types', 'Tous les types')}</option>${['post', 'reply', 'quote', 'repost'].map(k => `<option value="${k}" ${f.kind === k ? 'selected' : ''}>${kindName(k)}</option>`).join('')}</select>
+          <select class="select" data-model="sf.sort" aria-label="${L('Sort', 'Tri')}"><option value="latest" ${f.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récentes')}</option><option value="engagement" ${f.sort === 'engagement' ? 'selected' : ''}>${L('Most engagement', 'Plus d’engagement')}</option></select>
+          <button class="btn sm ghost" data-act="export-posts">${icon('download')}JSON</button>
+        </div>
+        ${(state.posts?.sources || []).filter(x => x.error).map(x => `<div class="errorbar" style="margin:12px 16px 0">${esc(topicName(x.topic))}: ${esc(x.error)}</div>`).join('')}
+        <div>${posts.slice(0, f.visible).map(p => postCard(p)).join('') || emptyState(L('No posts match', 'Aucune publication'), !state.posts ? L('Post archive unavailable. Try refreshing the view.', 'Archive indisponible. Essayez d’actualiser.') : L('Topic samples run once a day within the request cap; account dossiers add history on demand.', 'Les échantillons sont collectés une fois par jour dans la limite du plafond ; les dossiers ajoutent l’historique à la demande.'))}</div>
+        ${posts.length > f.visible ? `<div class="loadmore"><button class="btn" data-act="post-more">${L('Show more posts', 'Afficher plus')}</button></div>` : ''}
+      </section><div class="stack">
+        <section class="panel"><div class="panel-head"><h2>${icon('users')}${L('Accounts', 'Comptes')}</h2><small class="num">${nf(accounts.length)}${f.topic ? ` · ${esc(topicName(f.topic))}` : ''}</small></div>
+          <div class="panel-body" style="padding-bottom:10px"><label class="search">${icon('search')}<input id="account-q" class="input" type="search" data-model="sf.accountQ" value="${esc(f.accountQ)}" placeholder="${L('Filter accounts', 'Filtrer les comptes')}" aria-label="${L('Filter accounts', 'Filtrer les comptes')}"></label></div>
+          <div class="scroll" data-scroll="accounts">${accounts.slice(0, 60).map(accountRow).join('') || `<div class="panel-body muted" style="font-size:12px">${L('No archived accounts match.', 'Aucun compte archivé ne correspond.')}</div>`}</div>
+          <div class="panel-body notice" style="margin:8px 16px 14px">${L('Ranked by archived topic posts. Activity volume is not influence, coordination or affiliation.', 'Classés par publications archivées. Le volume n’indique ni influence, ni coordination, ni affiliation.')}</div></section>
+        ${hashtags.length ? `<section class="panel"><div class="panel-head"><h2>${icon('hash')}${L('Hashtags in view', 'Hashtags de la sélection')}</h2></div><div class="panel-body cloud">${hashtags.map(([h, n]) => `<button data-act="hashtag" data-arg="${esc(h)}">#${esc(h)}<b>${n}</b></button>`).join('')}</div></section>` : ''}
+        ${mentions.length ? `<section class="panel"><div class="panel-head"><h2>${icon('at')}${L('Most mentioned', 'Les plus mentionnés')}</h2></div><div class="panel-body cloud">${mentions.map(([h, n]) => `<button data-act="account" data-arg="${esc(h)}">@${esc(h)}<b>${n}</b></button>`).join('')}</div></section>` : ''}
+        ${domains.length ? `<section class="panel"><div class="panel-head"><h2>${icon('link')}${L('Linked domains', 'Domaines cités')}</h2></div><div class="panel-body">${domains.map(([d, n]) => `<div class="rank-row" style="cursor:default"><span>${esc(d)}</span>${meter(n, domains[0][1], 'var(--series-1)')}<b>${n}</b></div>`).join('')}</div></section>` : ''}
+      </div></div>
+      <p class="notice">${esc(s?.notice || '')} ${L('Refreshing this screen never triggers a paid X request; account histories are fetched only when you ask.', 'Actualiser cet écran ne déclenche aucune requête X payante ; les historiques ne sont récupérés qu’à votre demande.')}</p>`;
+}
+function topicCard(item) {
+  const d = item.data, id = item.topic.id, c = topicColor(id);
+  const history = (item.history || []).map(h => ({ value: h.count, tip: `${date(h.start, true)} · ${nf(h.count)}` }));
+  const state_ = item.error ? `<span style="color:var(--critical)">${L('Collection error', 'Erreur de collecte')}</span>` : !d ? L('Awaiting first collection', 'Première collecte en attente') : item.stale ? L('Snapshot · not live', 'Instantané · non direct') : `${L('Checked', 'Vérifié')} ${age(item.checked_at)}`;
+  return `<div class="panel topic-card ${state.sf.topic === id ? 'active' : ''}" style="--c:${c}" role="button" tabindex="0" data-act="social-topic" data-arg="${esc(id)}" aria-pressed="${state.sf.topic === id}">
+    ${d?.rising ? `<span class="badge high rising" data-tip="${esc(L('Latest hour ≥ 20 posts and ≥ 3× the previous six-hour mean. Not a confirmed event.', 'Dernière heure ≥ 20 publications et ≥ 3× la moyenne des 6 h précédentes. Événement non confirmé.'))}">${icon('trend')}${L('Rising', 'Hausse')}</span>` : ''}
+    <h3><i class="swatch"></i>${esc(item.topic[state.lang])}</h3>
+    <div class="topic-stats"><span class="big">${d ? compact(d.total) : '—'}</span><small>${L('posts · 24 h', 'publ. · 24 h')}</small></div>
+    ${d ? bars(d.buckets.map(b => ({ value: b.tweet_count, tip: `${date(b.start, true)} → ${nf(b.tweet_count)} ${L('posts', 'publ.')}` })), c) : '<div class="bars"></div>'}
+    <div class="topic-meta"><span>${L('Last hour', 'Dernière heure')} <b class="num" style="color:var(--text)">${d ? nf(d.latest_hour) : '—'}</b> · ${L('6 h mean', 'moy. 6 h')} ${d ? Number(d.baseline_hourly).toFixed(0) : '—'}</span></div>
+    <div><div class="eyebrow" style="margin-bottom:4px">${L('Hourly history', 'Historique horaire')} · ${history.length > 24 ? `${Math.ceil(history.length / 24)} ${L('days', 'jours')}` : `${history.length} h`}</div>${areaChart(history, c, 40)}</div>
+    <div class="topic-meta"><span>${state_}</span><span>${nf(item.archived_posts)} ${L('archived', 'archivées')}</span></div>
+    <details data-stop><summary>${L('Query & method', 'Requête et méthode')}</summary><p class="query">${esc(item.topic.query)}</p>${item.error ? `<p class="ev-error">${esc(item.error)}</p>` : ''}<a href="${esc(item.search_url)}" target="_blank" rel="noopener noreferrer">${L('Explore live on X', 'Explorer en direct sur X')} ↗</a></details>
+  </div>`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Account dossier
+
+async function openDossier(handle, { keepFilters = false } = {}) {
+  handle = String(handle || '').replace(/^@/, '').trim();
+  if (!validHandle(handle)) { toast(L('Enter a valid X handle (letters, numbers, underscore).', 'Saisissez un identifiant X valide.')); return }
+  const prev = state.dossier;
+  state.dossier = { handle, data: null, loading: true, error: '', notFound: false, topic: keepFilters ? prev?.topic : '', kind: keepFilters ? prev?.kind : '', visible: 30, busy: false };
+  state.modal = 'dossier';
+  if (hashAccount() !== handle) history.replaceState(null, '', '#account/' + encodeURIComponent(handle));
+  renderDossier();
+  try { state.dossier.data = await api(`/v1/social/accounts/${encodeURIComponent(handle)}`) }
+  catch (e) { if (e.status === 404) state.dossier.notFound = true; else state.dossier.error = e.message }
+  if (state.dossier?.handle !== handle) return;
+  state.dossier.loading = false;
+  renderDossier();
+}
+async function fetchHistory() {
+  const d = state.dossier; if (!d || d.busy) return;
+  d.busy = true; renderDossier();
+  try {
+    const r = await api(`/v1/social/accounts/${encodeURIComponent(d.handle)}/history`, {});
+    toast(L(`Scanned ${r.scanned} recent posts · ${r.matched} on monitored topics · ${r.new} new`, `${r.scanned} publications analysées · ${r.matched} sur les thèmes suivis · ${r.new} nouvelles`));
+    await openDossier(d.handle, { keepFilters: true });
+    load();
+  } catch (e) { toast(e.message); if (state.dossier) { state.dossier.busy = false; renderDossier() } }
+}
+function renderDossier() {
+  const d = state.dossier; if (!d) return;
+  const data = d.data, a = data?.account, posts = data?.posts || [];
+  const s = state.social, canFetch = data?.history?.available ?? (s?.enabled && s?.configured);
+  const limit = data?.history?.request_limit ?? s?.account_request_limit, used = data?.history?.requests_today ?? s?.account_requests_today;
+  let body;
+  if (d.loading) body = `<div class="loading-line"></div><p class="muted">${L('Loading dossier…', 'Chargement du dossier…')}</p>`;
+  else if (d.error) body = `<div class="errorbar">${esc(d.error)}</div>`;
+  else {
+    const pm = a?.profile?.public_metrics || {};
+    const joined = a?.profile?.created_at ? new Date(a.profile.created_at) : null;
+    const years = joined ? ((Date.now() - joined) / 31557600000) : null;
+    const topicCounts = countBy(posts, p => (p.topics || []).map(t => t.topic));
+    const kinds = countBy(posts, p => p.kind);
+    const langs = countBy(posts, p => p.lang);
+    const hashtags = countBy(posts, p => p.hashtags).slice(0, 12);
+    const mentions = countBy(posts, p => p.mentions).slice(0, 10);
+    const domains = countBy(posts, p => p.domains).slice(0, 6);
+    const dayList = [...new Set(posts.map(p => kinDay(p.created_at)))].sort();
+    let days = [];
+    if (dayList.length) { const end = Date.parse(dayList.at(-1)), start = Math.max(Date.parse(dayList[0]), end - 59 * 86400000); for (let t = start; t <= end; t += 86400000) days.push(new Date(t).toISOString().slice(0, 10)) }
+    const perDay = new Map(countBy(posts, p => kinDay(p.created_at)));
+    const perHour = new Map(countBy(posts, p => kinHour(p.created_at)));
+    const last = a?.history_last;
+    const shown = posts.filter(p => (!d.topic || p.topics?.some(t => t.topic === d.topic)) && (!d.kind || p.kind === d.kind));
+    const header = `<div class="dossier-head">${avatar(a?.name || d.handle, d.handle, 'lg')}<div style="min-width:0"><h1>${esc(a?.name || '@' + d.handle)}</h1><div class="handle">@${esc(a?.handle || d.handle)}${a?.profile?.verified ? ` <span class="badge accent">${L('Verified', 'Vérifié')}${a.profile.verified_type && a.profile.verified_type !== 'none' ? ' · ' + esc(a.profile.verified_type) : ''}</span>` : ''}${a?.profile?.protected ? ` <span class="badge">${L('Protected', 'Protégé')}</span>` : ''}</div>
+      ${a?.previous_handles?.length ? `<div class="muted" style="font-size:12px;margin-top:4px">${icon('history')} ${L('Previously seen as', 'Auparavant')} ${a.previous_handles.map(h => '@' + esc(h)).join(', ')}</div>` : ''}
+      ${a?.profile?.description ? `<p class="dossier-bio">${richText(a.profile.description, [])}</p>` : ''}
+      <div class="dossier-facts">${a?.profile?.location ? `<span>${icon('pin')}${esc(a.profile.location)}</span>` : ''}${joined ? `<span>${icon('calendar')}${L('Joined', 'Inscrit')} ${joined.toLocaleDateString(locale(), { month: 'short', year: 'numeric' })} · ${years.toFixed(1)} ${L('yrs', 'ans')}</span>` : ''}${pm.followers_count != null ? `<span><b>${compact(pm.followers_count)}</b> ${L('followers', 'abonnés')}</span><span><b>${compact(pm.following_count)}</b> ${L('following', 'abonnements')}</span><span><b>${compact(pm.tweet_count)}</b> ${L('posts total', 'publications')}</span>` : ''}</div></div></div>`;
+    const historyBox = `<div class="panel history-box"><div><strong>${icon('history')} ${L('Topic history from X', 'Historique thématique depuis X')}</strong><p>${last ? L(`Last scan ${age(last.checked_at)} ago: ${last.scanned} recent posts read, ${last.matched} matched monitored topics.`, `Dernière analyse il y a ${age(last.checked_at)} : ${last.scanned} publications lues, ${last.matched} sur les thèmes suivis.`) : L('Reads the account’s most recent posts (up to 100 per page) and keeps only those matching the monitored topic rules.', 'Lit les publications récentes du compte (jusqu’à 100 par page) et ne conserve que celles qui correspondent aux thèmes suivis.')} ${L(`Uses ${a ? 1 : 2}+ of today’s account-lookup budget (${used ?? 0}/${limit ?? 0} used).`, `Utilise ${a ? 1 : 2}+ requêtes du budget quotidien (${used ?? 0}/${limit ?? 0}).`)}${a?.history_error ? ` <span class="ev-error">${esc(a.history_error)}</span>` : ''}</p></div>
+      ${canFetch ? `<button class="btn primary" data-act="history" ${d.busy ? 'disabled' : ''}>${icon('refresh')}${d.busy ? L('Fetching…', 'Récupération…') : last ? L('Fetch newer posts', 'Récupérer les nouvelles') : L('Fetch history', 'Récupérer l’historique')}</button>` : `<span class="badge">${L('X collection disabled on server', 'Collecte X désactivée')}</span>`}</div>`;
+    if (d.notFound || !a) body = header + historyBox + emptyState(L('Not in the archive yet', 'Pas encore dans l’archive'), L('This account has no archived posts on monitored topics. Fetch its recent history to check.', 'Ce compte n’a aucune publication archivée sur les thèmes suivis. Récupérez son historique récent pour vérifier.'));
+    else body = header + historyBox
+      + `<div class="stat-grid"><div class="panel stat"><small>${L('Topic posts archived', 'Publications archivées')}</small><b>${nf(posts.length)}</b></div><div class="panel stat"><small>${L('First / last seen', 'Première / dernière')}</small><b style="font-size:14px">${posts.length ? `${date(posts.at(-1).created_at, true)}<br>${date(posts[0].created_at, true)}` : '—'}</b></div><div class="panel stat"><small>${L('Engagement on these posts', 'Engagement sur ces publications')}</small><b>${compact(posts.reduce((n, p) => n + engagement(p), 0))}</b></div><div class="panel stat"><small>${L('Original vs. reposts', 'Originales / republications')}</small><b>${posts.filter(p => p.kind !== 'repost').length} / ${posts.filter(p => p.kind === 'repost').length}</b></div></div>
+      <div class="two"><section class="panel"><div class="panel-head"><h2>${L('Topics', 'Thèmes')}</h2></div><div class="panel-body">${topicCounts.map(([t, n]) => `<div class="topic-bar"><span class="tag"><i class="swatch" style="background:${topicColor(t)}"></i>${esc(topicName(t))}</span>${meter(n, topicCounts[0][1], topicColor(t))}<b>${n}</b></div>`).join('')}<div class="divider"></div><div class="legend">${kinds.map(([k, n]) => `<span>${esc(kindName(k))} <b class="num">${n}</b></span>`).join('')}${langs.map(([l, n]) => `<span class="badge">${esc(l)} · ${n}</span>`).join('')}</div></div></section>
+        <section class="panel"><div class="panel-head"><h2>${L('Posting hours', 'Heures de publication')}</h2><small>Kinshasa · UTC+1</small></div><div class="panel-body">${bars([...Array(24)].map((_, h) => ({ value: perHour.get(h) || 0, tip: `${String(h).padStart(2, '0')}:00 · ${perHour.get(h) || 0}` })))}<div class="axis"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div><p class="notice" style="margin-bottom:0">${L('Archived topic posts only; a partial sample of the account’s activity.', 'Publications archivées uniquement ; échantillon partiel de l’activité.')}</p></div></section></div>
+      ${days.length > 1 ? `<section class="panel" style="margin-bottom:12px"><div class="panel-head"><h2>${L('Activity on monitored topics', 'Activité sur les thèmes suivis')}</h2><small>${dayLabel(days[0])} → ${dayLabel(days.at(-1))}</small></div><div class="panel-body">${bars(days.map(x => ({ value: perDay.get(x) || 0, tip: `${dayLabel(x)} · ${perDay.get(x) || 0}` })), 'var(--series-1)')}<div class="axis"><span>${dayLabel(days[0])}</span><span>${dayLabel(days.at(-1))}</span></div></div></section>` : ''}
+      ${hashtags.length || mentions.length || domains.length ? `<div class="two">${hashtags.length ? `<section class="panel"><div class="panel-head"><h2>${icon('hash')}${L('Hashtags', 'Hashtags')}</h2></div><div class="panel-body cloud">${hashtags.map(([h, n]) => `<button data-act="hashtag" data-arg="${esc(h)}">#${esc(h)}<b>${n}</b></button>`).join('')}</div></section>` : ''}${mentions.length || domains.length ? `<section class="panel"><div class="panel-head"><h2>${icon('at')}${L('Mentions & links', 'Mentions et liens')}</h2></div><div class="panel-body cloud">${mentions.map(([h, n]) => `<button data-act="account" data-arg="${esc(h)}">@${esc(h)}<b>${n}</b></button>`).join('')}${domains.map(([h, n]) => `<button disabled style="cursor:default;opacity:1">${icon('link')} ${esc(h)}<b>${n}</b></button>`).join('')}</div></section>` : ''}</div>` : ''}
+      <section class="panel"><div class="toolbar"><div class="chips"><button class="chip ${!d.topic ? 'active' : ''}" data-act="dossier-topic" data-arg="">${L('All', 'Tous')} <b>${posts.length}</b></button>${topicCounts.map(([t, n]) => `<button class="chip ${d.topic === t ? 'active' : ''}" data-act="dossier-topic" data-arg="${esc(t)}"><i class="swatch" style="background:${topicColor(t)}"></i>${esc(topicName(t))} <b>${n}</b></button>`).join('')}</div><span style="flex:1"></span><div class="seg">${['', 'post', 'reply', 'quote', 'repost'].map(k => `<button class="${(d.kind || '') === k ? 'active' : ''}" data-act="dossier-kind" data-arg="${k}">${k ? kindName(k) : L('All types', 'Tous')}</button>`).join('')}</div></div>
+        ${shown.slice(0, d.visible).map(p => postCard(p, false)).join('') || emptyState(L('No posts in this filter', 'Aucune publication pour ce filtre'), '')}
+        ${shown.length > d.visible ? `<div class="loadmore"><button class="btn" data-act="dossier-more">${L('Show more', 'Afficher plus')} (${shown.length - d.visible})</button></div>` : ''}</section>
+      <p class="notice">${esc(data.notice || '')}</p>`;
+  }
+  const scroller = $('#overlay .drawer'), top = scroller?.scrollTop || 0;
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(L('Account dossier', 'Dossier de compte'))} @${esc(d.handle)}"><div class="drawer-top"><span class="eyebrow">${icon('user')}${L('ACCOUNT DOSSIER', 'DOSSIER DE COMPTE')} · X</span><div class="actions">${a ? `<button class="btn sm" data-act="export-dossier">${icon('download')}JSON</button>` : ''}<a class="btn sm" href="https://x.com/${esc(d.handle)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Open on X', 'Ouvrir sur X')}</a><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div><div class="drawer-body">${body}</div></section></div>`;
+  const drawer = $('#overlay .drawer'); if (drawer) drawer.scrollTop = top;
+  if (!scroller) $('#overlay [data-act="close"]')?.focus();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Situation room (map-first)
+
+function situationView() {
+  const items = situationItems(), ps = placesList(situationItems(true));
+  const timeline = (() => {
+    const counts = new Map(countBy(situationItems(false, true), a => kinDay(a.published_at)));
+    const days = [...counts.keys()].sort(); const max = Math.max(1, ...counts.values());
+    return `<div class="timeline-head"><strong>${L('Publication timeline', 'Chronologie des publications')}</strong><span>${L('Kinshasa dates (UTC+1)', 'Dates de Kinshasa (UTC+1)')}</span>${state.selectedDay ? `<button class="linkbtn" data-act="all-days">${L('All days', 'Tous les jours')}</button>` : ''}</div><div class="day-bars">${days.map(d => `<button class="day-bar ${state.selectedDay === d ? 'active' : ''}" data-act="day" data-arg="${d}" aria-pressed="${state.selectedDay === d}" data-tip="${esc(`${dayLabel(d)} · ${counts.get(d)} ${L('reports', 'articles')}`)}"><i style="height:${Math.max(6, counts.get(d) / max * 100)}%"></i></button>`).join('') || `<small class="muted">${L('No dated reports in this window.', 'Aucun article daté dans cette période.')}</small>`}</div>`;
+  })();
+  return `<div class="situation">
+    <aside class="filters-pane" data-scroll="filters">
+      <div class="pane-section"><div class="eyebrow">DRC · ${L('SITUATION ROOM', 'VUE DE SITUATION')}</div><div style="font-size:13px;color:var(--text-2)"><b class="num" style="color:var(--text)">${nf(items.length)}</b> ${L('reports in view', 'articles affichés')} · ${nf(state.items.length)} ${L('loaded', 'chargés')}</div><label class="search">${icon('search')}<input id="sit-q" class="input" data-model="q" value="${esc(state.q)}" placeholder="${L('Filter reports…', 'Filtrer les articles…')}" aria-label="${L('Filter reports', 'Filtrer les articles')}"></label></div>
+      <div class="pane-section"><h2>${L('Layers', 'Couches')}<button class="linkbtn" data-act="all-layers">${L('All', 'Toutes')}</button></h2>${LAYERS.map(k => `<label class="layer-row"><input type="checkbox" data-act="layer" data-arg="${k}" ${state.layers.includes(k) ? 'checked' : ''}><i class="swatch" style="background:${layerColor(k)}"></i><span>${layerName(k)}</span><b>${state.items.filter(a => reportLayer(a) === k).length}</b></label>`).join('')}<label class="check"><input type="checkbox" data-model="highOnly" ${state.highOnly ? 'checked' : ''}>${L('High priority only', 'Priorité élevée uniquement')}</label></div>
+      <div class="pane-section"><h2>${L('Window', 'Période')}</h2><div class="seg" style="width:max-content">${[0, 1, 7, 30].map(n => `<button class="${state.windowDays === n ? 'active' : ''}" data-act="window" data-arg="${n}">${n ? n === 1 ? '24 h' : `${n} ${L('d', 'j')}` : L('All', 'Tout')}</button>`).join('')}</div></div>
+      <div class="pane-section"><h2>${L('Hotspots', 'Points chauds')}</h2>${placeRanking(ps, 8)}</div>
+      <div class="pane-section"><h2>${L('Collection', 'Collecte')}</h2>${feedStatuses().map(([c, label, v]) => `<div class="feed-status" style="padding:0"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}<div class="actions">${btnCollect()}</div></div>
+    </aside>
+    <section class="stage"><div class="map-area">${mapSVG(ps)}
+      <div class="map-float tl glass"><strong>${state.place ? esc(state.place) : L('Democratic Republic of the Congo', 'République démocratique du Congo')}</strong>${nf(ps.reduce((n, p) => n + p.count, 0))} ${L('place mentions', 'lieux cités')} · ${nf(items.filter(a => !a.places.length).length)} ${L('unmapped', 'non cartographiés')}</div>
+      <div class="map-float tr"><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      <div class="map-float bl glass">${mapFailed ? L('Interactive map unavailable; showing outline.', 'Carte interactive indisponible ; contour affiché.') : L('Markers are approximate place mentions, not verified incident locations.', 'Les repères sont des lieux cités approximatifs, pas des incidents vérifiés.')}${state.basemap === 'satellite' ? ` ${L('Imagery is not live.', 'Imagerie non en direct.')}` : ''}</div>
+    </div><div class="timeline">${timeline}</div></section>
+    <aside class="rail-pane"><div class="rail-head"><div class="eyebrow">${state.place ? esc(state.place) : L('Matching reports', 'Articles de la sélection')}</div><div style="display:flex;gap:8px"><select class="select" data-model="sort" style="flex:1" aria-label="${L('Sort', 'Tri')}"><option value="priority" ${state.sort === 'priority' ? 'selected' : ''}>${L('Priority', 'Priorité')}</option><option value="latest" ${state.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récents')}</option></select><button class="iconbtn" data-act="export" aria-label="${L('Export JSON', 'Exporter JSON')}" title="${L('Export JSON', 'Exporter JSON')}">${icon('download')}</button></div>${state.place || state.selectedDay ? `<div class="chips"><button class="chip active" data-act="clear-situation">${esc([state.place, state.selectedDay && dayLabel(state.selectedDay)].filter(Boolean).join(' · '))} ×</button></div>` : ''}${state.error ? `<div class="errorbar" style="margin:0">${esc(state.error)}</div>` : ''}</div>
+      <div class="rail-list compact report-list" data-scroll="rail">${items.slice(0, state.visible).map(a => reportRow(a, true)).join('') || emptyState(L('No reports', 'Aucun article'), L('Select a layer or widen the window.', 'Sélectionnez une couche ou élargissez la période.'))}${items.length > state.visible ? `<div class="loadmore"><button class="btn sm" data-act="more">${L('Load more', 'Charger plus')}</button></div>` : ''}</div>
+      <div class="rail-foot"><span>${L('Single source · unverified', 'Source unique · non corroboré')}</span><span class="num">${nf(items.length)}</span></div></aside>
+  </div>`;
+}
+function mapSVG(ps) {
+  if (state.config?.mapbox_public_token && window.mapboxgl && !mapFailed) return '<div id="map-slot"></div>';
+  const xy = (lon, lat) => [25 + (lon - 12) * 18, 25 + (5.5 - lat) * 13.8];
+  const path = state.geometry ? state.geometry.features[0].geometry.coordinates.map(r => r.map((p, i) => `${i ? 'L' : 'M'}${xy(...p).join(',')}`).join(' ') + 'Z').join(' ') : '';
+  return `<div class="static-map"><svg viewBox="0 0 405 290" role="img" aria-label="${L('Map of place mentions', 'Carte des lieux cités')}"><path class="map-country" d="${path}"/>${ps.map(p => { const [x, y] = xy(p.lon, p.lat); return `<g class="map-place ${state.place === p.name ? 'active' : ''}" data-act="place" data-arg="${esc(p.name)}" tabindex="0" role="button" aria-label="${esc(p.name)}, ${p.count}"><title>${esc(p.name)} · ${p.count}</title><circle cx="${x}" cy="${y}" r="${Math.min(4 + Math.sqrt(p.count), 10)}"/><text x="${x + 9}" y="${y - 7}">${esc(p.name)}</text></g>` }).join('')}</svg></div>`;
+}
+// Preserve one map instance through re-renders.
+let mapHost = null, mapInstance = null, mapMarkers = [], mapFailed = false, markerSignature = '';
+const mapStyle = () => 'mapbox://styles/mapbox/' + (state.basemap === 'satellite' ? 'satellite-streets-v12' : state.theme === 'light' ? 'light-v11' : 'dark-v11');
+function mountMap() {
+  const slot = $('#map-slot'); if (!slot) return;
+  if (!mapHost) { mapHost = document.createElement('div'); mapHost.className = 'interactive-map' }
+  slot.append(mapHost);
+  if (!mapInstance) {
+    try {
+      mapInstance = new mapboxgl.Map({ container: mapHost, accessToken: state.config.mapbox_public_token, style: mapStyle(), bounds: [[12, -13.6], [31.4, 5.5]], fitBoundsOptions: { padding: 40 }, minZoom: 2, maxZoom: 12, attributionControl: true });
+      mapInstance.__style = mapStyle();
+      mapInstance.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+      mapInstance.on('error', () => { if (!mapInstance?.isStyleLoaded()) { mapFailed = true; mapInstance?.remove(); mapInstance = null; mapHost = null; render() } });
+      mapInstance.on('style.load', () => {
+        if (state.geometry && !mapInstance.getSource('drc-outline')) {
+          const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c8dd91';
+          mapInstance.addSource('drc-outline', { type: 'geojson', data: state.geometry });
+          mapInstance.addLayer({ id: 'drc-fill', type: 'fill', source: 'drc-outline', paint: { 'fill-color': accent, 'fill-opacity': 0.04 } });
+          mapInstance.addLayer({ id: 'drc-border', type: 'line', source: 'drc-outline', paint: { 'line-color': accent, 'line-width': 1.6, 'line-opacity': 0.7 } });
+        }
+      });
+    } catch { mapFailed = true; mapInstance?.remove(); mapInstance = null; mapHost = null; render(); return }
+  }
+  if (mapInstance.__style !== mapStyle()) { mapInstance.__style = mapStyle(); mapInstance.setStyle(mapStyle()) }
+  requestAnimationFrame(() => mapInstance?.resize());
+  const linked = situationItems(true);
+  const places = placesList(linked);
+  const signature = JSON.stringify([places, state.lang, state.place, state.layers]);
+  if (signature === markerSignature) return;
+  markerSignature = signature;
+  mapMarkers.forEach(m => m.remove()); mapMarkers = [];
+  for (const p of places) {
+    const b = document.createElement('button');
+    b.className = 'geo-marker' + (state.place === p.name ? ' selected' : '');
+    b.textContent = p.count;
+    const dominant = countBy(linked.filter(a => a.places.some(x => x.name === p.name)), reportLayer)[0]?.[0];
+    b.style.background = layerColor(dominant || 'other');
+    b.setAttribute('aria-label', `${p.name}, ${p.count} ${L('reports', 'articles')}`);
+    b.dataset.tip = `${p.name} · ${p.province} · ${p.count} ${L('reports', 'articles')}`;
+    b.onclick = () => selectPlace(p.name);
+    mapMarkers.push(new mapboxgl.Marker({ element: b }).setLngLat([p.lon, p.lat]).addTo(mapInstance));
+  }
+}
+function selectPlace(name) {
+  state.place = state.place === name && state.view === 'situation' ? '' : name;
+  state.visible = 20;
+  if (!['situation', 'reports', 'saved'].includes(state.view)) { go('situation') } else render();
+  const p = placesList().find(p => p.name === state.place);
+  if (p) mapInstance?.flyTo({ center: [p.lon, p.lat], zoom: 6, duration: 600 });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Primary sources
+
+function sourcesView() {
+  const q = norm(state.evQuery);
+  const docs = (state.ev?.items || []).filter(d => (state.evRegional || d.relevance.scope === 'drc') && (!q || norm(d.source.title + ' ' + d.excerpt + ' ' + JSON.stringify(d.brief.data)).includes(q)));
+  const groups = new Map();
+  for (const s of (state.sources?.items || []).filter(s => !s.id.startsWith('discovered-'))) groups.set(s.publisher, [...(groups.get(s.publisher) || []), s]);
+  const statusName = s => ({ ready: L('Collected', 'Collecté'), failed: L('Unavailable', 'Indisponible'), pending: L('Queued', 'En attente'), running: L('Collecting', 'Collecte en cours'), not_requested: L('Not checked', 'Non vérifié'), reference_only: L('Reference only', 'Référence uniquement') })[s] || s;
+  const dotFor = s => s === 'ready' ? 'ok' : s === 'failed' ? 'bad' : 'warn';
+  const aiButton = d => `<button class="btn sm ${d.brief.status === 'completed' ? '' : 'primary'}" data-act="evidence-ai" data-arg="${esc(d.id)}" ${['pending', 'running', 'completed'].includes(d.brief.status) ? 'disabled' : ''}>${icon('spark')}${d.brief.status === 'completed' ? L('EN + FR ready', 'EN + FR disponibles') : ['pending', 'running'].includes(d.brief.status) ? L('AI working', 'IA en cours') : d.brief.status === 'failed' ? L('Retry', 'Réessayer') : L('Bilingual brief', 'Synthèse bilingue')}</button>`;
+  return pageHead(L('PRIMARY SOURCE MONITORING', 'VEILLE DES SOURCES PRIMAIRES'), L('Primary sources', 'Sources primaires'), L('UN expert reports, NGO investigations and official statements — archived with hashes, readable in place.', 'Rapports d’experts de l’ONU, enquêtes d’ONG et déclarations officielles — archivés avec empreintes, lisibles sur place.'), `<span class="badge">${state.ev?.schedule_seconds ? L(`Checked every ${state.ev.schedule_seconds / 3600} h`, `Vérifié toutes les ${state.ev.schedule_seconds / 3600} h`) : L('Scheduled checks off', 'Vérifications désactivées')}</span>`)
+    + `<div class="split"><section class="panel"><div class="toolbar"><label class="search">${icon('search')}<input id="ev-q" class="input" type="search" data-model="evQuery" value="${esc(state.evQuery)}" placeholder="${L('Search documents…', 'Rechercher des documents…')}" aria-label="${L('Search documents', 'Rechercher des documents')}"></label><label class="check"><input type="checkbox" data-model="evRegional" ${state.evRegional ? 'checked' : ''}>${L('Include regional context', 'Inclure le contexte régional')}</label></div>
+      <div class="list-meta"><span>${nf(docs.length)} ${L('documents', 'documents')}</span><span>${L('Relevance screening is not verification', 'Le filtrage de pertinence n’est pas une vérification')}</span></div>
+      ${docs.map(d => `<article class="doc"><div class="report-kicker"><span class="badge ${d.relevance.scope === 'drc' ? 'accent' : ''}">${d.relevance.scope === 'drc' ? 'DRC / RDC' : L('Regional', 'Régional')}</span><span>${esc(d.source.publisher)}</span><span class="sep">·</span><span>${L('Source date', 'Date source')} ${esc(d.source.reference_date || '—')}</span><span class="sep">·</span><span>${L('Collected', 'Collecté')} ${date(d.fetched_at, true)}</span></div><h3>${esc(state.lang === 'en' && d.brief.data?.title_en ? d.brief.data.title_en : d.source.title)}</h3><p>${esc(d.brief.data?.['summary_' + state.lang] || d.excerpt)}</p>${d.relevance.matched_terms?.length ? `<div class="muted" style="font-size:11.5px">${L('Matched terms', 'Termes détectés')}: ${esc(d.relevance.matched_terms.join(', '))}</div>` : ''}<div class="actions"><button class="btn sm" data-act="evidence-open" data-arg="${esc(d.id)}">${icon('book')}${d.source.format === 'pdf' ? L('Read PDF here', 'Lire le PDF ici') : L('Read here', 'Lire ici')}</button><a class="btn sm" href="${esc(d.source.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Original', 'Original')}</a>${aiButton(d)}</div>${d.brief.error ? `<p class="ev-error">${esc(d.brief.error)}</p>` : ''}</article>`).join('') || emptyState(L('No documents match', 'Aucun document'), L('Collection may still be running.', 'La collecte peut être en cours.'))}
+    </section><section class="panel"><div class="panel-head"><h2>${icon('shield')}${L('Collection status', 'État de la collecte')}</h2></div>
+      ${[...groups].map(([pub, rows]) => `<div class="publisher">${esc(pub)}</div>${rows.map(s => `<div class="source-row"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a><span class="feed-status" style="padding:0"><i class="dot ${dotFor(s.status)}"></i>${esc(statusName(s.status))}<small>${s.checked_at ? date(s.checked_at, true) : '—'}</small></span>${s.error ? `<span class="ev-error">${esc(s.error)}</span>` : ''}<div class="actions">${s.format === 'pdf' ? `<button class="btn sm" data-act="source-doc" data-arg="${esc(s.id)}">${L('Read PDF', 'Lire le PDF')}</button>` : ''}${s.enabled ? `<button class="btn sm ghost" data-act="source-refresh" data-arg="${esc(s.id)}">${icon('refresh')}${L('Check now', 'Vérifier')}</button>` : ''}</div></div>`).join('')}`).join('')}
+    </section></div>`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Methodology
+
+const METHOD = {
+  en: [
+    ['Evidence before conclusions.', 'Congo Signal is a bilingual open-source research workspace for the DRC. It borrows source evaluation and report management ideas from OpenCTI and geographic exploration from Ushahidi. It is an original implementation, not a fork of either platform.'],
+    ['Explainable priority, not a truth score', 'Priority combines the source category (5–35 points), impact-related words (up to 24), recency (up to 20), recognized DRC place mentions (6) and an optional AI impact assessment (up to 15). High is 65+, medium 40–64. Rankings apply to the loaded set; a mention or allegation is not an independently established event.'],
+    ['Two languages, one source trail', 'The French article is preserved. The configured AI provider generates an English headline, English and French briefs and an impact explanation. Full translations are generated on demand with aligned paragraphs. Model, generation time, source fingerprint and status are retained. AI can make mistakes; a translation is not an additional source.'],
+    ['Place mentions, not verified events', 'A small DRC gazetteer matches explicit place names. Coordinates are approximate town centers. A place may be mentioned as background; no incident location is inferred. Missing markers do not imply an absence of reporting.'],
+    ['Social signals: attributed, never labeled', 'X topic counts cover the previous 24 complete hours and include reposts; topics overlap. Topic samples and analyst-requested account histories are archived only when a post matches a topic rule. Account dossiers show public profile facts, posting hours and topic mix of archived posts. No stance, affiliation, automation or coordination labels are inferred, and activity volume is not influence. Every X request is reserved against a daily cap before it is sent.'],
+    ['Analyst-controlled review', 'Bookmarks, review status and notes are stored locally in SQLite. Marking a report reviewed does not certify its claims. No automatic credibility rating is assigned.'],
+  ],
+  fr: [
+    ['Les sources avant les conclusions.', 'Congo Signal est un espace de recherche bilingue en sources ouvertes consacré à la RDC. Il s’inspire de l’évaluation des sources d’OpenCTI et de l’exploration géographique d’Ushahidi. Il s’agit d’une réalisation originale.'],
+    ['Une priorité explicable, pas un score de vérité', 'La priorité combine la catégorie (5–35 points), les termes d’impact (jusqu’à 24), la récence (jusqu’à 20), les lieux de RDC reconnus (6) et une analyse d’impact IA facultative (jusqu’à 15). Élevé : 65+, moyen : 40–64. Une mention ou allégation ne constitue pas un événement établi.'],
+    ['Deux langues, une même traçabilité', 'L’article français est conservé. Le service IA génère un titre anglais, des synthèses en français et en anglais et une explication d’impact. Les traductions intégrales sont produites à la demande. Le modèle, la date, l’empreinte source et le statut sont conservés. L’IA peut se tromper ; une traduction n’est pas une source supplémentaire.'],
+    ['Des lieux cités, pas des incidents vérifiés', 'Un petit répertoire géographique repère les noms de lieux explicites. Les coordonnées sont approximatives. Aucune position d’incident n’est déduite. L’absence de repère ne signifie pas l’absence d’information.'],
+    ['Signaux sociaux : attribués, jamais étiquetés', 'Les comptages X couvrent les 24 dernières heures complètes et incluent les republications ; les thèmes se chevauchent. Les échantillons et historiques de comptes demandés par l’analyste ne sont archivés que si une publication correspond à un thème. Les dossiers affichent le profil public, les heures de publication et la répartition thématique. Aucune position, affiliation, automatisation ou coordination n’est déduite. Chaque requête X est réservée sur un plafond quotidien avant envoi.'],
+    ['Un examen contrôlé par l’analyste', 'Les sauvegardes, statuts et notes sont conservés localement dans SQLite. Marquer un article comme examiné ne certifie pas ses affirmations. Aucune note automatique de crédibilité n’est attribuée.'],
+  ],
+};
+function methodView() {
+  const [[h, intro], ...rest] = METHOD[state.lang];
+  return `<section class="panel method"><div class="eyebrow">CONGO SIGNAL · ${L('METHODOLOGY', 'MÉTHODOLOGIE')}</div><h2 style="margin-top:8px">${h}</h2><p>${intro}</p>${rest.map(([t, p]) => `<h3>${t}</h3><p>${p}</p>`).join('')}
+    <h3>${L('References & attribution', 'Références et attribution')}</h3><p><a target="_blank" rel="noopener noreferrer" href="https://github.com/bilawalsidhu/gods-eye-view">God’s Eye View ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.opencti.io/latest/usage/reliability-confidence/">OpenCTI — Reliability & confidence ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.ushahidi.com/platform-user-manual/5.-modes-for-visualizing-and-managing-data-on-your-deployment">Ushahidi — Geographic report views ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://github.com/johan/world.geo.json">World GeoJSON / Natural Earth ↗</a><br><a target="_blank" rel="noopener noreferrer" href="https://docs.x.com/x-api/introduction">X API ↗</a></p></section>`;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Report detail drawer
+
+async function openDetail(id) {
+  if (state.items.find(a => a.id === id)?.record_type === 'evidence') { await openEvidence(id); return }
+  state.detailId = id; state.detailTab = 'brief'; state.detail = null; state.modal = 'detail';
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer"><div class="drawer-top"><span class="muted">${L('Loading…', 'Chargement…')}</span><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div><div class="drawer-body"><div class="loading-line"></div></div></section></div>`;
+  try { const data = await api(`/v1/intelligence/${id}`); if (state.detailId !== id) return; state.detail = data; renderDetail() }
+  catch (e) { closeOverlay(); toast(e.message) }
+}
+function taskBox(task, info) {
+  if (info.status === 'completed') return '';
+  const active = ['pending', 'running'].includes(info.status);
+  return `<div class="analysis">${active ? '<div class="loading-line"></div>' : ''}<p>${active ? L('AI is working…', 'Analyse IA en cours…') : info.status === 'failed' ? `${L('AI task failed', 'Échec de l’analyse IA')}: ${esc(info.error)}` : task === 'brief' ? L('This report has not been analyzed yet.', 'Cet article n’a pas encore été analysé.') : L('Generate a full English translation. Paragraphs stay aligned with the French source.', 'Générez une traduction anglaise intégrale, alignée sur la source française.')}</p>${!active ? `<button class="btn primary" data-act="ai" data-arg="${task}">${icon('spark')}${info.status === 'failed' ? L('Retry', 'Réessayer') : task === 'brief' ? L('Generate bilingual brief', 'Générer une synthèse bilingue') : L('Translate full article', 'Traduire l’article')}</button>` : ''}</div>`;
+}
+function renderDetail() {
+  if (!state.detail) return;
+  const d = state.detail, a = d.article, b = d.brief.status === 'completed' ? d.brief.data : null, item = state.items.find(x => x.id === a.id), tab = state.detailTab;
+  const notice = L('AI-generated interpretation; verify against the original source. Priority indicates relevance for review, not factual certainty.', 'Interprétation générée par IA ; à vérifier avec la source. La priorité indique l’intérêt pour l’analyse, pas la certitude des faits.');
+  let content = '';
+  if (tab === 'brief') content = taskBox('brief', d.brief) + (b ? `<div class="analysis"><h3>${icon('spark')}${L('AI brief', 'Synthèse IA')} · ${esc(d.brief.model)}</h3><p>${esc(b['summary_' + state.lang])}</p>${b['rationale_' + state.lang] ? `<p class="muted" style="font-size:13px;margin:0"><b>${L('Impact', 'Impact')} · ${esc(b.impact)}</b> — ${esc(b['rationale_' + state.lang])}</p>` : ''}</div><div class="notice">${notice}${b.input_truncated ? ' ' + L('Analysis limited to the first 14,000 characters.', 'Analyse limitée aux 14 000 premiers caractères.') : ''}</div>${b.actors?.length ? `<h3 style="font-size:12.5px;color:var(--text-2)">${L('Public actors mentioned', 'Acteurs publics mentionnés')}</h3><div class="actor-list">${b.actors.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}` : '')
+    + `<h3 style="font-size:13px;margin-top:24px">${L('Why this report ranks here', 'Pourquoi cette priorité ?')} · <span class="mono">${item?.rank.score ?? '—'}/100</span></h3>${(item?.rank.reasons || []).map(r => `<div class="reason"><span>${esc(r[state.lang])}</span><b>+${r.points}</b></div>`).join('')}<div class="notice">${L('Single source · unverified', 'Source unique · non corroboré')}</div>`;
+  if (tab === 'original') content = `<div class="article-text" lang="fr">${a.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</div>`;
+  if (tab === 'english') content = taskBox('translation', d.translation) + (d.translation.status === 'completed' ? `<div class="notice">${notice} · ${esc(d.translation.model)}</div><div class="article-text" lang="en">${d.translation.data.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</div>` : '');
+  if (tab === 'evidence') content = `<div class="notice">${L('Single source · unverified', 'Source unique · non corroboré')}</div><dl class="props"><dt>${L('Source', 'Source')}</dt><dd><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a></dd><dt>${L('Byline', 'Signature')}</dt><dd>${esc(a.author || L('Not extracted', 'Non extraite'))} ${a.author_method ? `(${esc(a.author_method)})` : ''}</dd><dt>${L('Published', 'Publié')}</dt><dd>${esc(a.published_at || '—')}</dd><dt>${L('Collected', 'Collecté')}</dt><dd>${esc(a.fetched_at)}</dd><dt>${L('Content SHA-256', 'Empreinte SHA-256')}</dt><dd><code>${esc(a.content_sha256)}</code></dd><dt>HTML SHA-256</dt><dd><code>${esc(a.html_sha256)}</code></dd><dt>${L('Extractor', 'Extracteur')}</dt><dd>${esc(a.extractor_version)}</dd><dt>${L('AI brief', 'Synthèse IA')}</dt><dd>${esc(d.brief.status)} · ${esc(d.brief.model || '—')} · ${esc(d.brief.completed_at || '—')}</dd></dl>`;
+  if (tab === 'notes') content = `<form data-form="notes" class="fields"><label>${L('Review status', 'Statut de lecture')}<select id="review">${[['unreviewed', L('Not reviewed', 'Non examiné')], ['reviewed', L('Reviewed', 'Examiné')], ['follow_up', L('Needs follow-up', 'À approfondir')]].map(([v, l]) => `<option value="${v}" ${d.analyst.review === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label>${L('Your research notes', 'Vos notes de recherche')}<textarea id="note" maxlength="10000" placeholder="${L('Record observations, missing context, or sources to check…', 'Consignez vos observations, le contexte manquant ou les sources à consulter…')}">${esc(d.analyst.note)}</textarea></label><div><button class="btn primary" type="submit">${icon('check')}${L('Save notes', 'Enregistrer les notes')}</button></div></form>`;
+  const scroller = $('#overlay .drawer'), top = scroller?.scrollTop || 0;
+  const tabs = [['brief', L('AI brief', 'Synthèse IA')], ['original', L('Original · FR', 'Original · FR')], ['english', L('English translation', 'Traduction anglaise')], ['evidence', L('Provenance', 'Traçabilité')], ['notes', L('Analyst notes', 'Notes d’analyse')]];
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="drawer-top"><span class="eyebrow">${L('REPORT', 'ARTICLE')} · ${esc(a.source)}</span><div class="actions"><a class="btn sm" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Original', 'Original')}</a><button class="btn sm" data-act="detail-save">${icon('bookmark')}${d.analyst.saved ? L('Saved', 'Sauvegardé') : L('Save', 'Sauvegarder')}</button><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>
+    <div class="drawer-body"><div class="report-kicker">${item ? `<span class="badge ${item.rank.band}">${bandLabel(item.rank.band)} · ${item.rank.score}</span>` : ''}<span class="tag"><i class="swatch" style="background:${layerColor(item ? reportLayer(item) : 'other')}"></i>${esc(categoryName(a.category))}</span>${(item?.places || []).map(p => `<span>${icon('pin')} ${esc(p.name)}</span>`).join('')}</div><h1 id="detail-title">${esc(state.lang === 'en' && b?.title_en ? b.title_en : a.title)}</h1><div class="drawer-meta">${date(a.published_at)} (Kinshasa) · ${L('Single source · unverified', 'Source unique · non corroboré')}</div>
+    <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button data-act="tab" data-arg="${k}" class="${tab === k ? 'active' : ''}" role="tab" aria-selected="${tab === k}">${l}</button>`).join('')}</div><section role="tabpanel">${content}</section></div></section></div>`;
+  const drawer = $('#overlay .drawer'); if (drawer) drawer.scrollTop = top;
+  if (!scroller) $('#overlay [data-act="close"]')?.focus();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Evidence reader
+
+let evidenceBlob = null, evidenceGeneration = 0;
+function showEvidenceDialog(heading, body) {
+  closeOverlay(); state.modal = 'evidence';
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(heading)}"><div class="drawer-top"><strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(heading)}</strong><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div><div class="drawer-body">${body}</div></section></div>`;
+  $('#overlay [data-act="close"]')?.focus();
+}
+async function openEvidence(id) {
+  try {
+    const d = await api(`/v1/evidence/${id}`), item = state.items.find(a => a.id === id);
+    showEvidenceDialog(d.source.title, `<div class="notice">${esc(d.source.publisher)} · ${esc(d.source.reference_date || '—')}<br>${esc(d.source.notes)}</div>${item?.brief?.data ? `<section class="analysis"><h3>${icon('spark')}${L('AI brief', 'Synthèse IA')}</h3><p>${esc(item.brief.data['summary_' + state.lang])}</p></section>` : ''}${d.source.format === 'pdf' ? `<div id="pdf-status" class="muted" role="status">${L('Loading archived PDF…', 'Chargement du PDF archivé…')}</div><div id="pdf-view"></div>` : ''}<details ${d.source.format === 'pdf' ? '' : 'open'}><summary>${L('Extracted text and provenance', 'Texte extrait et provenance')}</summary><p class="mono muted" style="font-size:11px;word-break:break-all">SHA-256: ${esc(d.sha256)}</p><div class="article-text">${d.pages.map(p => `<section><h3 style="font-size:13px">${p.page ? 'Page ' + p.page : L('Original text', 'Texte original')}</h3><p style="white-space:pre-wrap">${esc(p.text)}</p></section>`).join('')}</div></details>`);
+    if (d.source.format === 'pdf') {
+      const generation = evidenceGeneration, token = sessionStorage.getItem('congo-token');
+      const r = await fetch(`/v1/evidence/${encodeURIComponent(id)}/pdf`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!r.ok) throw Error(L('The archived PDF could not be loaded. Extracted text is still available.', 'Le PDF archivé ne peut pas être chargé. Le texte extrait reste disponible.'));
+      const blob = await r.blob();
+      if (generation !== evidenceGeneration) return;
+      evidenceBlob = URL.createObjectURL(blob);
+      $('#pdf-view').innerHTML = `<iframe title="${esc(d.source.title)}" src="${evidenceBlob}#page=${d.source.pages?.[0] || 1}" class="pdf-frame"></iframe>`;
+      $('#pdf-status').textContent = L('Archived original PDF.', 'PDF original archivé.');
+    }
+  } catch (e) { if ($('#pdf-status')) $('#pdf-status').textContent = e.message; else toast(e.message) }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Command palette
+
+function paletteItems(q) {
+  const n = norm(q.trim()), out = [];
+  const views = NAV().filter(([, , label]) => !n || norm(label).includes(n)).map(([id, ic, label]) => ({ group: L('Go to', 'Aller à'), icon: ic, label, run: () => go(id) }));
+  out.push(...views);
+  if (n) {
+    const h = q.trim().replace(/^@/, '');
+    if (validHandle(h)) out.push({ group: L('X accounts', 'Comptes X'), icon: 'user', label: `${L('Open dossier for', 'Ouvrir le dossier de')} @${h}`, run: () => openDossier(h) });
+    out.push(...(state.accounts?.items || []).filter(a => norm(a.handle + ' ' + a.name).includes(n.replace(/^@/, ''))).slice(0, 5).map(a => ({ group: L('X accounts', 'Comptes X'), icon: 'user', label: `${a.name} · @${a.handle}`, hint: `${a.posts} ${L('posts', 'publ.')}`, run: () => openDossier(a.handle) })));
+    out.push(...placesList().filter(p => norm(p.name + ' ' + p.province).includes(n)).slice(0, 4).map(p => ({ group: L('Places', 'Lieux'), icon: 'pin', label: p.name, hint: `${p.count} ${L('reports', 'articles')}`, run: () => { state.place = p.name; go('situation') } })));
+    out.push(...state.items.filter(a => norm(title(a) + ' ' + a.title).includes(n)).sort((a, b) => b.rank.score - a.rank.score).slice(0, 6).map(a => ({ group: L('Reports', 'Articles'), icon: 'layers', label: title(a), hint: `${a.rank.score} · ${age(a.published_at)}`, run: () => openDetail(a.id) })));
+    out.push({ group: L('Search', 'Rechercher'), icon: 'search', label: `${L('Search reports for', 'Rechercher dans les articles')} “${q.trim()}”`, run: () => { state.q = q.trim(); go('reports') } });
+    out.push({ group: L('Search', 'Rechercher'), icon: 'radio', label: `${L('Search X posts for', 'Rechercher dans les publications X')} “${q.trim()}”`, run: () => { state.sf.q = q.trim(); go('social') } });
+  }
+  return out;
+}
+function openPalette() {
+  state.modal = 'palette'; state.palette = { q: '', index: 0, items: paletteItems('') };
+  $('#overlay').innerHTML = `<div class="shade dialog-shade" data-close><div class="palette" role="dialog" aria-modal="true" aria-label="${L('Search everything', 'Tout rechercher')}"><div class="palette-input">${icon('search')}<input id="palette-q" placeholder="${L('Search reports, places, @accounts, views…', 'Rechercher articles, lieux, @comptes, vues…')}" autocomplete="off" spellcheck="false" aria-label="${L('Search', 'Rechercher')}"></div><div class="palette-results" id="palette-results"></div><div class="palette-foot"><span><span class="kbd">↑↓</span> ${L('navigate', 'naviguer')}</span><span><span class="kbd">↵</span> ${L('open', 'ouvrir')}</span><span><span class="kbd">esc</span> ${L('close', 'fermer')}</span></div></div></div>`;
+  renderPaletteResults(); $('#palette-q').focus();
+}
+function renderPaletteResults() {
+  const p = state.palette; let group = '';
+  $('#palette-results').innerHTML = p.items.map((it, i) => `${it.group !== group ? `<div class="palette-group">${esc(group = it.group)}</div>` : ''}<button class="palette-item ${i === p.index ? 'active' : ''}" data-palette="${i}">${icon(it.icon)}<span>${esc(it.label)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`).join('') || `<div class="empty">${L('No results', 'Aucun résultat')}</div>`;
+  $('#palette-results .active')?.scrollIntoView({ block: 'nearest' });
+}
+function runPalette(i) { const it = state.palette?.items[i]; if (!it) return; closeOverlay(); it.run() }
+
+// ---------------------------------------------------------------------------------------------
+// Overlays, settings, toast, tooltip
+
+function closeOverlay() {
+  evidenceGeneration++;
+  if (evidenceBlob) { URL.revokeObjectURL(evidenceBlob); evidenceBlob = null }
+  if (state.dossier && hashAccount()) history.replaceState(null, '', '#' + state.view);
+  state.modal = null; state.detailId = null; state.detail = null; state.dossier = null; state.palette = null;
+  $('#overlay').innerHTML = ''; document.body.style.overflow = '';
+}
+function settings() {
+  state.modal = 'settings';
+  $('#overlay').innerHTML = `<div class="shade dialog-shade" data-close><form class="dialog" data-form="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title"><h2 id="settings-title">${L('Connection settings', 'Paramètres de connexion')}</h2><div class="fields"><label>${L('API bearer token (if configured)', 'Jeton API (si configuré)')}<input id="token" type="password" value="${esc(sessionStorage.getItem('congo-token') || '')}" autocomplete="off"></label></div><p>${L('Stored only for this browser tab. No token is needed for the default local setup.', 'Conservé uniquement dans cet onglet. Aucun jeton n’est requis pour la configuration locale par défaut.')}</p><div class="actions" style="justify-content:flex-end"><button class="btn" type="button" data-act="close">${L('Cancel', 'Annuler')}</button><button class="btn primary" type="submit">${L('Apply', 'Appliquer')}</button></div></form></div>`;
+  $('#token').focus();
+}
+function toast(text) { const el = $('#toast'); el.textContent = text; el.style.display = 'block'; clearTimeout(toast.timer); toast.timer = setTimeout(() => el.style.display = 'none', 4500) }
+function download(name, data) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+const tip = $('#tip');
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest?.('[data-tip]');
+  if (!el || !el.dataset.tip) { tip.hidden = true; return }
+  tip.textContent = el.dataset.tip; tip.hidden = false;
+});
+document.addEventListener('mousemove', e => {
+  if (tip.hidden) return;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(window.innerWidth - w - 8, e.clientX + 14) + 'px';
+  tip.style.top = (e.clientY + h + 24 > window.innerHeight ? e.clientY - h - 12 : e.clientY + 16) + 'px';
+});
+
+// ---------------------------------------------------------------------------------------------
+// Events (delegated: survive re-renders)
+
+const ACTIONS = {
+  nav: v => go(v),
+  lang: v => { state.lang = v; store.set('congo-lang', v); markerSignature = ''; render(); if (state.modal === 'detail') renderDetail(); if (state.modal === 'dossier') renderDossier() },
+  theme: () => { state.theme = state.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = state.theme; store.set('congo-theme', state.theme); render() },
+  settings, palette: openPalette, close: closeOverlay,
+  reload: () => load(),
+  report: id => openDetail(id),
+  save: async id => { const a = state.items.find(a => a.id === id); try { a.analyst = await api(`/v1/intelligence/${id}/notes`, { ...a.analyst, saved: !a.analyst.saved }); render() } catch (e) { toast(e.message) } },
+  category: k => { state.category = k; state.visible = 20; render() },
+  place: name => selectPlace(name),
+  'clear-place': () => { state.place = ''; render() },
+  reset: () => { Object.assign(state, { q: '', place: '', category: 'all', publisher: '' }); render() },
+  more: async () => { state.visible += 20; if (state.visible > state.items.length && state.items.length < state.total && state.limit < 500) { state.limit = Math.min(500, state.limit + 100); await load() } else render() },
+  export: () => { download('congo-signal-reports.json', { exported_at: new Date().toISOString(), language: state.lang, verification: 'single_source_unverified', articles: state.view === 'situation' ? situationItems() : libraryItems() }); toast(L('Filtered reports exported', 'Articles filtrés exportés')) },
+  collect: async () => { await api('/v1/jobs', { url: 'https://actualite.cd/' }); toast(L('Collection queued. New reports appear automatically.', 'Collecte ajoutée. Les nouveaux articles apparaîtront automatiquement.')); await load() },
+  batch: async () => {
+    if (!state.status.enabled || !state.status.available) throw Error(L('AI is unavailable. Check the server’s AI provider settings.', 'IA indisponible. Vérifiez la configuration IA du serveur.'));
+    const todo = (state.view === 'situation' ? situationItems() : ['reports', 'saved'].includes(state.view) ? libraryItems() : [...state.items].sort((a, b) => b.rank.score - a.rank.score)).filter(a => ['not_requested', 'failed'].includes(a.brief.status)).slice(0, 5);
+    for (const a of todo) await (a.record_type === 'evidence' ? api(`/v1/evidence/${a.id}/analyze`, {}) : api('/v1/intelligence/analyze', { article_id: a.id, task: 'brief' }));
+    toast(L(`${todo.length} report(s) queued for AI analysis`, `${todo.length} article(s) ajouté(s) à la file IA`)); await load();
+  },
+  'social-topic': id => { state.sf.topic = state.view === 'social' && state.sf.topic === id ? '' : id; state.sf.visible = 40; if (state.view !== 'social') go('social'); else render() },
+  'post-more': () => { state.sf.visible += 40; render() },
+  'export-posts': () => download('congo-signal-x-posts.json', { exported_at: new Date().toISOString(), filters: state.sf, notice: state.social?.notice, posts: filteredPosts() }),
+  account: h => openDossier(h),
+  hashtag: tag => { closeOverlay(); state.sf.q = '#' + tag; state.sf.visible = 40; go('social') },
+  copy: async text => { try { await navigator.clipboard.writeText(text); toast(L('Link copied', 'Lien copié')) } catch { toast(text) } },
+  history: () => fetchHistory(),
+  expand: (_, el) => { const t = el.previousElementSibling; t.classList.toggle('clamp'); el.textContent = t.classList.contains('clamp') ? L('Show full post', 'Afficher tout') : L('Show less', 'Réduire') },
+  'dossier-topic': t => { state.dossier.topic = t; state.dossier.visible = 30; renderDossier() },
+  'dossier-kind': k => { state.dossier.kind = k; state.dossier.visible = 30; renderDossier() },
+  'dossier-more': () => { state.dossier.visible += 30; renderDossier() },
+  'export-dossier': () => { const d = state.dossier?.data; if (d) download(`x-dossier-${d.account.handle}.json`, { exported_at: new Date().toISOString(), ...d }) },
+  tab: k => { state.detailTab = k; renderDetail() },
+  ai: async task => { const id = state.detail.article.id; await api('/v1/intelligence/analyze', { article_id: id, task }); state.detail = await api(`/v1/intelligence/${id}`); renderDetail(); load() },
+  'detail-save': async () => { const d = state.detail; d.analyst = await api(`/v1/intelligence/${d.article.id}/notes`, { ...d.analyst, saved: !d.analyst.saved }); renderDetail(); load() },
+  'evidence-open': id => openEvidence(id),
+  'evidence-ai': async id => { await api(`/v1/evidence/${id}/analyze`, {}); await load() },
+  'source-refresh': async id => { await api(`/v1/sources/${id}/refresh`, {}); toast(L('Source check queued', 'Vérification ajoutée')); await load() },
+  'source-doc': async id => {
+    const r = await api(`/v1/evidence?source_id=${encodeURIComponent(id)}&limit=1`);
+    if (r.items.length) return openEvidence(r.items[0].document_id);
+    const s = state.sources.items.find(s => s.id === id);
+    showEvidenceDialog(s.title, `<div class="notice">${L('This PDF has not been downloaded. The publisher is currently unavailable to the collector. Once downloaded, it will open here.', 'Ce PDF n’a pas encore été téléchargé. La source est actuellement inaccessible au collecteur. Après téléchargement, il s’ouvrira ici.')}</div>`);
+  },
+  layer: k => { state.layers = state.layers.includes(k) ? state.layers.filter(x => x !== k) : [...state.layers, k]; state.visible = 20; render() },
+  'all-layers': () => { state.layers = [...LAYERS]; render() },
+  window: n => { state.windowDays = Number(n); state.selectedDay = ''; state.visible = 20; render() },
+  day: d => { state.selectedDay = state.selectedDay === d ? '' : d; state.visible = 20; render() },
+  'all-days': () => { state.selectedDay = ''; render() },
+  'clear-situation': () => { state.place = ''; state.selectedDay = ''; render() },
+  base: b => { state.basemap = b; render() },
+  tilt: () => { state.tilt = !state.tilt; mapInstance?.easeTo({ pitch: state.tilt ? 55 : 0, bearing: state.tilt ? -12 : 0, duration: 500 }); render() },
+  'reset-map': () => { state.place = ''; render(); mapInstance?.fitBounds([[12, -13.6], [31.4, 5.5]], { padding: 40, duration: 600 }) },
+};
+document.addEventListener('click', async e => {
+  const pal = e.target.closest('[data-palette]'); if (pal) { runPalette(Number(pal.dataset.palette)); return }
+  if (e.target.closest('[data-stop]')) return;
+  const el = e.target.closest('[data-act]');
+  if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
+  if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
+  const fn = ACTIONS[el.dataset.act]; if (!fn) return;
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand'].includes(el.dataset.act);
+  if (busy) el.disabled = true;
+  try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
+});
+let typing = null;
+function setModel(path, value) {
+  const [a, b] = path.split('.');
+  if (b) state[a][b] = value; else state[a] = value;
+  state.visible = 20; state.sf.visible = 40;
+  if (path === 'includeRegional') { state.publisher = ''; load(); return }
+  render();
+}
+document.addEventListener('input', e => {
+  const el = e.target.closest('[data-model]');
+  if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') { clearTimeout(typing); typing = setTimeout(() => setModel(el.dataset.model, el.value), 140); return }
+  if (e.target.id === 'palette-q') { state.palette.q = e.target.value; state.palette.items = paletteItems(e.target.value); state.palette.index = 0; renderPaletteResults() }
+});
+document.addEventListener('change', e => {
+  const el = e.target.closest('[data-model]');
+  if (el && (el.tagName === 'SELECT' || el.type === 'checkbox')) setModel(el.dataset.model, el.type === 'checkbox' ? el.checked : el.value);
+});
+document.addEventListener('submit', async e => {
+  const form = e.target.closest('[data-form]'); if (!form) return;
+  e.preventDefault();
+  const kind = form.dataset.form;
+  if (kind === 'lookup') return openDossier($('#lookup-handle').value);
+  if (kind === 'settings') { sessionStorage.setItem('congo-token', $('#token').value.trim()); state.config = null; closeOverlay(); return load() }
+  if (kind === 'notes') {
+    const d = state.detail;
+    try { d.analyst = await api(`/v1/intelligence/${d.article.id}/notes`, { saved: d.analyst.saved, review: $('#review').value, note: $('#note').value }); toast(L('Research notes saved', 'Notes de recherche enregistrées')); load() } catch (err) { toast(err.message) }
+  }
+});
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); state.modal === 'palette' ? closeOverlay() : openPalette(); return }
+  if (e.key === '/' && !state.modal && !e.target.matches('input,textarea,select')) { e.preventDefault(); openPalette(); return }
+  if (e.key === 'Escape' && state.modal) { closeOverlay(); return }
+  if (state.modal === 'palette' && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+    e.preventDefault(); const p = state.palette;
+    if (e.key === 'Enter') return runPalette(p.index);
+    p.index = (p.index + (e.key === 'ArrowDown' ? 1 : -1) + p.items.length) % Math.max(1, p.items.length); renderPaletteResults(); return;
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role="button"][data-act]')) { e.preventDefault(); e.target.click(); return }
+  if (e.key === 'Tab' && $('#overlay [role="dialog"]')) {
+    const nodes = $$('button,a[href],input,textarea,select', $('#overlay [role="dialog"]')).filter(n => !n.disabled);
+    const first = nodes[0], last = nodes.at(-1);
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
+  }
+});
+window.addEventListener('popstate', () => { const v = viewFromHash(); if (v !== state.view) { state.view = v; render() } if (hashAccount()) openDossier(hashAccount()) });
+
+// ---------------------------------------------------------------------------------------------
+// Boot
+
+try { state.geometry = await fetch('/drc.geo.json').then(r => r.json()) } catch {}
 await load();
-setInterval(async()=>{if(document.hidden||state.modal||document.activeElement?.matches('input,textarea,select'))return;await load();if(state.detailId&&state.detailTab!=='notes'){try{const d=await api(`/v1/intelligence/${state.detailId}`);if(JSON.stringify(d)!==JSON.stringify(state.detail)){state.detail=d;const top=$('.drawer')?.scrollTop||0;renderDetail();if($('.drawer'))$('.drawer').scrollTop=top;}}catch{}}},10000);
+if (hashAccount()) openDossier(hashAccount());
+setInterval(async () => {
+  if (document.hidden || (state.modal && state.modal !== 'detail') || document.activeElement?.matches('input,textarea,select')) return;
+  await load();
+  if (state.detailId && state.detailTab !== 'notes') {
+    try { const d = await api(`/v1/intelligence/${state.detailId}`); if (JSON.stringify(d) !== JSON.stringify(state.detail)) { state.detail = d; renderDetail() } } catch {}
+  }
+}, 15000);

@@ -319,6 +319,12 @@ async fn main() -> Result<()> {
         .route("/v1/config", get(intelligence::config))
         .route("/v1/social", get(social::feed))
         .route("/v1/social/posts", get(social::posts))
+        .route("/v1/social/accounts", get(social::accounts))
+        .route("/v1/social/accounts/{handle}", get(social::account))
+        .route(
+            "/v1/social/accounts/{handle}/history",
+            post(social::history),
+        )
         .route("/v1/sources", get(evidence::list))
         .route("/v1/sources/{id}/refresh", post(evidence::refresh))
         .route("/v1/evidence", get(evidence::documents))
