@@ -1125,14 +1125,18 @@ state.radioMode = location.hash === '#radio' || location.hash.startsWith('#radio
 state.radioQ = ''; state.radioLang = ''; state.radioLiveOnly = true; state.radioPlace = '';
 const radioAudio = new Audio();
 radioAudio.preload = 'none';
+radioAudio.hidden = true; document.body.append(radioAudio); // outside #app, so re-renders never touch it
 radioAudio.volume = Number(store.get('congo-radio-volume') || 0.8);
 radioAudio.addEventListener('playing', () => { state.radioStatus = 'playing'; refreshRadioChrome() });
 radioAudio.addEventListener('waiting', () => { state.radioStatus = 'loading'; refreshRadioChrome() });
 radioAudio.addEventListener('pause', () => { if (state.radioStatus !== 'error') state.radioStatus = 'idle'; refreshRadioChrome() });
 radioAudio.addEventListener('error', () => {
   if (!state.radioNow) return;
+  const code = radioAudio.error?.code;
+  console.warn('radio stream error', radioAudio.currentSrc, code, radioAudio.error?.message);
   state.radioStatus = 'error'; refreshRadioChrome();
-  toast(L('This stream is not responding right now. Try another station.', 'Ce flux ne répond pas pour le moment. Essayez une autre station.'));
+  toast(code === 4 ? L('Your browser cannot decode this stream’s format. Try another station or browser.', 'Le navigateur ne sait pas lire le format de ce flux. Essayez une autre station ou un autre navigateur.')
+    : L('This stream is not responding right now. Try another station.', 'Ce flux ne répond pas pour le moment. Essayez une autre station.'));
 });
 const stationById = id => state.radio?.items?.find(s => s.id === id);
 const stationLive = s => s?.health?.ok === true;
@@ -1146,17 +1150,25 @@ function radioStations() {
 async function playStation(id) {
   const s = stationById(id); if (!s) return;
   if (state.radioNow === id && !radioAudio.paused) { radioAudio.pause(); state.radioStatus = 'idle'; render(); return }
-  state.radioNow = id; state.radioSel = id; state.radioStatus = 'loading'; radioHash(id);
+  // Start playback first, synchronously inside the click: some browsers (Safari) only honour
+  // play() while the user gesture is fresh, and a full re-render beforehand can use that up.
   radioAudio.src = s.stream;
+  const started = radioAudio.play();
+  state.radioNow = id; state.radioSel = id; state.radioStatus = 'loading'; radioHash(id);
   render();
-  try { await radioAudio.play() } catch (err) {
-    // A blocked autoplay (no user gesture) is not a dead stream: leave it paused and ready.
-    state.radioStatus = err?.name === 'NotAllowedError' ? 'idle' : 'error'; refreshRadioChrome();
+  try { await started } catch (err) {
+    if (state.radioNow !== id || err?.name === 'AbortError') return; // superseded by another station
+    console.warn('radio playback failed', s.stream, err);
+    state.radioStatus = 'error'; refreshRadioChrome();
+    toast(err?.name === 'NotAllowedError'
+      ? L('Your browser blocked audio playback. Allow audio for this site (or turn off auto-play blocking) and press play again.', 'Le navigateur a bloqué la lecture audio. Autorisez le son pour ce site puis relancez la lecture.')
+      : L(`This stream could not be played (${err?.name || 'error'}). Try another station.`, `Ce flux n’a pas pu être lu (${err?.name || 'erreur'}). Essayez une autre station.`));
+    return;
   }
   api(`/v1/radio/${encodeURIComponent(id)}/listen`, {}).catch(() => {});
 }
 const radioHash = id => { if (state.radioMode && state.view === 'situation') history.replaceState(null, '', '#radio/' + encodeURIComponent(id)) };
-function stopRadio() { radioAudio.pause(); radioAudio.removeAttribute('src'); radioAudio.load(); state.radioNow = ''; state.radioStatus = 'idle'; render() }
+function stopRadio() { state.radioNow = ''; state.radioStatus = 'idle'; radioAudio.pause(); radioAudio.removeAttribute('src'); radioAudio.load(); render() }
 const eqBars = (on, n = 4) => `<span class="eq ${on ? 'on' : ''}" aria-hidden="true">${'<i></i>'.repeat(n)}</span>`;
 /// Topbar "on air" chip, visible on every view while a station plays.
 function onAirChip() {
