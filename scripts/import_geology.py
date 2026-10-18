@@ -29,6 +29,15 @@ for key, r in sorted(latest.items()):
     features.append(feature('ipis:' + key, [r['longitude'],r['latitude']], dict(
         dataset='IPIS', kind='artisanal', name=r['name'], minerals=minerals, province=r['province'],
         date=r['visit_date'], observations=counts[key], source=r['source'], location_origin=r['location_origin'],
+        territory=r['territoire'] or None, village=r['village'] or None,
+        workers=int(r['workers_numb']) if r['workers_numb'].isdigit() else None,
+        # Where each mineral is sold and where it goes next, as recorded at the latest visit.
+        trade=[dict(mineral=r[f'mineral{i}'], selling_points=r[f'selling_points_mineral{i}'] or None,
+                    final_destination=r[f'final_destination_mineral{i}'] or None)
+               for i in range(1,4) if r[f'mineral{i}'] and (r[f'selling_points_mineral{i}'] or r[f'final_destination_mineral{i}'])],
+        traceability=r['traceability'] or None, qualification=r['qualification'] or None,
+        mechanisation=r['mechanisation'] or None, mercury={'1':True,'0':False}.get(r['mercury']),
+        state_services=[r[f'state_service{i}'] for i in range(1,5) if r.get(f'state_service{i}')],
         reference='https://ipisresearch.be/home/maps-data/open-data/', license='ODC-BY 1.0')))
 def clean(v):
     return '' if v is None or str(v).strip() in ('<null>', 'NULL') else str(v).strip()
@@ -44,13 +53,18 @@ for layer, kind in [('AFR_Mineral_Facilities','facility'),('AFR_Mineral_Deposits
             features.append(feature('usgs:'+kind+':'+p['FeatureUID']+':'+str(record.id),record['geometry']['coordinates'],dict(
                 dataset='USGS',kind=kind,name=p['FeatureNam'],minerals=minerals,province=clean(p.get('ADM1')),
                 date=date,source='USGS Africa GIS (2021)',reference=USGS,license='CC0 1.0',
+                **(dict(facility_type=clean(p.get('FeatureTyp')) or None, operator=clean(p.get('OperateNam')) or None,
+                        owners=[clean(p.get(f'OwnerName{i}')) for i in range(1,5) if clean(p.get(f'OwnerName{i}'))],
+                        status=clean(p.get('LocOpStat')) or None, status_note=clean(p.get('MemoOther')) or None,
+                        capacity=float(p['DsgAttr07']) if p.get('DsgAttr07') not in (None,'','<null>') else None,
+                        capacity_unit=clean(p.get('DsgAttr08')) or None, locality=clean(p.get('MemoLoc')) or None) if kind == 'facility' else {}),
                 citation=clean(p.get('InfSource1')), original_attributes=dict(p))))
 assert len({f['id'] for f in features}) == len(features)
 metadata=dict(downloaded_at=datetime.now(timezone.utc).isoformat(), ipis_visits=len(rows), ipis_sites=len(latest),
     usgs_records=sum(f['properties']['dataset']=='USGS' for f in features),
     sources=[dict(name='IPIS',url=IPIS,license='ODC-BY 1.0',sha256=hashlib.sha256((RAW/'ipis.csv').read_bytes()).hexdigest()),
              dict(name='USGS Africa GIS',url=USGS,license='CC0 1.0',sha256=hashlib.sha256((RAW/'africa.zip').read_bytes()).hexdigest())],
-    limitations='Historical observations and compiled records; not current operating status, reserves, ownership or territorial control. IPIS latest visit per pcode; USGS records can overlap IPIS and each other. Dates are source observation/report years; blank means unknown. No inferred rare-earth deposits.')
+    limitations='Historical observations and compiled records; not current operating status, reserves, ownership or territorial control. IPIS trade fields (selling points, final destination, traceability, qualification) describe the latest visit only; USGS operator, owner, status and capacity fields describe end-2018. IPIS latest visit per pcode; USGS records can overlap IPIS and each other. Dates are source observation/report years; blank means unknown. No inferred rare-earth deposits.')
 OUT.mkdir(exist_ok=True)
 (OUT/'sites.geo.json').write_text(json.dumps(dict(type='FeatureCollection',metadata=metadata,features=features),ensure_ascii=False,separators=(',',':')))
 print(json.dumps({k:v for k,v in metadata.items() if k not in ('sources','limitations')}))

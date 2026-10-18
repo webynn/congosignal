@@ -1,0 +1,31 @@
+{
+  "notes": "DRC mineral commodities. 'labels' are the mineral names used by IPIS/USGS site records. 'price' names a World Bank Pink Sheet monthly series (CC BY 4.0); commodities without a public benchmark rely on customs unit values. 'hs' lists Harmonized System codes queried in UN Comtrade: partner-reported imports from the DRC (who buys) and DRC-reported exports.",
+  "commodities": [
+    {"id": "copper", "en": "Copper", "fr": "Cuivre", "labels": ["Copper", "Cuivre"], "price": {"series": "Copper", "unit": "$/t", "per_kg": 0.001},
+     "hs": [{"code": "2603", "en": "Copper ores & concentrates", "fr": "Minerais et concentrés de cuivre"}, {"code": "7402", "en": "Unrefined copper", "fr": "Cuivre non affiné"}, {"code": "7403", "en": "Refined copper", "fr": "Cuivre affiné"}]},
+    {"id": "cobalt", "en": "Cobalt", "fr": "Cobalt", "labels": ["Cobalt"], "price": null,
+     "hs": [{"code": "2605", "en": "Cobalt ores & concentrates", "fr": "Minerais de cobalt"}, {"code": "2822", "en": "Cobalt oxides & hydroxides", "fr": "Oxydes et hydroxydes de cobalt"}, {"code": "8105", "en": "Cobalt mattes & intermediates", "fr": "Mattes et produits intermédiaires de cobalt"}]},
+    {"id": "tin", "en": "Tin (cassiterite)", "fr": "Étain (cassitérite)", "labels": ["Cassitérite", "Tin"], "price": {"series": "Tin", "unit": "$/t", "per_kg": 0.001},
+     "hs": [{"code": "2609", "en": "Tin ores (cassiterite)", "fr": "Minerais d’étain (cassitérite)"}, {"code": "8001", "en": "Unwrought tin", "fr": "Étain brut"}]},
+    {"id": "tantalum", "en": "Coltan (tantalum–niobium)", "fr": "Coltan (tantale–niobium)", "labels": ["Coltan", "Tantalum", "Niobium (columbium)"], "price": null,
+     "hs": [{"code": "2615", "en": "Niobium, tantalum & vanadium ores", "fr": "Minerais de niobium, tantale et vanadium"}]},
+    {"id": "tungsten", "en": "Tungsten (wolframite)", "fr": "Tungstène (wolframite)", "labels": ["Wolframite", "Tungsten"], "price": null,
+     "hs": [{"code": "2611", "en": "Tungsten ores", "fr": "Minerais de tungstène"}]},
+    {"id": "gold", "en": "Gold", "fr": "Or", "labels": ["Or", "Gold"], "price": {"series": "Gold", "unit": "$/oz", "per_kg": 32.1507},
+     "hs": [{"code": "7108", "en": "Gold, unwrought or semi-manufactured", "fr": "Or brut ou mi-ouvré"}]},
+    {"id": "diamonds", "en": "Diamonds", "fr": "Diamants", "labels": ["Diamant", "Diamond"], "price": null,
+     "hs": [{"code": "7102", "en": "Diamonds", "fr": "Diamants"}]},
+    {"id": "zinc", "en": "Zinc", "fr": "Zinc", "labels": ["Zinc"], "price": {"series": "Zinc", "unit": "$/t", "per_kg": 0.001},
+     "hs": [{"code": "2608", "en": "Zinc ores", "fr": "Minerais de zinc"}]},
+    {"id": "silver", "en": "Silver", "fr": "Argent", "labels": ["Silver", "Argent"], "price": {"series": "Silver", "unit": "$/oz", "per_kg": 32.1507},
+     "hs": [{"code": "7106", "en": "Silver", "fr": "Argent"}]},
+    {"id": "platinum", "en": "Platinum-group metals", "fr": "Platinoïdes", "labels": ["Platinum-group elements (PGE)"], "price": {"series": "Platinum", "unit": "$/oz", "per_kg": 32.1507},
+     "hs": [{"code": "7110", "en": "Platinum", "fr": "Platine"}]},
+    {"id": "manganese", "en": "Manganese", "fr": "Manganèse", "labels": ["Manganese", "Manganèse"], "price": null,
+     "hs": [{"code": "2602", "en": "Manganese ores", "fr": "Minerais de manganèse"}]},
+    {"id": "lithium", "en": "Lithium", "fr": "Lithium", "labels": ["Lithium"], "price": null,
+     "hs": [{"code": "282520", "en": "Lithium oxide & hydroxide", "fr": "Oxyde et hydroxyde de lithium"}, {"code": "283691", "en": "Lithium carbonate", "fr": "Carbonate de lithium"}]},
+    {"id": "oil", "en": "Crude oil", "fr": "Pétrole brut", "labels": ["Petroleum"], "price": {"series": "Crude oil, Brent", "unit": "$/bbl", "per_kg": null},
+     "hs": [{"code": "2709", "en": "Crude petroleum", "fr": "Pétrole brut"}]}
+  ]
+}

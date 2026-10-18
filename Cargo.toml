@@ -24,3 +24,4 @@ roxmltree = "0.21.1"
 csv = "1.4.0"
 jsonwebtoken = "9"
 base64 = "0.22"
+calamine = { version = "0.37.0", default-features = false }

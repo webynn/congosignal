@@ -94,3 +94,50 @@ is not evidence that a report concerns the mine. Map expansion, compass and
 metric scale assist exploration. No new paid data service was added.
 Validation: node tests/map_interactions.cjs (filters, distance, missing data,
 clustering lifecycle, selection clearing and style restoration).
+
+MINERALS MODE (added 18 October 2026)
+Situation room > Minerals (or /#minerals; a site: /#mine/<id>). News markers,
+report filters and the publication timeline are hidden; the map shows bedrock
+geology over terrain relief with only the mine-site layers on top.
+
+4. Macrostrat geology tiles and point lookup — CC BY 4.0.
+   Tiles: https://tiles.macrostrat.org/carto/{z}/{x}/{y}.png (CORS-enabled).
+   Point query: https://macrostrat.org/api/v2/geologic_units/map?lat=&lng=
+   For the DRC the underlying map is mainly CGMW-BRGM (2016), New edition of
+   the 1:10,000,000 geological map of Africa (Thiéblemont, ed.). Small-scale:
+   unit boundaries are generalised; not suitable for site-level geology.
+   GET /v1/geology/unit?lat=&lng= proxies one lookup, cached per ~100 m cell,
+   returning lithology, age interval, description and the source map citation.
+
+5. World Bank Commodity Price Data ("Pink Sheet"), monthly — CC BY 4.0.
+   https://www.worldbank.org/en/research/commodity-markets (CMO-Historical-
+   Data-Monthly.xlsx, sheet "Monthly Prices"). Series used: Copper, Tin,
+   Zinc, Gold, Silver, Platinum, Crude oil Brent. Synced daily. These are
+   global benchmark prices for refined metal, NOT prices paid at DRC sites.
+   No public benchmark exists here for cobalt, coltan, tungsten or diamonds.
+
+6. UN Comtrade public preview API — UN Comtrade terms; attribution required.
+   https://comtradeapi.un.org/public/v1/preview/C/A/HS (one period per call).
+   Weekly: for the last three years and the HS codes in config/commodities.json
+   (2603/7402/7403 copper; 2605/2822/8105 cobalt; 2609/8001 tin; 2615 coltan;
+   2611 tungsten; 7108 gold; 7102 diamonds; 2608 zinc; 7106 silver; 7110
+   platinum; 2602 manganese; 282520/283691 lithium; 2709 crude oil):
+   - partner-reported imports whose partner is the DRC ("who buys");
+   - DRC-reported exports by destination.
+   Unit values (USD/kg) are customs value ÷ net weight and stand in for a
+   price where no benchmark exists. Buyers are FIRST RECORDED IMPORTING
+   COUNTRIES (transit hubs included, e.g. Namibia/Zambia for cobalt
+   hydroxide), not companies or end users. Partner and DRC declarations often
+   disagree (codes, transit, under-reporting); the UI shows both and flags
+   large gaps. 490 "Other Asia, nes" is Comtrade's code for Taiwan and is kept.
+
+Site dossier additions (scripts/import_geology.py):
+- IPIS (latest visit): workers, mechanisation, mercury use, state services,
+  traceability scheme, Ministry of Mines qualification (green/yellow/red/blue),
+  and per mineral its selling points and final destination. Armed-actor
+  fields remain excluded, as before.
+- USGS facilities (end-2018): facility type, operator, owners with stakes,
+  operating status and note, nameplate capacity and unit.
+- "Indicative capacity value" = nameplate capacity × latest benchmark price,
+  only for mass/volume units with a benchmark. It is a ceiling for
+  orientation, not production, revenue, reserves or current output.

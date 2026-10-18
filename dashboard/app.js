@@ -57,10 +57,10 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 
 const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
-const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'minerals' || h.startsWith('mine/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
 const hashPart = prefix => location.hash.startsWith(`#${prefix}/`) ? decodeURIComponent(location.hash.slice(prefix.length + 2)) : '';
-function openFromHash() { if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
+function openFromHash() { if (hashPart('mine')) { state.mineralMode = true; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
 const state = {
   lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
   loaded: false, error: '', items: [], total: 0, limit: 200, status: {}, config: null, ev: null, sources: null, social: null, posts: null, accounts: null, updated: null, geometry: null,
@@ -179,7 +179,7 @@ async function load() {
     state.auth=await api('/v1/auth/me');state.loginRequired=false;
   } catch(e) {if(state.authConfig?.mode==='oidc'){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
   try {
-    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team] = await Promise.all([
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -194,9 +194,10 @@ async function load() {
       api('/v1/agreements').catch(() => null),
       api('/v1/costs').catch(() => null),
       api('/v1/team').catch(() => null),
+      api('/v1/commodities').catch(() => null),
     ]);
     if (state.agDetail?.assessment?.status === 'running') state.agDetail = await api('/v1/agreements/'+state.agDetail.id);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, error: '' });
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, error: '' });
   } catch (e) { state.error = e.message }
   state.loaded = true;
   render();
@@ -613,7 +614,9 @@ function nearbyMineralReports(f) {
 function selectedMineral() { return mineralFeatures().find(f=>f.id===state.mineralSelected) }
 function selectMineral(id) {
   const f = mineralFeatures().find(f=>f.id===id); if (!f) return;
-  state.mineralSelected=id; state.mapFocus=false; render();
+  state.mineralSelected=id; state.mapFocus=false;
+  if (state.mineralMode && location.hash !== '#mine/' + encodeURIComponent(id)) history.replaceState(null, '', '#mine/' + encodeURIComponent(id));
+  render();
   mapInstance?.flyTo({center:f.geometry.coordinates,zoom:13,duration:700});
 }
 function fitMinerals() {
@@ -640,7 +643,7 @@ function geologyPanel() {
   const minerals = [...new Set(all.flatMap(f => f.properties.minerals))].filter(Boolean).sort();
   const provinces=[...new Set(all.map(f=>f.properties.province))].filter(Boolean).sort();
   const results=mineralFeatures().sort((a,b)=>a.properties.name.localeCompare(b.properties.name));
-  return `<div class="pane-section"><h2>${L('Minerals & geology', 'Minerais et géologie')}</h2>
+  return `<div class="pane-section"><h2>${L('Minerals & geology', 'Minerais et géologie')}</h2>${state.mineralMode ? '' : `<button class="btn primary" data-act="map-mode" data-arg="minerals">${icon('layers')}${L('Open minerals mode', 'Ouvrir le mode minerais')}</button>`}
     ${!state.geology ? `<p>${L('Reference dataset unavailable. Reload to retry.', 'Données de référence indisponibles. Rechargez pour réessayer.')}</p>` : ['IPIS','USGS'].map(d => `<label class="layer-row"><input type="checkbox" data-act="mineral-layer" data-arg="${d}" ${state.mineralLayers.includes(d) ? 'checked' : ''}><i class="swatch" style="background:${d === 'IPIS' ? '#d9a441' : '#9b8afb'}"></i><span>${d}</span><b>${nf(all.filter(f => f.properties.dataset === d).length)}</b></label>`).join('')}
     <select class="select" data-model="mineralQuery" aria-label="${L('Mineral', 'Minerai')}"><option value="">${L('All minerals', 'Tous les minerais')}</option>${minerals.map(m => `<option value="${esc(m)}" ${state.mineralQuery === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
     <input id="mineral-search" class="input" type="search" data-model="mineralSearch" value="${esc(state.mineralSearch)}" placeholder="${L('Find a site or mineral…','Chercher un site ou minerai…')}" aria-label="${L('Find a mining site','Rechercher un site minier')}">
@@ -659,7 +662,13 @@ function geologyArchive() {
   $('#overlay [data-act="close"]')?.focus();
 }
 function mountMinerals() {
-  if (!mapInstance?.isStyleLoaded() || !state.geology) return;
+  // isStyleLoaded() is false while any tiles load (often, under the geology layer), so check the
+  // style and treat "style not done loading" as retry-on-idle rather than a fatal render error.
+  if (!mapInstance || !state.geology) return;
+  // getStyle()/addSource throw "Style is not done loading" in that window; the idle event retries.
+  try { mountMineralLayers() } catch {}
+}
+function mountMineralLayers() {
   const fs=mineralFeatures(), signature=JSON.stringify([state.mineralLayers,state.mineralQuery,state.mineralSearch,state.mineralProvince,state.mineralKind]);
   const data={type:'FeatureCollection',features:fs.map(f=>({...f,properties:{id:f.id,name:f.properties.name,dataset:f.properties.dataset}}))};
   if (mapInstance.getSource('mineral-sites')) {
@@ -690,6 +699,7 @@ function mineralCluster(e) {
 }
 
 function situationView() {
+  if (state.mineralMode) return mineralsSituation();
   const items = situationItems(), ps = placesList(situationItems(true));
   const timeline = (() => {
     const counts = new Map(countBy(situationItems(false, true), a => kinDay(a.published_at)));
@@ -709,7 +719,7 @@ function situationView() {
       <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i><i class="hud-reticle"></i></div>
       <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
       <div class="map-float tl glass"><strong>${state.place ? esc(state.place) : L('Democratic Republic of the Congo', 'République démocratique du Congo')}</strong>${nf(ps.reduce((n, p) => n + p.count, 0))} ${L('place mentions', 'lieux cités')} · ${nf(items.filter(a => !a.places.length).length)} ${L('unmapped', 'non cartographiés')}</div>
-      <div class="map-float tr"><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels','Afficher les panneaux') : L('Expand map','Agrandir')}</button><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button class="active" data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels','Afficher les panneaux') : L('Expand map','Agrandir')}</button><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
       <div class="map-float bl glass">${mapFailed ? L('Interactive map unavailable; showing outline.', 'Carte interactive indisponible ; contour affiché.') : L('Markers are approximate place mentions, not verified incident locations.', 'Les repères sont des lieux cités approximatifs, pas des incidents vérifiés.')}${state.basemap === 'satellite' ? ` ${L('Imagery is not live.', 'Imagerie non en direct.')}` : ''}</div>
     </div><div class="timeline">${timeline}</div></section>
     <aside class="rail-pane">${mineralInspector()}<div class="rail-head"><div class="eyebrow">${state.place ? esc(state.place) : L('Matching reports', 'Articles de la sélection')}</div><div style="display:flex;gap:8px"><select class="select" data-model="sort" style="flex:1" aria-label="${L('Sort', 'Tri')}"><option value="priority" ${state.sort === 'priority' ? 'selected' : ''}>${L('Priority', 'Priorité')}</option><option value="latest" ${state.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récents')}</option></select><button class="iconbtn" data-act="export" aria-label="${L('Export JSON', 'Exporter JSON')}" title="${L('Export JSON', 'Exporter JSON')}">${icon('download')}</button></div>${state.place || state.selectedDay ? `<div class="chips"><button class="chip active" data-act="clear-situation">${esc([state.place, state.selectedDay && dayLabel(state.selectedDay)].filter(Boolean).join(' · '))} ×</button></div>` : ''}${state.error ? `<div class="errorbar" style="margin:0">${esc(state.error)}</div>` : ''}</div>
@@ -717,6 +727,181 @@ function situationView() {
       <div class="rail-foot"><span>${L('Single source · unverified', 'Source unique · non corroboré')}</span><span class="num">${nf(items.length)}</span></div></aside>
   </div>`;
 }
+// ---------------------------------------------------------------------------------------------
+// Minerals mode: geological base map, mine dossiers and market context, without news layers.
+
+state.mineralMode = location.hash === '#minerals'; state.geoOverlay = true; state.geoOpacity = 0.55; state.relief = true;
+state.marketCommodity = 'copper'; state.commodities = null; state.geoUnit = null;
+// ICS chronostratigraphic colours, which Macrostrat's geology tiles follow.
+const ERA_LEGEND = [['Cenozoic', 'Cénozoïque', '#F2F91D', '0–66 Ma'], ['Mesozoic', 'Mésozoïque', '#67C5CA', '66–252 Ma'], ['Paleozoic', 'Paléozoïque', '#99C08D', '252–539 Ma'], ['Neoproterozoic', 'Néoprotérozoïque', '#FEB342', '539–1000 Ma'], ['Mesoproterozoic', 'Mésoprotérozoïque', '#FDB462', '1.0–1.6 Ga'], ['Paleoproterozoic', 'Paléoprotérozoïque', '#F74370', '1.6–2.5 Ga'], ['Archean', 'Archéen', '#F0047F', '> 2.5 Ga']];
+const QUALIFICATION = () => ({ Vert: ['good', L('Green', 'Vert')], Jaune: ['medium', L('Yellow', 'Jaune')], Rouge: ['high', L('Red', 'Rouge')], Bleu: ['accent', L('Blue', 'Bleu')] });
+const USGS_STATUS = () => ({ 'C&M': L('Care & maintenance', 'En veille'), 'Assumed Active': L('Assumed active', 'Présumé actif'), Active: L('Active', 'Actif') });
+const commodityFor = label => state.commodities?.items?.find(c => c.labels.some(l => norm(l) === norm(label)));
+const commodityName = c => c ? c[state.lang] || c.en : '';
+const usd = v => v == null ? '—' : '$' + (Math.abs(v) >= 1e5 ? compact(v) : Number(v).toLocaleString(locale(), { maximumFractionDigits: v < 100 ? 2 : 0 }));
+/// The commodity's largest traded product line (by partner-reported value).
+const mainTrade = c => [...(c?.hs || [])].filter(h => h.buyers).sort((a, b) => b.buyers.total_usd - a.buyers.total_usd)[0] || null;
+function priceSummary(c) {
+  const p = c?.price, t = mainTrade(c);
+  if (p?.latest) return { value: usd(p.latest.value), unit: p.unit.replace('$', ''), note: `${L('World Bank benchmark', 'Référence Banque mondiale')} · ${p.latest.period}`, change: p.change_12m, history: p.history.map(h => h.value) };
+  const uv = t?.buyers?.unit_value_usd_per_kg;
+  if (uv) return { value: usd(uv), unit: '/kg', note: `${L('Customs unit value', 'Valeur unitaire douanière')} · ${t.code} · ${t.buyers.year}`, change: null, history: [] };
+  return null;
+}
+function changeBadge(ch) {
+  if (ch == null) return '';
+  const up = ch >= 0;
+  return `<em class="chg ${up ? 'up' : 'down'}" data-tip="${esc(L('Change vs. same month last year', 'Variation sur un an'))}">${up ? '▲' : '▼'} ${Math.abs(ch * 100).toFixed(1)}%</em>`;
+}
+function marketBoard() {
+  const items = (state.commodities?.items || []).filter(c => priceSummary(c));
+  if (!state.commodities) return `<div class="timeline-head"><strong>${L('Mineral markets', 'Marchés des minerais')}</strong><span>${L('Market data unavailable or still syncing.', 'Données de marché indisponibles ou en cours de synchronisation.')}</span></div>`;
+  return `<div class="timeline-head"><strong>${L('Mineral markets', 'Marchés des minerais')}</strong><span>${L('Benchmarks: World Bank Pink Sheet · no-benchmark minerals: UN Comtrade customs unit values', 'Références : Banque mondiale · minerais sans référence : valeurs unitaires douanières UN Comtrade')}</span></div>
+    <div class="tickers">${items.map(c => { const s = priceSummary(c); return `<button class="ticker ${state.marketCommodity === c.id ? 'active' : ''}" data-act="market" data-arg="${esc(c.id)}"><span class="t-name">${esc(commodityName(c))}</span><span class="t-val"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}</span>${s.history.length > 1 ? spark(s.history.slice(-24), 'var(--signal)', 96, 22) : `<small class="t-note">${esc(s.note)}</small>`}</button>` }).join('') || `<small class="muted">${L('No market data yet.', 'Pas encore de données de marché.')}</small>`}</div>`;
+}
+function partnerBars(list, year, max) {
+  const top = list.partners[0]?.value_usd || 1;
+  return `<div class="buyers">${list.partners.slice(0, max).map(p => `<div class="buyer" data-tip="${esc(`${p.partner}: ${usd(p.value_usd)} · ${(p.share * 100).toFixed(1)}%${p.unit_value_usd_per_kg ? ` · ${usd(p.unit_value_usd_per_kg)}/kg` : ''} · ${year}`)}"><span>${esc(p.partner)}</span>${meter(p.value_usd, top, 'var(--signal)')}<b class="num">${usd(p.value_usd)}</b><small class="num">${(p.share * 100).toFixed(0)}%</small></div>`).join('')}</div>`;
+}
+function buyersBlock(h, max = 8) {
+  const b = h?.buyers, d = h?.drc_declared;
+  // When the DRC declares far more than importers report, the declared destinations matter too.
+  const gap = d && (!b || d.total_usd > 2 * b.total_usd);
+  if (!b && !d) return `<p class="muted">${L('No customs records found for this product.', 'Aucune donnée douanière pour ce produit.')}</p>`;
+  return `${b ? `<div class="eyebrow" style="margin:0 0 4px">${L('Importers’ declarations', 'Déclarations des importateurs')} · ${b.year}</div>${partnerBars(b, b.year, max)}` : `<p class="muted">${L('No importer reports this product from the DRC.', 'Aucun importateur ne déclare ce produit en provenance de la RDC.')}</p>`}
+    ${gap && d.partners.length ? `<div class="eyebrow" style="margin:10px 0 4px">${L('DRC-declared destinations', 'Destinations déclarées par la RDC')} · ${d.year}</div>${partnerBars(d, d.year, Math.min(max, 6))}<p class="gap-note">${L('Large gap between DRC-declared exports and importers’ records: products may be declared under other codes, routed through transit countries, or under-reported.', 'Écart important entre exportations déclarées par la RDC et importations déclarées : autres codes douaniers, pays de transit ou sous-déclaration possibles.')}</p>` : ''}
+    <div class="trade-foot">${b ? `<span>${L('Importers report', 'Importations déclarées')} ${b.year}: <b class="num">${usd(b.total_usd)}</b>${b.unit_value_usd_per_kg ? ` · ${usd(b.unit_value_usd_per_kg)}/kg` : ''}</span>` : ''}<span>${d ? `${L('DRC declares', 'La RDC déclare')} ${d.year}: <b class="num">${usd(d.total_usd)}</b>` : L('No DRC-declared exports on record', 'Pas d’exportations déclarées par la RDC')}</span></div>`;
+}
+function indicativeValue(p, c) {
+  const pr = c?.price;
+  if (!p.capacity || !pr?.latest) return null;
+  const cap = p.capacity, unit = p.capacity_unit;
+  const kg = unit === 'Metric tons' ? cap * 1e3 : unit === 'Thousand metric tons' ? cap * 1e6 : unit === 'Kilograms' ? cap : null;
+  if (kg != null && pr.per_kg) return kg * pr.per_kg * pr.latest.value;
+  if (unit === 'Thousand 42-gallon barrels' && pr.unit === '$/bbl') return cap * 1e3 * pr.latest.value;
+  return null;
+}
+function commodityCard(c, p) {
+  if (!c) return '';
+  const s = priceSummary(c), v = indicativeValue(p, c), h = mainTrade(c);
+  return `<section class="panel market-card"><div class="panel-head"><h2>${esc(commodityName(c))}</h2><button class="linkbtn" data-act="market-open" data-arg="${esc(c.id)}">${L('Full market', 'Marché complet')} →</button></div><div class="panel-body">
+    ${s ? `<div class="price-line"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}<span class="grow"></span>${s.history.length > 1 ? spark(s.history.slice(-24), 'var(--signal)', 120, 28) : ''}</div><div class="muted" style="font-size:11.5px">${esc(s.note)}</div>` : `<p class="muted">${L('No public benchmark or customs unit value.', 'Aucune référence publique ni valeur douanière.')}</p>`}
+    ${v ? `<div class="value-line" data-tip="${esc(L('Nameplate capacity × latest benchmark price. A ceiling for orientation, not production, revenue or reserves.', 'Capacité nominale × dernier prix de référence. Un plafond indicatif, pas la production, le chiffre d’affaires ni les réserves.'))}"><span>${L('Indicative capacity value', 'Valeur indicative de la capacité')}</span><b class="num">≈ ${usd(v)}${L('/yr', '/an')}</b></div>` : ''}
+    <div class="eyebrow" style="margin:12px 0 6px">${L('Who buys DRC', 'Qui achète le')} ${esc(h ? h[state.lang] || h.en : commodityName(c))}</div>${buyersBlock(h, 5)}</div></section>`;
+}
+function mineDossier(f) {
+  const p = f.properties, [lon, lat] = f.geometry.coordinates;
+  const commodities = [...new Map(p.minerals.map(m => [commodityFor(m)?.id, commodityFor(m)])).values()].filter(Boolean);
+  const q = QUALIFICATION()[p.qualification];
+  const facts = [
+    factRow(L('Facility type', 'Type d’installation'), esc(p.facility_type || '')),
+    factRow(L('Operator', 'Exploitant'), esc(p.operator || '')),
+    factRow(L('Owners', 'Propriétaires'), (p.owners || []).map(esc).join('<br>')),
+    factRow(L('Status (end 2018)', 'Statut (fin 2018)'), p.status ? `${esc(USGS_STATUS()[p.status] || p.status)}${p.status_note ? ` <span class="muted">· ${esc(p.status_note)}</span>` : ''}` : ''),
+    factRow(L('Capacity', 'Capacité'), p.capacity ? `<span class="num">${nf(p.capacity)}</span> ${esc(p.capacity_unit || '')} ${L('per year', 'par an')}` : ''),
+    factRow(L('Workers (last visit)', 'Travailleurs (dernière visite)'), p.workers != null ? `<span class="num">${nf(p.workers)}</span>` : ''),
+    factRow(L('Mechanisation', 'Mécanisation'), esc(p.mechanisation || '')),
+    factRow(L('Mercury use', 'Usage du mercure'), p.mercury == null ? '' : p.mercury ? L('Observed', 'Observé') : L('Not observed', 'Non observé')),
+    factRow(L('State services present', 'Services de l’État présents'), (p.state_services || []).map(esc).join(', ')),
+    factRow(L('Record date', 'Date de la référence'), `${esc(p.date || L('Unknown', 'Inconnue'))}${p.observations ? ` · ${p.observations} ${L('IPIS visits', 'visites IPIS')}` : ''}`),
+    factRow(L('Coordinates', 'Coordonnées'), `<span class="num">${lat.toFixed(5)}, ${lon.toFixed(5)}</span>${p.location_origin ? ` <span class="muted">· ${esc(p.location_origin)}</span>` : ''}`),
+  ].join('');
+  const nearby = nearbyMineralReports(f);
+  return `<div class="mine-dossier" data-scroll="mine">
+    <div class="dossier-top"><span class="eyebrow">${esc(p.dataset)} · ${esc(mineralKindLabel(p.kind))}</span><button class="iconbtn" data-act="mineral-close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div>
+    <h2 class="mine-name">${esc(p.name)}</h2>
+    <div class="mine-place">${esc([p.village, p.territory, p.province].filter(Boolean).join(' · '))}</div>
+    <div class="chips" style="margin:10px 0">${p.minerals.map(m => `<span class="chip mineral-chip">${esc(m)}</span>`).join('')}${q ? `<span class="badge ${q[0]}" data-tip="${esc(L('DRC Ministry of Mines site qualification at the latest IPIS visit (green: validated; yellow: issues to remedy; red: non-compliant).', 'Qualification du site par le ministère des Mines lors de la dernière visite IPIS (vert : validé ; jaune : à corriger ; rouge : non conforme).'))}">${L('Qualification', 'Qualification')} · ${q[1]}</span>` : ''}${p.traceability ? `<span class="badge good" data-tip="${esc(L('Mineral traceability scheme recorded for the site', 'Système de traçabilité enregistré pour le site'))}">${esc(p.traceability)}</span>` : ''}</div>
+    ${(p.trade || []).length ? `<section class="route"><div class="eyebrow" style="margin-bottom:8px">${L('Trade route · latest IPIS visit', 'Circuit commercial · dernière visite IPIS')}</div>${p.trade.map(t => `<div class="route-row"><span class="route-node mine">${esc(t.mineral)}</span><i>→</i><span class="route-node" data-tip="${esc(L('Selling points: where the mineral is first sold', 'Points de vente : premier lieu de vente'))}">${esc(t.selling_points || '—')}</span><i>→</i><span class="route-node dest" data-tip="${esc(L('Final destination recorded by IPIS', 'Destination finale enregistrée par IPIS'))}">${esc(t.final_destination || '—')}</span></div>`).join('')}</section>` : ''}
+    <section class="panel" style="padding:12px 16px;margin:12px 0"><dl class="props">${facts}</dl></section>
+    ${commodities.map(c => commodityCard(c, p)).join('')}
+    <section class="panel" style="padding:12px 16px;margin:12px 0"><label class="nearby-label">${L('News mentions within', 'Lieux cités dans un rayon de')}<select class="select" data-model="nearbyRadius">${[10, 25, 50, 100].map(n => `<option value="${n}" ${Number(state.nearbyRadius) === n ? 'selected' : ''}>${n} km</option>`).join('')}</select></label>
+      <div class="nearby-reports">${nearby.slice(0, 6).map(({ article: a, place: pl }) => `<button class="mineral-result" data-act="report" data-arg="${esc(a.id)}"><strong>${esc(title(a))}</strong><small>${esc(pl.name)} · ${pl.km.toFixed(1)} km · ${esc(a.source || '')}</small></button>`).join('') || `<p class="muted">${L('No loaded reports mention a place in this radius.', 'Aucun article chargé ne cite de lieu dans ce rayon.')}</p>`}</div>
+      <small class="muted">${L('Proximity to a place mention does not establish a link to this site.', 'La proximité d’un lieu cité ne prouve pas un lien avec ce site.')}</small></section>
+    <div class="actions"><button class="btn sm" data-act="mineral-select" data-arg="${esc(f.id)}">${icon('pin')}${L('Centre', 'Centrer')}</button><button class="btn sm" data-act="mineral-export">${icon('download')}JSON</button><a class="btn sm ghost" href="${esc(p.reference)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Source', 'Source')}</a></div>
+    <p class="notice">${esc(p.source || '')} · ${esc(p.license || '')}. ${L('Historical record: current operation, ownership and control are not verified.', 'Référence historique : exploitation, propriété et contrôle actuels non vérifiés.')}</p></div>`;
+}
+function marketPanel() {
+  const all = state.commodities?.items || [], c = all.find(x => x.id === state.marketCommodity) || all[0];
+  if (!c) return `<div class="mine-dossier"><p class="muted">${L('Market data is syncing from the World Bank and UN Comtrade.', 'Synchronisation des données de marché (Banque mondiale, UN Comtrade).')}</p></div>`;
+  const s = priceSummary(c);
+  const siteCount = (state.geology?.features || []).filter(f => f.properties.minerals.some(m => c.labels.some(l => norm(l) === norm(m)))).length;
+  return `<div class="mine-dossier" data-scroll="market">
+    <div class="eyebrow">${L('MARKET INTELLIGENCE', 'RENSEIGNEMENT DE MARCHÉ')}</div><h2 class="mine-name">${esc(commodityName(c))}</h2>
+    <div class="chips" style="margin:8px 0 12px">${all.filter(x => priceSummary(x)).map(x => `<button class="chip ${x.id === c.id ? 'active' : ''}" data-act="market" data-arg="${esc(x.id)}">${esc(commodityName(x))}</button>`).join('')}</div>
+    ${s ? `<section class="panel" style="padding:14px 16px;margin-bottom:12px"><div class="price-line big"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}</div><div class="muted" style="font-size:11.5px;margin-bottom:8px">${esc(s.note)}</div>${c.price?.history?.length > 1 ? areaChart(c.price.history.slice(-36).map(h => ({ value: h.value, tip: `${h.period} · ${usd(h.value)} ${c.price.unit.replace('$', '')}` })), 'var(--signal)', 70) : ''}</section>` : ''}
+    <div class="actions" style="margin-bottom:12px"><button class="btn sm" data-act="market-sites" data-arg="${esc(c.id)}">${icon('pin')}${L('Show', 'Afficher')} ${nf(siteCount)} ${L('sites on map', 'sites sur la carte')}</button></div>
+    ${c.hs.map(h => `<section class="panel market-card"><div class="panel-head"><h2>${esc(h[state.lang] || h.en)}</h2><small>HS ${esc(h.code)}</small></div><div class="panel-body">${buyersBlock(h, 10)}</div></section>`).join('')}
+    <p class="notice">${esc(state.commodities?.notice || '')}</p>
+    <p class="muted" style="font-size:11px">${(state.commodities?.sources || []).map(s => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.name)}</a> · ${esc(s.license)}`).join('<br>')}</p></div>`;
+}
+function mineralsSituation() {
+  const fs = mineralFeatures();
+  const sel = selectedMineral();
+  return `<div class="situation minerals-mode ${state.mapFocus ? 'map-focus' : ''}">
+    <aside class="filters-pane" data-scroll="filters">
+      <div class="pane-section"><div class="eyebrow">DRC · ${L('MINERALS & GEOLOGY', 'MINERAIS ET GÉOLOGIE')}</div><div style="font-size:13px;color:var(--text-2)"><b class="num" style="color:var(--text)">${nf(fs.length)}</b> ${L('site records in view', 'références affichées')}</div></div>
+      <div class="pane-section"><h2>${L('Map layers', 'Couches')}</h2>
+        <label class="check"><input type="checkbox" data-model="geoOverlay" ${state.geoOverlay ? 'checked' : ''}>${L('Bedrock geology (Macrostrat)', 'Géologie du socle (Macrostrat)')}</label>
+        <label class="range-row">${L('Opacity', 'Opacité')}<input type="range" min="0.2" max="1" step="0.05" value="${state.geoOpacity}" data-act="geo-opacity" aria-label="${L('Geology opacity', 'Opacité de la géologie')}"></label>
+        <label class="check"><input type="checkbox" data-model="relief" ${state.relief ? 'checked' : ''}>${L('Terrain relief', 'Relief')}</label>
+        <div class="era-legend">${ERA_LEGEND.map(([en, fr, c, span]) => `<div><i style="background:${c}"></i><span>${state.lang === 'fr' ? fr : en}</span><small>${span}</small></div>`).join('')}</div>
+        <small class="muted">${L('Colours follow the international chronostratigraphic chart. Click any rock on the map for its unit, lithology and age.', 'Couleurs de la charte chronostratigraphique internationale. Cliquez sur la carte pour l’unité, la lithologie et l’âge.')}</small></div>
+      ${geologyPanel()}
+    </aside>
+    <section class="stage"><div class="map-area">${mapSVG([])}
+      <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i></div>
+      <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
+      <div class="map-float tl glass"><strong>${sel ? esc(sel.properties.name) : L('Mineral & geological map', 'Carte minière et géologique')}</strong>${nf(fs.length)} ${L('sites', 'sites')} · IPIS · USGS · Macrostrat</div>
+      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button class="active" data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels', 'Afficher les panneaux') : L('Expand map', 'Agrandir')}</button><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      ${state.geoUnit ? geoUnitCard(state.geoUnit) : `<div class="map-float bl glass">${L('Click the map for bedrock geology; click a site for its dossier. Sites are historical records, not current operations.', 'Cliquez sur la carte pour la géologie ; sur un site pour son dossier. Les sites sont des références historiques.')}</div>`}
+    </div><div class="timeline market-board">${marketBoard()}</div></section>
+    <aside class="rail-pane">${sel ? mineDossier(sel) : marketPanel()}</aside>
+  </div>`;
+}
+function geoUnitCard(u) {
+  if (u.loading) return `<div class="map-float bl glass geo-card"><div class="loading-line"></div>${L('Reading bedrock geology…', 'Lecture de la géologie…')}</div>`;
+  if (u.error || !u.found) return `<div class="map-float bl glass geo-card">${esc(u.error || L('No mapped geological unit here.', 'Aucune unité géologique cartographiée ici.'))}<button class="linkbtn" data-act="geo-close">×</button></div>`;
+  const age = u.age || {};
+  const span = age.top === age.bottom ? age.top : `${age.bottom || '?'} → ${age.top || '?'}`;
+  return `<div class="map-float bl glass geo-card"><div class="actions" style="justify-content:space-between"><span class="eyebrow"><i class="swatch" style="background:${esc(u.color || '#888')}"></i>${L('BEDROCK', 'SOCLE')} · ${esc(u.lat.toFixed(3))}, ${esc(u.lng.toFixed(3))}</span><button class="linkbtn" data-act="geo-close" aria-label="${L('Close', 'Fermer')}">×</button></div>
+    <strong>${esc(u.name || u.strat_name || (u.lith ? u.lith[0].toUpperCase() + u.lith.slice(1) : L('Mapped unit', 'Unité cartographiée')))}</strong>
+    <div class="geo-facts"><span>${L('Lithology', 'Lithologie')}: <b>${esc(u.lith || '—')}</b></span><span>${L('Age', 'Âge')}: <b>${esc(span || '—')}</b>${age.bottom_ma != null ? ` <small>(${nf(age.bottom_ma)}–${nf(age.top_ma)} Ma)</small>` : ''}</span></div>
+    ${u.description ? `<p>${esc(u.description.slice(0, 260))}</p>` : ''}
+    <small class="muted">${u.source ? `${esc(u.source.authors || '')} ${esc(u.source.year || '')}, ${esc(u.source.title || u.source.name || '')}. ` : ''}Macrostrat · CC BY 4.0 · ${L('map scale', 'échelle')}: ${esc(u.scale || '—')}</small></div>`;
+}
+async function geologyAt(lngLat) {
+  state.geoUnit = { loading: true };
+  render();
+  try { state.geoUnit = { ...(await api(`/v1/geology/unit?lat=${lngLat.lat.toFixed(4)}&lng=${lngLat.lng.toFixed(4)}`)), lat: lngLat.lat, lng: lngLat.lng } }
+  catch (e) { state.geoUnit = { error: e.message } }
+  render();
+}
+/// Geology raster and hillshade relief, shown only in minerals mode; news markers are cleared.
+function mountGeology() {
+  const map = mapInstance;
+  // isStyleLoaded() stays false while tiles load, so check the style itself and retry on idle.
+  if (!map) return;
+  try { mountGeologyLayers(map) } catch {}
+}
+function mountGeologyLayers(map) {
+  const before = ['drc-border', 'mineral-clusters', 'mineral-sites'].find(l => map.getLayer(l));
+  if (!map.getSource('macrostrat')) {
+    map.addSource('macrostrat', { type: 'raster', tiles: ['https://tiles.macrostrat.org/carto/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 10, attribution: '© <a href="https://macrostrat.org" target="_blank" rel="noopener">Macrostrat</a> (CC BY 4.0)' });
+    map.addLayer({ id: 'geology', type: 'raster', source: 'macrostrat', paint: { 'raster-opacity': state.geoOpacity, 'raster-saturation': -0.25, 'raster-contrast': 0.05, 'raster-fade-duration': 150 } }, before);
+  }
+  if (!map.getSource('terrain-dem')) {
+    map.addSource('terrain-dem', { type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14 });
+    map.addLayer({ id: 'relief', type: 'hillshade', source: 'terrain-dem', paint: { 'hillshade-exaggeration': 0.55, 'hillshade-shadow-color': '#05080a', 'hillshade-highlight-color': 'rgba(255,255,255,0.18)' } }, before);
+  }
+  const on = state.mineralMode && state.view === 'situation';
+  map.setLayoutProperty('geology', 'visibility', on && state.geoOverlay ? 'visible' : 'none');
+  map.setPaintProperty('geology', 'raster-opacity', state.geoOpacity);
+  map.setLayoutProperty('relief', 'visibility', on && state.relief ? 'visible' : 'none');
+  if (map.getLayer('drc-fill')) map.setPaintProperty('drc-fill', 'fill-opacity', on ? 0 : 0.04);
+}
+
+
 function mapSVG(ps) {
   if (state.config?.mapbox_public_token && window.mapboxgl && !mapFailed) return '<div id="map-slot"></div>';
   const xy = (lon, lat) => [25 + (lon - 12) * 18, 25 + (5.5 - lat) * 13.8];
@@ -746,14 +931,22 @@ function mountMap() {
       mapInstance.on('move', () => { state.hud = { ...state.hud, zoom: mapInstance.getZoom(), pitch: mapInstance.getPitch() }; readout() });
       mapInstance.on('error', () => { if (!mapInstance?.isStyleLoaded()) { mapFailed = true; mapInstance?.remove(); mapInstance = null; mapHost = null; render() } });
       mapInstance.on('idle', mountMinerals);
+      mapInstance.on('idle', mountGeology);
       mapInstance.on('click', 'mineral-sites', mineralPopup);
       mapInstance.on('click', 'mineral-clusters', mineralCluster);
       for (const layer of ['mineral-sites','mineral-clusters']) {
         mapInstance.on('mouseenter',layer,()=>{ mapInstance.getCanvas().style.cursor='pointer' });
         mapInstance.on('mouseleave',layer,()=>{ mapInstance.getCanvas().style.cursor='' });
       }
+      mapInstance.on('click', e => {
+        if (!state.mineralMode) return;
+        const layers = ['mineral-sites', 'mineral-clusters'].filter(l => mapInstance.getLayer(l));
+        if (layers.length && mapInstance.queryRenderedFeatures(e.point, { layers }).length) return;
+        geologyAt(e.lngLat);
+      });
       mapInstance.on('style.load', () => {
         mountMinerals();
+        setTimeout(mountGeology, 0);
         if (state.geometry && !mapInstance.getSource('drc-outline')) {
           const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c8dd91';
           mapInstance.addSource('drc-outline', { type: 'geojson', data: state.geometry });
@@ -766,6 +959,8 @@ function mountMap() {
   if (mapInstance.__style !== mapStyle()) { mapInstance.__style = mapStyle(); mapInstance.setStyle(mapStyle()) }
   requestAnimationFrame(() => mapInstance?.resize());
   mountMinerals();
+  mountGeology();
+  if (state.mineralMode) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; markerSignature = ''; return }
   const linked = situationItems(true);
   const places = placesList(linked);
   const signature = JSON.stringify([places, state.lang, state.place, state.layers]);
@@ -1222,12 +1417,21 @@ const ACTIONS = {
   reload: () => load(),
   'mineral-layer': d => { state.mineralLayers = state.mineralLayers.includes(d) ? state.mineralLayers.filter(x => x !== d) : [...state.mineralLayers,d]; render() },
   'mineral-select': id => selectMineral(id),
-  'mineral-close': () => {state.mineralSelected='';render()},
+  'mineral-close': () => { state.mineralSelected = ''; if (location.hash.startsWith('#mine/')) history.replaceState(null, '', '#minerals'); render() },
   'mineral-fit': () => fitMinerals(),
   'mineral-more': () => {state.mineralVisible+=30;render();$('.mineral-directory')?.setAttribute('open','')},
   'mineral-reset': () => {Object.assign(state,{mineralSearch:'',mineralQuery:'',mineralProvince:'',mineralKind:'',mineralSelected:'',mineralVisible:15,mineralLayers:['IPIS','USGS']});render()},
   'mineral-export': () => {const f=selectedMineral();if(f) download('congo-signal-site.json',{...f,metadata:state.geology.metadata})},
   'map-focus': () => {state.mapFocus=!state.mapFocus;render()},
+  'map-mode': m => { state.mineralMode = m === 'minerals'; state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
+  market: id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
+  'market-open': id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
+  'market-sites': id => {
+    const c = state.commodities?.items?.find(x => x.id === id); if (!c) return;
+    const present = new Set((state.geology?.features || []).flatMap(f => f.properties.minerals));
+    state.mineralQuery = c.labels.find(l => present.has(l)) || ''; state.mineralSelected = ''; render(); fitMinerals();
+  },
+  'geo-close': () => { state.geoUnit = null; render() },
   'geology-archive': () => geologyArchive(),
   'geology-export': () => download('congo-signal-minerals.geojson', {type:'FeatureCollection',metadata:state.geology?.metadata,features:mineralFeatures()}),
   report: id => openDetail(id),
@@ -1304,7 +1508,7 @@ document.addEventListener('click', async e => {
   if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
   if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
   const fn = ACTIONS[el.dataset.act]; if (!fn) return;
-  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d'].includes(el.dataset.act);
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close'].includes(el.dataset.act);
   if (busy) el.disabled = true;
   try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
 });
@@ -1320,6 +1524,7 @@ function setModel(path, value) {
 document.addEventListener('input', e => {
   const el = e.target.closest('[data-model]');
   if (el && el.tagName === 'INPUT' && el.type !== 'checkbox') { clearTimeout(typing); typing = setTimeout(() => setModel(el.dataset.model, el.value), 140); return }
+  if (e.target.dataset?.act === 'geo-opacity') { state.geoOpacity = Number(e.target.value); if (mapInstance?.getLayer('geology')) mapInstance.setPaintProperty('geology', 'raster-opacity', state.geoOpacity); return }
   if (e.target.id === 'palette-q') { state.palette.q = e.target.value; state.palette.items = paletteItems(e.target.value); state.palette.index = 0; renderPaletteResults() }
 });
 document.addEventListener('change', e => {
