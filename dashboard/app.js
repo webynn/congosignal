@@ -412,7 +412,7 @@ function socialView() {
   return pageHead(`X · ${L('PUBLIC CONVERSATION', 'CONVERSATION PUBLIQUE')}`, L('Social intelligence', 'Veille sociale'), L('Volume, voices and account histories on the topics we monitor. Posts are public, attributed and keyword-matched — never labeled.', 'Volume, voix et historiques de comptes sur les thèmes suivis. Publications publiques, attribuées et repérées par mots-clés — jamais étiquetées.'),
     `<form class="lookup" data-form="lookup"><input id="lookup-handle" class="input" placeholder="@handle" aria-label="${L('Look up an X account', 'Rechercher un compte X')}" autocomplete="off" spellcheck="false"><button class="btn primary" type="submit">${icon('user')}${L('Account dossier', 'Dossier de compte')}</button></form>`)
     + `<section class="panel status-strip"><strong><i class="dot ${status[1]}"></i>${status[0]}</strong>
-        ${budget(L('Counts', 'Comptages'), s?.requests_today, s?.daily_request_limit)}${budget(L('Topic samples', 'Échantillons'), s?.post_requests_today, s?.post_request_limit)}${budget(L('Account lookups', 'Historiques'), s?.account_requests_today, s?.account_request_limit)}
+        ${budget(L('Counts', 'Comptages'), s?.requests_today, s?.daily_request_limit)}${budget(L('Topic samples', 'Échantillons'), s?.post_requests_today, s?.post_request_limit)}${budget(L('On-demand', 'À la demande'), s?.account_requests_today, s?.account_request_limit)}
         <span>${L('Archive', 'Archive')}: <b class="num">${nf(s?.archive?.posts)}</b> ${L('posts', 'publ.')} · <b class="num">${nf(s?.archive?.accounts)}</b> ${L('accounts', 'comptes')} · ${s?.archive?.retention_days ?? '—'} ${L('day retention', 'jours de conservation')}</span>
         <button class="btn sm ghost" data-act="reload" style="margin-left:auto">${icon('refresh')}${L('Refresh view', 'Actualiser')}</button></section>
       <div class="topic-grid">${items.map(topicCard).join('')}</div>
@@ -427,7 +427,7 @@ function socialView() {
           <button class="btn sm ghost" data-act="export-posts">${icon('download')}JSON</button>
         </div>
         ${(state.posts?.sources || []).filter(x => x.error).map(x => `<div class="errorbar" style="margin:12px 16px 0">${esc(topicName(x.topic))}: ${esc(x.error)}</div>`).join('')}
-        <div>${posts.slice(0, f.visible).map(p => postCard(p)).join('') || emptyState(L('No posts match', 'Aucune publication'), !state.posts ? L('Post archive unavailable. Try refreshing the view.', 'Archive indisponible. Essayez d’actualiser.') : L('Topic samples run once a day within the request cap; account dossiers add history on demand.', 'Les échantillons sont collectés une fois par jour dans la limite du plafond ; les dossiers ajoutent l’historique à la demande.'))}</div>
+        <div>${posts.slice(0, f.visible).map(p => postCard(p)).join('') || emptyState(L('No posts match', 'Aucune publication'), !state.posts ? L('Post archive unavailable. Try refreshing the view.', 'Archive indisponible. Essayez d’actualiser.') : L('Topic samples run once a day within the request cap; fetch a topic now or open an account dossier.', 'Les échantillons sont collectés une fois par jour ; récupérez un thème maintenant ou ouvrez un dossier de compte.'), state.social?.enabled && state.social?.configured ? `<button class="btn primary" data-act="sample" data-arg="${esc(f.topic || topicsList()[0]?.id || '')}">${icon('refresh')}${L('Fetch latest posts', 'Récupérer les publications')}${f.topic ? ` · ${esc(topicName(f.topic))}` : ` · ${esc(topicName(topicsList()[0]?.id))}`}</button>` : '')}</div>
         ${posts.length > f.visible ? `<div class="loadmore"><button class="btn" data-act="post-more">${L('Show more posts', 'Afficher plus')}</button></div>` : ''}
       </section><div class="stack">
         <section class="panel"><div class="panel-head"><h2>${icon('users')}${L('Accounts', 'Comptes')}</h2><small class="num">${nf(accounts.length)}${f.topic ? ` · ${esc(topicName(f.topic))}` : ''}</small></div>
@@ -452,6 +452,7 @@ function topicCard(item) {
     <div class="topic-meta"><span>${L('Last hour', 'Dernière heure')} <b class="num" style="color:var(--text)">${d ? nf(d.latest_hour) : '—'}</b> · ${L('6 h mean', 'moy. 6 h')} ${d ? Number(d.baseline_hourly).toFixed(0) : '—'}</span></div>
     <div><div class="eyebrow" style="margin-bottom:4px">${L('Hourly history', 'Historique horaire')} · ${history.length > 24 ? `${Math.ceil(history.length / 24)} ${L('days', 'jours')}` : `${history.length} h`}</div>${areaChart(history, c, 40)}</div>
     <div class="topic-meta"><span>${state_}</span><span>${nf(item.archived_posts)} ${L('archived', 'archivées')}</span></div>
+    ${state.social?.enabled && state.social?.configured ? `<button class="btn sm" data-act="sample" data-arg="${esc(id)}" data-tip="${esc(L(`Pull the ${state.posts?.sample_size_per_topic || 10} latest matching posts from X now. Uses 1 on-demand request.`, `Récupérer maintenant les ${state.posts?.sample_size_per_topic || 10} dernières publications. Utilise 1 requête à la demande.`))}">${icon('refresh')}${L('Fetch latest posts', 'Récupérer les publications')}</button>` : ''}
     <details data-stop><summary>${L('Query & method', 'Requête et méthode')}</summary><p class="query">${esc(item.topic.query)}</p>${item.error ? `<p class="ev-error">${esc(item.error)}</p>` : ''}<a href="${esc(item.search_url)}" target="_blank" rel="noopener noreferrer">${L('Explore live on X', 'Explorer en direct sur X')} ↗</a></details>
   </div>`;
 }
@@ -819,6 +820,7 @@ const ACTIONS = {
   hashtag: tag => { closeOverlay(); state.sf.q = '#' + tag; state.sf.visible = 40; go('social') },
   copy: async text => { try { await navigator.clipboard.writeText(text); toast(L('Link copied', 'Lien copié')) } catch { toast(text) } },
   history: () => fetchHistory(),
+  sample: async id => { const r = await api(`/v1/social/topics/${encodeURIComponent(id)}/sample`, {}); toast(L(`${topicName(id)}: ${r.returned} posts fetched · ${r.new} new`, `${topicName(id)} : ${r.returned} publications · ${r.new} nouvelles`)); state.sf.topic = id; await load() },
   expand: (_, el) => { const t = el.previousElementSibling; t.classList.toggle('clamp'); el.textContent = t.classList.contains('clamp') ? L('Show full post', 'Afficher tout') : L('Show less', 'Réduire') },
   'dossier-topic': t => { state.dossier.topic = t; state.dossier.visible = 30; renderDossier() },
   'dossier-kind': k => { state.dossier.kind = k; state.dossier.visible = 30; renderDossier() },

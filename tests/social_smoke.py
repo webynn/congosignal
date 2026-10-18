@@ -41,6 +41,9 @@ class MockX(BaseHTTPRequestHandler):
             body = {'data': USER}
         elif url.path == '/2/users/by/username/nobody_here':
             body = {'errors': [{'detail': 'not found'}]}
+        elif url.path == '/2/tweets/search/recent':
+            assert query['max_results'] == ['10']
+            body = {'data': [{'id': '7001', 'author_id': '77', 'text': 'Sanctions et pourparlers à Kinshasa', 'created_at': now, 'lang': 'fr'}], 'includes': {'users': [{'id': '77', 'name': 'Diplo', 'username': 'diplo_rdc'}]}}
         elif url.path == '/2/users/4242/tweets':
             assert query['max_results'] == ['100']
             body = {'meta': {'result_count': 0}} if 'since_id' in query else TIMELINE
@@ -64,7 +67,7 @@ def api(path, data=None, auth=True):
 with tempfile.TemporaryDirectory(prefix='congo-signal-social-') as directory:
     env = dict(os.environ, LOAD_DOTENV='0', DATABASE_URL=f'sqlite://{Path(directory)/"test.db"}', BIND_ADDR=f'127.0.0.1:{port}', API_TOKEN='integration-test-secret-long',
                EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'), EVIDENCE_POLL_SECONDS='0', AI_ENABLED='0',
-               X_ENABLED='1', X_BEARER_TOKEN=TOKEN, X_API_URL=f'http://127.0.0.1:{mock.server_port}', X_ACCOUNT_REQUEST_LIMIT='3', X_DAILY_REQUEST_LIMIT='0', X_POST_REQUEST_LIMIT='0')
+               X_ENABLED='1', X_BEARER_TOKEN=TOKEN, X_API_URL=f'http://127.0.0.1:{mock.server_port}', X_ACCOUNT_REQUEST_LIMIT='4', X_DAILY_REQUEST_LIMIT='0', X_POST_REQUEST_LIMIT='0')
     env.pop('POLL_SECONDS', None)
     p = subprocess.Popen([str(ROOT/'target/debug/drc-osint-worker')], env=env, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -92,9 +95,13 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-social-') as directory:
         assert [x['id'] for x in posts['items']] == ['9001']
         accounts = api('/v1/social/accounts')[1]
         assert accounts['items'][0]['handle'] == 'obs_kivu' and accounts['items'][0]['posts'] == 2
+        assert api('/v1/social/topics/nope/sample', {})[0] == 404
+        status, run = api('/v1/social/topics/diplomacy/sample', {})
+        assert status == 200 and run['returned'] == 1 and run['new'] == 1, run
+        assert api('/v1/social/topics/diplomacy/sample', {})[0] == 429  # cooldown
         social = api('/v1/social')[1]
-        assert social['archive'] == {'posts': 2, 'accounts': 1, 'retention_days': 90}
-        assert social['account_requests_today'] == 2 and social['account_request_limit'] == 3
+        assert social['archive'] == {'posts': 3, 'accounts': 2, 'retention_days': 90}
+        assert social['account_requests_today'] == 3 and social['account_request_limit'] == 4
         # One request left: the username lookup succeeds but the account is missing.
         status, missing = api('/v1/social/accounts/nobody_here/history', {})
         assert status == 404, (status, missing)

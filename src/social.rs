@@ -749,7 +749,7 @@ async fn fetch_posts(
     client: &reqwest::Client,
     topic: &Topic,
     token: &str,
-) -> Result<()> {
+) -> Result<Value> {
     let body = x_get(
         client,
         token,
@@ -770,13 +770,14 @@ async fn fetch_posts(
     .await?;
     let (posts, users) = normalize_posts(&body, posts_per_topic() as usize)?;
     let stored = store_posts(db, &posts, &users, "topic_sample", Some(&topic.id)).await?;
+    let run = json!({"topic":topic.id,"returned":posts.len(),"new":stored.added});
     sqlx::query("UPDATE x_post_topics SET checked_at=?,error=NULL,data=? WHERE id=?")
         .bind(Utc::now().to_rfc3339())
-        .bind(json!({"returned":posts.len(),"new":stored.added}).to_string())
+        .bind(run.to_string())
         .bind(&topic.id)
         .execute(db)
         .await?;
-    Ok(())
+    Ok(run)
 }
 async fn collect_posts_cycle(db: &SqlitePool, client: &reqwest::Client, token: &str) -> Result<()> {
     for t in topics() {
@@ -851,7 +852,7 @@ fn upstream(e: anyhow::Error) -> ApiError {
 fn budget_exhausted() -> ApiError {
     ApiError(
         StatusCode::TOO_MANY_REQUESTS,
-        "Daily X account-history budget reached (X_ACCOUNT_REQUEST_LIMIT)".into(),
+        "Daily on-demand X budget reached (X_ACCOUNT_REQUEST_LIMIT)".into(),
     )
 }
 pub async fn history(State(app): State<App>, Path(handle): Path<String>) -> ApiResult<Json<Value>> {
@@ -990,6 +991,47 @@ pub async fn history(State(app): State<App>, Path(handle): Path<String>) -> ApiR
         .execute(db)
         .await?;
     Ok(Json(result))
+}
+
+/// Analyst-requested topic sample, charged to the on-demand budget shared with account histories.
+pub async fn sample(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    let topic = topics()
+        .find(|t| t.id == id)
+        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "unknown topic".into()))?;
+    if !(enabled() && configured()) {
+        return Err(ApiError(
+            StatusCode::CONFLICT,
+            "X collection is disabled or not configured on the server".into(),
+        ));
+    }
+    let recent: Option<String> =
+        sqlx::query_scalar("SELECT checked_at FROM x_post_topics WHERE id=? AND checked_at>=?")
+            .bind(&id)
+            .bind((Utc::now() - Duration::minutes(HISTORY_COOLDOWN_MINUTES)).to_rfc3339())
+            .fetch_optional(&app.db)
+            .await?
+            .flatten();
+    if recent.is_some() {
+        return Err(ApiError(
+            StatusCode::TOO_MANY_REQUESTS,
+            format!("This topic was sampled in the last {HISTORY_COOLDOWN_MINUTES} minutes"),
+        ));
+    }
+    if !reserve_account(&app.db, &id, "topic_sample").await? {
+        return Err(budget_exhausted());
+    }
+    let token = std::env::var("X_BEARER_TOKEN").map_err(anyhow::Error::from)?;
+    match fetch_posts(&app.db, &client()?, topic, &token).await {
+        Ok(run) => Ok(Json(run)),
+        Err(e) => {
+            sqlx::query("UPDATE x_post_topics SET error=? WHERE id=?")
+                .bind(e.to_string())
+                .bind(&id)
+                .execute(&app.db)
+                .await?;
+            Err(upstream(e))
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
