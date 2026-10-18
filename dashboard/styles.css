@@ -1005,3 +1005,4 @@ body {
 @media (max-width: 900px) { .onair-main small, .onair-main strong { display: none; } }
 .eq:not(.on) i { opacity: .55; }
 .eq:not(.on) i:nth-child(3n+1) { height: 45%; } .eq:not(.on) i:nth-child(3n+2) { height: 80%; } .eq:not(.on) i:nth-child(3n) { height: 30%; }
+.mode-switch button { display: inline-flex; align-items: center; gap: 5px; } .mode-switch button .icon { width: 13px; height: 13px; }
