@@ -21,3 +21,12 @@ Okapi conversational upgrade
 The Okapi button now sends natural-language questions and up to six recent conversation turns to /v1/voice/chat. It retrieves bounded excerpts from stored news, social topic counts/posts, mineral records, agreement metadata and public actor summaries. Private analyst notes are excluded. Responses include validated source IDs and at most one allowlisted UI action. Navigation/search may run directly; collection and analysis require a separate launch click. Historical and sampled data is not live or exhaustive. This supersedes the command-grammar description above.
 
 Deployment uses OKAPI_PROVIDER=claude with the existing ANTHROPIC_API_KEY and CLAUDE_MODEL. No Ollama server or local model is required. The optional OKAPI_PROVIDER=ollama is only for local experiments; its live test timed out on this Mac. Soniox STT and TTS have separate cost entries (soniox and soniox_tts), both issuing single-use 60-second credentials. Soniox TTS uses tts-rt-v2 with the built-in Adrian voice. Claude and both Soniox services remain paused until budgets are configured. Natural-language inference and microphone/TTS still need a paid-provider end-to-end test after activation. Unit tests validate actions/citations; no live-provider success is implied.
+
+Spoken replies (2026-10-18): Soniox speech playback is enabled by default.
+AudioContext is resumed on user interaction before waiting for the AI response.
+Soniox PCM16 mono chunks at 24 kHz play as they arrive; the UI displays separate
+speech preparation/playback/error status without replacing the text answer.
+Replay reply retries speech; Silence stops audio and disables automatic speech
+until Speak answers is checked again. Closing, hiding, or recording cancels queued
+audio and pending callbacks. Citations and Markdown are stripped from spoken text.
+No microphone is enabled by opening the panel or by finishing a spoken reply.
