@@ -1,3 +1,4 @@
+import { createVoiceCenter } from '/voice.js';
 // Congo Signal dashboard — vanilla ES module, no build step.
 // Every untrusted string (articles, posts, profiles, errors) passes through esc() before it reaches innerHTML.
 
@@ -55,13 +56,14 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 // ---------------------------------------------------------------------------------------------
 // State
 
-const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team'];
+const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team', 'ai-settings', 'ai-command'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
-const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'flights' || h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
 const hashPart = prefix => location.hash.startsWith(`#${prefix}/`) ? decodeURIComponent(location.hash.slice(prefix.length + 2)) : '';
-function openFromHash() { if (hashPart('radio')) { state.radioMode = true; state.mineralMode = false; state.radioSel = hashPart('radio'); render() } else if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; state.radioMode = false; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
+function openFromHash() { if (hashPart('radio')) { state.radioMode = true; state.flightMode = false; state.mineralMode = false; state.radioSel = hashPart('radio'); render() } else if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; state.radioMode = false; state.flightMode = false; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
 const state = {
+  aiMode: store.get('congo-ai-mode')==='1'||viewFromHash()==='ai-command', aiMotion: store.get('congo-ai-motion')!=='0',
   lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
   loaded: false, error: '', items: [], total: 0, limit: 200, status: {}, config: null, ev: null, sources: null, social: null, posts: null, accounts: null, updated: null, geometry: null,
   q: '', category: 'all', place: '', sort: 'priority', publisher: '', includeRegional: false, visible: 20,
@@ -179,7 +181,7 @@ async function load() {
     state.auth=await api('/v1/auth/me');state.loginRequired=false;
   } catch(e) {if(state.authConfig?.mode==='oidc'){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
   try {
-    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio] = await Promise.all([
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -196,9 +198,11 @@ async function load() {
       api('/v1/team').catch(() => null),
       api('/v1/commodities').catch(() => null),
       api('/v1/radio').catch(() => null),
+      api('/v1/flights').catch(() => null),
+      state.auth?.user?.role==='owner' ? api('/v1/settings/ai').catch(() => null) : null,
     ]);
     if (state.agDetail?.assessment?.status === 'running') state.agDetail = await api('/v1/agreements/'+state.agDetail.id);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, error: '' });
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, error: '' });
   } catch (e) { state.error = e.message }
   state.loaded = true;
   render();
@@ -237,6 +241,7 @@ function topicMix(counts) {
 // Shell
 
 const NAV = () => [
+  ...(state.aiMode ? [['ai-command','spark','OKAPI / AI']] : []),
   ['briefing', 'grid', L('Briefing', 'Synthèse'), state.items.filter(a => a.rank.band === 'high').length, true],
   ['situation', 'map', L('Situation room', 'Vue de situation')],
   ['reports', 'layers', L('Reports', 'Articles'), state.total],
@@ -247,10 +252,11 @@ const NAV = () => [
   ['saved', 'bookmark', L('Saved', 'Sauvegardés'), state.items.filter(a => a.analyst.saved).length],
   ['agreements', 'history', L('Agreements', 'Accords'), state.agreements?.items?.length],
   ['team', 'shield', L('Team & access', 'Équipe et accès')],
+  ['ai-settings', 'settings', L('AI settings', 'Paramètres IA')],
   ['costs', 'layers', L('Costs & budgets', 'Coûts et budgets')],
   ['method', 'shield', L('Methodology', 'Méthodologie')],
 ];
-const viewLabel = v => NAV().find(n => n[0] === v)?.[2] || v;
+const viewLabel = v => v==='ai-command' ? L('AI command center','Centre de commande IA') : NAV().find(n => n[0] === v)?.[2] || v;
 function feedStatuses() {
   const lastFetch = state.items.filter(a => a.record_type !== 'evidence' && !a.coverage).map(a => a.fetched_at).filter(Boolean).sort().at(-1);
   const s = state.social, src = state.sources?.items?.filter(x => !x.id.startsWith('discovered-')) || [];
@@ -276,7 +282,7 @@ function wire() {
   return `<div class="wire" aria-label="${L('Priority wire', 'Fil prioritaire')}"><div class="wire-label"><i class="dot bad live"></i>${L('PRIORITY WIRE', 'FIL PRIORITAIRE')}</div><div class="wire-track"><div class="wire-run">${row}<i class="wire-sep" aria-hidden="true">◆</i>${row}</div></div></div>`;
 }
 function shell(content) {
-  const nav = NAV().filter(([v])=>v!=='costs'||state.auth?.user?.role==='owner');
+  const nav = NAV().filter(([v])=>!['costs','ai-settings'].includes(v)||state.auth?.user?.role==='owner');
   return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
     <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC situational awareness', 'Veille de situation · RDC')}</small></div></a>
     <nav>${nav.map(([id, ic, label, count, hot], i) => `${i === 4 ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)} · ${i + 1}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : `<kbd class="nav-key">${i + 1}</kbd>`}</button>`).join('')}</nav>
@@ -289,9 +295,11 @@ function shell(content) {
       <div class="clocks" aria-label="${L('Current time', 'Heure actuelle')}"><span><small>UTC</small><b id="clock-utc">${clockText(0)}</b></span><span><small>KIN</small><b id="clock-kin">${clockText(1)}</b></span></div>
       ${onAirChip()}<span class="live-pill ${state.error ? 'down' : ''}"><i class="dot ${state.error ? 'bad' : 'ok live'}"></i>${state.error ? L('OFFLINE', 'HORS LIGNE') : 'LIVE'}</span>
       <div class="seg" role="group" aria-label="Language"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'active' : ''}">EN</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'active' : ''}">FR</button></div>
+      <button class="btn sm ai-mode-switch" data-act="ai-mode" aria-pressed="${state.aiMode}">${icon('spark')}${state.aiMode?L('Exit AI mode','Quitter le mode IA'):L('AI mode','Mode IA')}</button>
+      <button class="btn sm" data-act="voice-open">Okapi</button>
       <button class="iconbtn" data-act="theme" aria-label="${L('Toggle theme', 'Changer de thème')}" title="${L('Toggle theme', 'Changer de thème')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button>
       <button class="iconbtn" data-act="settings" aria-label="${L('Connection settings', 'Paramètres de connexion')}">${icon('settings')}</button>
-    </header>${state.view === 'situation' ? '' : wire()}</div>
+    </header>${['situation','ai-command'].includes(state.view) ? '' : wire()}</div>
     <main class="view view-${state.view} ${state.enter ? 'enter' : ''}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div></div>`;
 }
 /// HH:MM:SS at UTC + offset hours (Kinshasa is UTC+1 year-round).
@@ -309,9 +317,13 @@ function render() {
   const keep = active?.id && !active.closest('#overlay') ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
   const scrolls = $$('#app [data-scroll]').map(el => [el.dataset.scroll, el.scrollTop]);
   document.documentElement.lang = state.lang;
+  document.documentElement.dataset.aiMode=state.aiMode?'on':'off';
+  document.documentElement.dataset.aiMotion=state.aiMotion?'on':'off';
+  document.documentElement.dataset.theme=state.aiMode?'dark':state.theme;
   mapHost?.remove();
-  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView };
+  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView, "ai-settings": aiSettingsView, "ai-command": aiCommandView };
   $('#app').innerHTML = shell(views[state.view]());
+  if(state.view==='ai-settings') loadAiModels();
   for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
   if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.start, keep.end) } catch {} } }
   mountMap();
@@ -319,6 +331,8 @@ function render() {
 }
 function go(view) {
   if (!VIEWS.includes(view)) return;
+  if(view==='ai-command'){state.aiMode=true;store.set('congo-ai-mode','1')}
+  if(view!=='situation'){flightMarkers.forEach(m=>m.remove());flightMarkers=[];if(mapInstance)mapInstance.__flightSignature='';}
   state.view = view; state.visible = 20; state.enter = true;
   if (location.hash !== '#' + view) history.pushState(null, '', '#' + view);
   render(); window.scrollTo(0, 0);
@@ -700,7 +714,20 @@ function mineralCluster(e) {
   });
 }
 
+// Public civilian aircraft: source positions only, no extrapolation or mission inference.
+state.flightMode=location.hash==='#flights';state.flights=null;state.flightQuery='';state.flightCategory='';state.flightSelected='';
+function flightRows(){const q=norm(state.flightQuery||'');return (state.flights?.items||[]).filter(f=>(Date.now()/1000-f.observed_at)<=600 && (!state.flightCategory||f.category===state.flightCategory) && (!q||norm([f.callsign,f.registration,f.icao24,f.aircraft_type,f.airline].filter(Boolean).join(' ')).includes(q))).sort((a,b)=>(a.callsign||a.icao24).localeCompare(b.callsign||b.icao24))}
+const flightLabel=k=>({cargo_operator:L('Cargo operator match','Opérateur cargo identifié'),airline:L('Airline match · mission unknown','Compagnie identifiée · mission inconnue'),unknown:L('Unclassified','Non classé')})[k]||k;
+const flightColor=f=>f.category==='cargo_operator'?'#e5ad53':f.category==='airline'?'#63cbd0':'#a4acb5';
+function flightDetail(f){if(!f)return emptyState(L('Select an aircraft','Sélectionnez un aéronef'),L('Click a marker or a flight in the list.','Cliquez sur un point ou un vol dans la liste.'));return `<section class="pane-section"><div class="eyebrow">${esc(f.icao24)}</div><h2>${esc(f.callsign||f.registration||f.icao24)}</h2><p class="badge">${esc(flightLabel(f.category))}</p><dl>${[[L('Registration','Immatriculation'),f.registration],[L('ICAO aircraft type','Type OACI'),f.aircraft_type],[L('Airline directory match','Compagnie selon l’annuaire'),f.airline],[L('Barometric altitude','Altitude barométrique'),f.altitude_ft==null?'—':Math.round(f.altitude_ft)+' ft'],[L('Ground speed','Vitesse sol'),f.ground_speed_knots==null?'—':Math.round(f.ground_speed_knots)+' kt'],[L('Track','Route'),f.track_degrees==null?'—':Math.round(f.track_degrees)+'°'],[L('Position observed','Position observée'),new Date(f.observed_at*1000).toLocaleString(state.lang)],[L('Receiver method','Méthode de réception'),f.position_source]].map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v||L('Unknown','Inconnu'))}</dd>`).join('')}</dl><p>${L('Classification is based on a public callsign/airline match. It does not establish the cargo, passengers, mission or current operator.','Classification selon une correspondance indicatif/compagnie publique. Elle ne confirme ni la cargaison, ni les passagers, ni la mission, ni l’opérateur actuel.')}</p><p><a href="https://api.adsb.lol/docs" target="_blank" rel="noopener">ADSB.lol · ODbL ↗</a>${f.metadata_source_url?` · <a href="${esc(f.metadata_source_url)}" target="_blank" rel="noopener">adsbdb ↗</a>`:''}</p></section>`}
+function flightMap(){if(state.config?.mapbox_public_token&&window.mapboxgl&&!mapFailed)return '<div id="map-slot"></div>';const xy=(lon,lat)=>[25+(lon-12)*18,25+(5.5-lat)*13.8];const path=state.geometry?.features?.[0]?.geometry.coordinates.map(r=>r.map((p,i)=>`${i?'L':'M'}${xy(...p).join(',')}`).join(' ')+'Z').join(' ')||'';return `<div class="static-map"><svg viewBox="0 0 405 290" aria-label="${L('Civilian flight map','Carte des vols civils')}"><path class="map-country" d="${path}"/>${flightRows().map(f=>{const [x,y]=xy(f.longitude,f.latitude);return `<circle cx="${x}" cy="${y}" r="4" fill="${flightColor(f)}" data-act="flight-select" data-arg="${esc(f.icao24)}" tabindex="0" role="button" aria-label="${esc(f.callsign||f.icao24)}"><title>${esc(f.callsign||f.icao24)}</title></circle>`}).join('')}</svg></div>`}
+function flightsSituation(){const d=state.flights,rows=flightRows(),selected=rows.find(f=>f.icao24===state.flightSelected);return `<div class="situation flights-view ${state.mapFocus?'map-focus':''}"><aside class="filters-pane" data-scroll="flights"><div class="pane-section"><div class="eyebrow">DRC · ADS-B</div><h2>${L('Civilian flights','Vols civils')}</h2><p>${rows.length} ${L('observed aircraft','aéronefs observés')} · ${L('scan every','scan toutes les')} ${Math.round((d?.poll_seconds||300)/60)} min</p><input class="input" id="flight-search" data-model="flightQuery" value="${esc(state.flightQuery)}" placeholder="${L('Callsign, registration, airline…','Indicatif, immatriculation, compagnie…')}"><select class="select" data-model="flightCategory"><option value="">${L('All classifications','Toutes les classifications')}</option>${['cargo_operator','airline','unknown'].map(k=>`<option value="${k}" ${state.flightCategory===k?'selected':''}>${flightLabel(k)}</option>`).join('')}</select></div><div class="pane-section"><h2>${L('Source status','État de la source')}</h2><p>${!d?L('Unavailable','Indisponible'):!d.enabled?L('Disabled','Désactivé'):d.status==='ok'?L('Scan complete','Scan terminé'):d.status==='partial'?L('Partial scan','Scan partiel'):d.status==='pending'?L('First scan in progress','Premier scan en cours'):L('Source unavailable','Source indisponible')}</p><p>${d?.checked_at?esc(new Date(d.checked_at).toLocaleString(state.lang)):'—'}<br>${d?.tiles_successful||0}/${d?.tiles_total||16} ${L('query areas successful','zones interrogées avec succès')}</p><p>${d?.requests_today||0}/${d?.daily_request_limit||5000} ${L('free API requests today','requêtes API gratuites aujourd’hui')}</p>${(d?.errors||[]).slice(0,2).map(e=>`<p class="notice">${esc(e)}</p>`).join('')}<p>${L('Receiver coverage is incomplete. No observed aircraft does not mean empty airspace. Points follow an approximate national boundary, not an official FIR boundary.','La couverture des récepteurs est incomplète. Aucun aéronef observé ne signifie pas un espace aérien vide. La limite nationale est approximative, pas une limite FIR officielle.')}</p><p>${L('Military and privacy-flagged aircraft are excluded from this live layer. Positions older than 10 minutes disappear.','Les aéronefs signalés militaires ou protégés sont exclus. Les positions de plus de 10 minutes disparaissent.')}</p><a href="https://api.adsb.lol/docs" target="_blank" rel="noopener">ADSB.lol · ODbL ↗</a></div></aside><section class="stage"><div class="map-area">${flightMap()}<div class="map-float tl glass"><strong>${L('DRC · public flight observations','RDC · observations publiques des vols')}</strong>${L('Near-live · no predicted positions','Quasi-direct · aucune position prédite')}</div><div class="map-float tr"><div class="seg glass mode-switch">${[['news','News','Actualité'],['minerals','Minerals','Minerais'],['radio','Radio','Radio'],['flights','Flights','Vols']].map(([id,en,fr])=>`<button class="${id==='flights'?'active':''}" data-act="map-mode" data-arg="${id}">${L(en,fr)}</button>`).join('')}</div><button class="btn sm glass" data-act="map-focus">${state.mapFocus?L('Show panels','Afficher les panneaux'):L('Expand map','Agrandir')}</button><button class="btn sm glass" data-act="reset-map">${L('Reset map','Recentrer')}</button></div></div></section><aside class="rail-pane"><div class="rail-head"><h2>${L('Observed flights','Vols observés')}</h2></div><div class="rail-list" data-scroll="flight-list">${rows.map(f=>`<button class="mineral-result ${selected?.icao24===f.icao24?'selected':''}" data-act="flight-select" data-arg="${esc(f.icao24)}"><strong>✈ ${esc(f.callsign||f.registration||f.icao24)}</strong><small>${esc(f.registration||'—')} · ${esc(f.aircraft_type||'—')}<br>${esc(flightLabel(f.category))} · ${Math.max(0,Math.round((Date.now()/1000-f.observed_at)/60))} min</small></button>`).join('')||emptyState(L('No aircraft observed','Aucun aéronef observé'),L('Wait for the next scan or clear the filters. Coverage may be sparse.','Attendez le prochain scan ou effacez les filtres. La couverture peut être limitée.'))}${flightDetail(selected)}</div></aside></div>`}
+let flightMarkers=[];
+function mountFlights(){const map=mapInstance;if(!map)return;const on=state.flightMode&&state.view==='situation';if(on){try{for(const id of ['mineral-clusters','mineral-counts','mineral-sites','mineral-selection'])if(map.getLayer(id))map.setLayoutProperty(id,'visibility','none')}catch{}}const rows=on?flightRows():[];const sig=JSON.stringify([on,state.flightSelected,rows]);if(map.__flightSignature===sig)return;map.__flightSignature=sig;flightMarkers.forEach(m=>m.remove());flightMarkers=[];for(const f of rows){const el=document.createElement('button');el.className='flight-marker'+(f.icao24===state.flightSelected?' selected':'');el.style.color=flightColor(f);el.textContent='✈';el.title=(f.callsign||f.icao24)+' · '+flightLabel(f.category);el.setAttribute('aria-label',el.title);el.onclick=()=>selectFlight(f.icao24);flightMarkers.push(new mapboxgl.Marker({element:el}).setLngLat([f.longitude,f.latitude]).addTo(map))}}
+function selectFlight(id){state.flightSelected=id;render();const f=flightRows().find(f=>f.icao24===id);if(f)mapInstance?.easeTo({center:[f.longitude,f.latitude],zoom:Math.max(6,mapInstance.getZoom()),duration:600})}
+
 function situationView() {
+  if (state.flightMode) return flightsSituation();
   if (state.radioMode) return radioSituation();
   if (state.mineralMode) return mineralsSituation();
   const items = situationItems(), ps = placesList(situationItems(true));
@@ -722,7 +749,7 @@ function situationView() {
       <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i><i class="hud-reticle"></i></div>
       <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
       <div class="map-float tl glass"><strong>${state.place ? esc(state.place) : L('Democratic Republic of the Congo', 'République démocratique du Congo')}</strong>${nf(ps.reduce((n, p) => n + p.count, 0))} ${L('place mentions', 'lieux cités')} · ${nf(items.filter(a => !a.places.length).length)} ${L('unmapped', 'non cartographiés')}</div>
-      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button class="active" data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button><button data-act="map-mode" data-arg="radio">${icon('radio')}${L('Radio', 'Radio')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels','Afficher les panneaux') : L('Expand map','Agrandir')}</button><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button class="active" data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button><button data-act="map-mode" data-arg="radio">${icon('radio')}${L('Radio', 'Radio')}</button><button data-act="map-mode" data-arg="flights">✈ ${L('Flights','Vols')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels','Afficher les panneaux') : L('Expand map','Agrandir')}</button><div class="seg glass" style="padding:2px"><button class="${state.basemap === 'base' ? 'active' : ''}" data-act="base" data-arg="base">${L('Map', 'Carte')}</button><button class="${state.basemap === 'satellite' ? 'active' : ''}" data-act="base" data-arg="satellite">${L('Satellite', 'Satellite')}</button></div><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
       <div class="map-float bl glass">${mapFailed ? L('Interactive map unavailable; showing outline.', 'Carte interactive indisponible ; contour affiché.') : L('Markers are approximate place mentions, not verified incident locations.', 'Les repères sont des lieux cités approximatifs, pas des incidents vérifiés.')}${state.basemap === 'satellite' ? ` ${L('Imagery is not live.', 'Imagerie non en direct.')}` : ''}</div>
     </div><div class="timeline">${timeline}</div></section>
     <aside class="rail-pane">${mineralInspector()}<div class="rail-head"><div class="eyebrow">${state.place ? esc(state.place) : L('Matching reports', 'Articles de la sélection')}</div><div style="display:flex;gap:8px"><select class="select" data-model="sort" style="flex:1" aria-label="${L('Sort', 'Tri')}"><option value="priority" ${state.sort === 'priority' ? 'selected' : ''}>${L('Priority', 'Priorité')}</option><option value="latest" ${state.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récents')}</option></select><button class="iconbtn" data-act="export" aria-label="${L('Export JSON', 'Exporter JSON')}" title="${L('Export JSON', 'Exporter JSON')}">${icon('download')}</button></div>${state.place || state.selectedDay ? `<div class="chips"><button class="chip active" data-act="clear-situation">${esc([state.place, state.selectedDay && dayLabel(state.selectedDay)].filter(Boolean).join(' · '))} ×</button></div>` : ''}${state.error ? `<div class="errorbar" style="margin:0">${esc(state.error)}</div>` : ''}</div>
@@ -856,7 +883,7 @@ function mineralsSituation() {
       <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i></div>
       <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
       <div class="map-float tl glass ${state.focus ? 'focus-tag' : ''}" ${state.focus ? `style="--focus:${state.focus.hex}"` : ''}><strong>${sel ? esc(sel.properties.name) : state.focus ? `<i class="swatch" style="background:${state.focus.hex}"></i>${esc(state.focus.name)}` : L('Mineral & geological map', 'Carte minière et géologique')}</strong>${state.focus ? `${nf(state.focus.sites)} ${L('sites', 'sites')} · ${state.focus.areas.length} ${L('mining areas', 'zones minières')} · ${[...new Set(state.focus.areas.flatMap(a => a.provinces))].length} ${L('provinces', 'provinces')}` : `${nf(fs.length)} ${L('sites', 'sites')} · IPIS · USGS · Macrostrat`}</div>
-      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button class="active" data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button><button data-act="map-mode" data-arg="radio">${icon('radio')}${L('Radio', 'Radio')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels', 'Afficher les panneaux') : L('Expand map', 'Agrandir')}</button><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button class="active" data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button><button data-act="map-mode" data-arg="radio">${icon('radio')}${L('Radio', 'Radio')}</button><button data-act="map-mode" data-arg="flights">✈ ${L('Flights','Vols')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels', 'Afficher les panneaux') : L('Expand map', 'Agrandir')}</button><button class="btn sm glass" data-act="tilt">${state.tilt ? L('Flat', 'À plat') : L('3D tilt', 'Inclinée')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
       ${state.geoUnit ? geoUnitCard(state.geoUnit) : `<div class="map-float bl glass">${L('Click the map for bedrock geology; click a site for its dossier. Sites are historical records, not current operations.', 'Cliquez sur la carte pour la géologie ; sur un site pour son dossier. Les sites sont des références historiques.')}</div>`}
     </div><div class="timeline market-board">${marketBoard()}</div></section>
     <aside class="rail-pane">${sel ? mineDossier(sel) : state.focus ? focusPanel() : marketPanel()}</aside>
@@ -1023,7 +1050,7 @@ function focusMineral(key) {
   state.focus = { key, commodity: c?.id || null, name: c ? commodityName(c) : key, labels: usable, color: FOCUS_COLORS[c?.id] || 'var(--accent)', hex: FOCUS_COLORS[c?.id] || '#c6f36b', sites: sites.length, areas, active: -1 };
   state.mineralFocusLabels = usable; state.mineralQuery = ''; state.mineralSelected = ''; state.geoUnit = null;
   if (c) state.marketCommodity = c.id;
-  state.mineralMode = true; state.radioMode = false;
+  state.mineralMode = true; state.radioMode = false; state.flightMode = false;
   history.replaceState(null, '', '#focus/' + encodeURIComponent(key));
   if (state.view !== 'situation') go('situation'); else render();
   playFocusTour();
@@ -1222,7 +1249,7 @@ function radioSituation() {
       <div class="hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i></div>
       <div class="map-float hud-pos glass hud-readout" id="hud-coords" aria-hidden="true">${hudText(state.hud)}</div>
       <div class="map-float tl glass"><strong>${icon('radio')} ${L('Live radio', 'Radio en direct')}</strong>${live.length} ${L('stations on air', 'à l’antenne')} · ${new Set(live.map(s => s.location?.place).filter(Boolean)).size} ${L('cities on the map', 'villes sur la carte')}</div>
-      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button><button class="active" data-act="map-mode" data-arg="radio">${icon('radio')}${L('Radio', 'Radio')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels', 'Afficher les panneaux') : L('Expand map', 'Agrandir')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
+      <div class="map-float tr"><div class="seg glass mode-switch" style="padding:2px"><button data-act="map-mode" data-arg="news">${L('News', 'Actualité')}</button><button data-act="map-mode" data-arg="minerals">${L('Minerals', 'Minerais')}</button><button class="active" data-act="map-mode" data-arg="radio">${icon('radio')}${L('Radio', 'Radio')}</button><button data-act="map-mode" data-arg="flights">✈ ${L('Flights','Vols')}</button></div><button class="btn sm glass" data-act="map-focus" aria-pressed="${state.mapFocus}">${state.mapFocus ? L('Show panels', 'Afficher les panneaux') : L('Expand map', 'Agrandir')}</button><button class="btn sm glass" data-act="reset-map">${icon('globe')}${L('Reset', 'Recentrer')}</button></div>
       <div class="map-float bl glass">${L('Streams play directly from the broadcasters. Locations are the station’s listed city, not transmitter coverage.', 'Les flux sont lus directement depuis les diffuseurs. La position est la ville déclarée, pas la zone de couverture.')}</div>
     </div><div class="timeline dial"><div class="timeline-head"><strong>${L('Dial', 'Cadran')}</strong><span>${L('Live stations · click to tune', 'Stations en direct · cliquez pour écouter')}</span></div><div class="tickers dial-row">${live.map(s => `<button class="ticker dial-station ${state.radioNow === s.id ? 'active' : ''}" data-station="${esc(s.id)}" data-act="radio-play" data-arg="${esc(s.id)}"><span class="t-name">${esc(s.location?.place || L('Online', 'En ligne'))}</span><span class="t-val"><b>${esc(s.name.length > 22 ? s.name.slice(0, 21) + '…' : s.name)}</b></span>${eqBars(state.radioNow === s.id && state.radioStatus === 'playing', 12)}</button>`).join('')}</div></div></section>
     <aside class="rail-pane"><div class="mine-dossier" data-scroll="np">${nowPlaying(sel)}
@@ -1324,7 +1351,7 @@ function hudText(h = {}) {
   const deg = (v, pos, neg, w) => v == null ? '—'.padEnd(w + 7) : `${Math.abs(v).toFixed(4).padStart(w + 5, '0')}°${v >= 0 ? pos : neg}`;
   return `LAT ${deg(h.lat, 'N', 'S', 2)}  LON ${deg(h.lon, 'E', 'W', 3)}  Z ${(h.zoom ?? 4).toFixed(1)}  P ${Math.round(h.pitch ?? 0)}°`;
 }
-const mapStyle = () => 'mapbox://styles/mapbox/' + (state.basemap === 'satellite' ? 'satellite-streets-v12' : state.theme === 'light' ? 'light-v11' : 'dark-v11');
+const mapStyle = () => 'mapbox://styles/mapbox/' + (state.basemap === 'satellite' ? 'satellite-streets-v12' : !state.aiMode && state.theme === 'light' ? 'light-v11' : 'dark-v11');
 function mountMap() {
   const slot = $('#map-slot'); if (!slot) return;
   if (!mapHost) { mapHost = document.createElement('div'); mapHost.className = 'interactive-map' }
@@ -1343,6 +1370,7 @@ function mountMap() {
       mapInstance.on('idle', mountGeology);
       mapInstance.on('idle', mountFocus);
       mapInstance.on('idle', mountRadio);
+      mapInstance.on('idle', mountFlights);
       // Any manual pan or zoom hands control back to the analyst.
       for (const ev of ['dragstart', 'wheel', 'touchstart']) mapInstance.on(ev, () => { focusTour++ });
       mapInstance.on('click', 'mineral-sites', mineralPopup);
@@ -1370,7 +1398,8 @@ function mountMap() {
   mountGeology();
   mountFocus();
   mountRadio();
-  if (state.mineralMode || state.radioMode) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; markerSignature = ''; return }
+  mountFlights();
+  if (state.mineralMode || state.radioMode || state.flightMode) { mapMarkers.forEach(m => m.remove()); mapMarkers = []; markerSignature = ''; return }
   const linked = situationItems(true);
   const places = placesList(linked);
   const signature = JSON.stringify([places, state.lang, state.place, state.layers]);
@@ -1415,11 +1444,115 @@ function teamView(){
  `<p class="panel">${state.authConfig?.mode==='oidc'?L('ZITADEL sign-in enabled. Share the site address with invited members; no invitation email is sent automatically. Role changes revoke existing sessions.','Connexion ZITADEL activée. Partagez l’adresse du site avec les membres invités ; aucun email automatique. Un changement révoque les sessions.'):L('Local mode: ZITADEL is not connected yet. Configure OIDC before inviting real users or publishing the site.','Mode local : ZITADEL n’est pas encore connecté. Configurez OIDC avant d’inviter des utilisateurs ou de publier le site.')}</p>`+
  (state.team?`<h2>${L('Invite a member','Inviter un membre')}</h2>${form()}<h2>${L('Members and background worker','Membres et worker')}</h2>${state.team.members.map(form).join('')}<h2>${L('Audit log','Journal d’audit')}</h2>${state.team.audit.map(e=>`<p>${esc(e.at)} · ${esc(e.action)} · ${esc(e.target)} · ${esc(e.user_id)}</p>`).join('')}`:`<p>${L('Only owners and administrators can manage members.','Seuls les propriétaires et administrateurs peuvent gérer les membres.')}</p>`);
 }
+
+const AI_NAMES={claude:'Claude · Anthropic',openai:'OpenAI',deepseek:'DeepSeek',kimi:'Kimi · Moonshot',soniox:'Soniox · Speech recognition',soniox_tts:'Soniox · Voice output',ollama:'Ollama · Local'};
+const aiModelLists = new Map();
+const aiModelPending = new Set();
+const aiModelErrors = new Map();
+const discoverableAi = ['claude','openai','deepseek','kimi'];
+function aiModelOptions(provider, selected) {
+  const verified=aiModelLists.get(provider);
+  const models=[...new Set([selected,...(verified||[])])];
+  return models.map(id=>{
+    const unconfirmed=verified&&!verified.includes(id);
+    return `<option value="${esc(id)}" ${id===selected?'selected':''} ${unconfirmed?'disabled':''}>${esc(id)}${unconfirmed?' · '+L('not available / unsupported','indisponible / non compatible'):id===selected?' · '+L('saved','enregistré'):''}</option>`;
+  }).join('');
+}
+
+function aiModelNotice(p) {
+  if(aiModelPending.has(p.id))return L('Loading available models…','Chargement des modèles disponibles…');
+  if(aiModelErrors.has(p.id))return aiModelErrors.get(p.id);
+  if(aiModelLists.has(p.id))return L('Account-visible models filtered for this integration. Select one, then Save. Paid generation has not been tested.','Modèles du compte filtrés pour cette intégration. Choisissez puis enregistrez. Génération payante non testée.');
+  if(discoverableAi.includes(p.id))return p.configured?L('Available models load automatically.','Les modèles disponibles se chargent automatiquement.'):L('Save your API key to load available models.','Enregistrez votre clé API pour charger les modèles disponibles.');
+  return L('Currently configured model.','Modèle actuellement configuré.');
+}
+async function fetchAiModels(provider, force=false) {
+  if(aiModelPending.has(provider)||(!force&&(aiModelLists.has(provider)||aiModelErrors.has(provider))))return;
+  aiModelPending.add(provider);aiModelErrors.delete(provider);
+  const status=()=>document.getElementById('ai-check-'+provider);
+  if(status())status().textContent=L('Loading available models…','Chargement des modèles disponibles…');
+  try{
+    const r=await api('/v1/settings/ai/check',{provider});
+    const models=[...new Set(r.models)].sort();
+    aiModelLists.set(provider,models);
+    const select=document.getElementById('ai-model-'+provider);
+    if(select)select.innerHTML=aiModelOptions(provider,select.value);
+    if(!models.length)aiModelErrors.set(provider,L('No compatible models returned. Your saved model is preserved.','Aucun modèle compatible reçu. Votre modèle enregistré est conservé.'));
+  }catch(e){aiModelErrors.set(provider,e.message)}
+  finally{
+    aiModelPending.delete(provider);
+    const p=state.aiSettings?.providers.find(p=>p.id===provider);
+    if(status()&&p)status().textContent=aiModelNotice(p);
+  }
+}
+function loadAiModels(){
+  for(const p of state.aiSettings?.providers||[])if(p.configured&&discoverableAi.includes(p.id))void fetchAiModels(p.id);
+}
+
+function aiDrcOutline(){
+ const rings=state.geometry?.features?.[0]?.geometry?.coordinates||[];
+ return rings.map(r=>r.map(([x,y],i)=>`${i?'L':'M'}${((x-12)*14+55).toFixed(1)},${((6-y)*14+65).toFixed(1)}`).join(' ')+'Z').join(' ');
+}
+function aiCommandView(){
+ const top=[...state.items].sort((a,b)=>b.rank.score-a.rank.score).slice(0,3);
+ const metrics=[
+   [L('Reports collected','Articles collectés'),state.total,'reports'],
+   [L('Social posts archived','Publications archivées'),state.social?.archive?.posts??state.posts?.items?.length??0,'social'],
+   [L('Mineral records','Références minières'),state.geology?.features?.length??0,'minerals'],
+   [L('Agreement records','Références d’accords'),state.agreements?.items?.length??0,'agreements']
+ ];
+ return `<div class="ai-stage">
+ <div class="ai-rain" aria-hidden="true">${Array.from({length:18},(_,i)=>`<span style="--i:${i}">${'01 10 001 101 RDC 011 00 110 '.repeat(7)}</span>`).join('')}</div>
+ <div class="ai-stage-head"><span><i class="dot ok"></i> OKAPI / ${L('INTELLIGENCE INTERFACE','INTERFACE INTELLIGENCE')}</span><button class="btn sm" data-act="ai-motion" aria-pressed="${!state.aiMotion}">${state.aiMotion?L('Pause animation','Suspendre les animations'):L('Resume animation','Reprendre les animations')}</button></div>
+ <div class="ai-hero">
+ <section class="ai-intro"><div class="ai-kicker">CONGO SIGNAL // 01</div><h1>${L('See the signals.','Voir les signaux.')}<br><em>${L('Connect the story.','Relier les faits.')}</em></h1>
+ <p>${L('Your intelligence, in conversation. Explore Congo through the reports, places and evidence in your workspace.','Votre veille, en conversation. Explorez le Congo à travers les articles, les lieux et les sources de votre espace.')}</p>
+ <button class="ai-engage" data-act="voice-open">${icon('spark')} ${L('Connect with Okapi','Échanger avec Okapi')} ${icon('arrow')}</button>
+ <div class="ai-assistant-note"><span class="ai-tiny-orb"></span>${L('Text or voice · microphone off until activated','Texte ou voix · micro désactivé avant activation')}</div>
+ <div class="ai-prompts">${[
+   L('What are the main news stories?','Quelles sont les principales actualités ?'),
+   L('Show me the mineral sites','Montre-moi les sites miniers'),
+   L('Summarize social intelligence','Résume la veille sociale')
+ ].map(q=>`<button data-act="ai-prompt" data-arg="${esc(q)}">${esc(q)} <span>↗</span></button>`).join('')}</div></section>
+ <div class="ai-core" role="img" aria-label="${L('Animated DRC visualization. Decorative, not a live sensor.','Visualisation animée de la RDC. Décorative, pas un capteur en direct.')}">
+ <div class="ai-core-halo"></div><div class="ai-orbit orbit-one"></div><div class="ai-orbit orbit-two"></div><div class="ai-orbit orbit-three"></div>
+ <svg class="ai-country" viewBox="0 0 420 420" aria-hidden="true"><defs><pattern id="ai-dot-grid" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="4" cy="4" r="1.2" fill="#55f5ba"/></pattern><linearGradient id="ai-country-glow" x2="1" y2="1"><stop stop-color="#00dcab" stop-opacity=".2"/><stop offset="1" stop-color="#71d7ff" stop-opacity=".02"/></linearGradient></defs><path d="${aiDrcOutline()}" fill="url(#ai-country-glow)" stroke="#6effc4" stroke-width="1.3"/><path d="${aiDrcOutline()}" fill="url(#ai-dot-grid)" opacity=".6"/></svg>
+ <div class="ai-core-caption"><small>04° S / 21° E</small><strong>R D C</strong><span>${L('EVIDENCE AT THE CENTER','LES SOURCES AU CENTRE')}</span></div>
+ <span class="ai-orbit-label label-north">01 / SIGNAL</span><span class="ai-orbit-label label-east">02 / CONTEXT</span><span class="ai-orbit-label label-south">03 / INSIGHT</span>
+ </div></div>
+ <div class="ai-metrics">${metrics.map(([label,n,target],i)=>`<button data-act="${target==='minerals'?'map-mode':'nav'}" data-arg="${target}"><small>0${i+1} / ${esc(label)}</small><strong>${nf(n)}</strong><span>↗</span></button>`).join('')}</div>
+ <div class="ai-bottom"><section class="ai-signals"><div class="ai-section-title"><h2>${L('Priority signals','Signaux prioritaires')}</h2><span>${L('FROM YOUR COLLECTION','DANS VOTRE COLLECTION')}</span></div>${top.map((a,i)=>`<button class="ai-signal-row" data-act="report" data-arg="${esc(a.id)}"><span>0${i+1}</span><div><strong>${esc(title(a))}</strong><small>${esc(a.source_name||a.publisher||a.source||'')} · ${esc(age(a.published_at))}</small></div>${icon('arrow')}</button>`).join('')||'<p>'+L('No reports loaded.','Aucun article chargé.')+'</p>'}</section>
+ <section class="ai-context"><div class="ai-section-title"><h2>${L('Workspace snapshot','État de l’espace')}</h2>${icon('activity')}</div><p>${L('Source-linked intelligence. Human judgment.','Une veille sourcée. Un jugement humain.')}</p><dl><div><dt>${L('Collection refreshed','Collection actualisée')}</dt><dd>${state.updated?esc(date(state.updated,true)):'—'}</dd></div><div><dt>${L('Analysis engine','Moteur d’analyse')}</dt><dd>${esc(state.status.provider||'—')}</dd></div><div><dt>${L('AI configuration','Configuration IA')}</dt><dd>${state.status.enabled?L('Enabled','Activée'):L('Disabled','Désactivée')}</dd></div></dl><button class="btn sm" data-act="reload">${icon('refresh')} ${L('Refresh snapshot','Actualiser l’état')}</button><small>${L('Animations are decorative. AI requests follow your budgets.','Animations décoratives. Les requêtes IA respectent vos budgets.')}</small></section></div>
+ </div>`;
+}
+function aiSettingsView(){
+ const c=state.aiSettings;
+ if(state.auth?.user?.role!=='owner')return pageHead('AI',L('Owner access required','Accès propriétaire requis'),'');
+ if(!c)return pageHead('AI',L('Settings unavailable','Paramètres indisponibles'),L('Reload to try again.','Rechargez pour réessayer.'));
+ const options=selected=>c.providers.filter(p=>p.text_engine).map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${AI_NAMES[p.id]}</option>`).join('');
+ return pageHead('OKAPI & AI',L('AI settings','Paramètres IA'),L('Shared workspace configuration. Keys stay on the server. Changes apply to new requests; queued jobs keep their selected model.','Configuration partagée. Les clés restent sur le serveur. Les changements concernent les nouvelles requêtes ; les tâches en file gardent leur modèle.'))+
+ `<form class="panel fields ai-settings-panel" data-form="ai-engine">
+ <h2>${L('Active engines','Moteurs actifs')}</h2>
+ <label>${L('Article & agreement analysis','Analyse des articles et accords')}<select name="analysis_provider">${options(c.analysis_provider)}</select></label>
+ <label>Okapi<select name="okapi_provider">${options(c.okapi_provider)}</select></label>
+ <label class="check"><input type="checkbox" name="enabled" ${c.enabled?'checked':''}>${L('Enable AI processing','Activer le traitement IA')}</label>
+ <p>${L('Saving a key does not enable spending. Configure each provider in Costs & budgets. OpenAI web research remains a separate OpenAI feature. Use a chat model supporting JSON output.','Enregistrer une clé n’active pas les dépenses. Configurez chaque fournisseur dans Coûts et budgets. La recherche web OpenAI reste une fonction OpenAI distincte. Utilisez un modèle de conversation compatible JSON.')}</p>
+ <div><button class="btn primary" type="submit">${L('Save engines','Enregistrer les moteurs')}</button> <button class="btn" type="button" data-act="nav" data-arg="costs">${L('Costs & budgets','Coûts et budgets')}</button></div></form>
+ <div class="ai-provider-grid">${c.providers.map(p=>`<form class="panel fields ai-settings-panel" data-form="ai-provider" data-provider="${p.id}">
+ <h2>${AI_NAMES[p.id]}</h2>
+ <p>${p.id==='ollama'?L('Requires a local Ollama server','Nécessite un serveur Ollama local'):p.configured?L('Key configured','Clé configurée'):L('No key configured','Aucune clé configurée')}</p>
+ <label>${L('Model','Modèle')}<select name="model" id="ai-model-${p.id}" required>${aiModelOptions(p.id,p.model)}</select></label>
+ ${['ollama','soniox_tts'].includes(p.id)?(p.id==='soniox_tts'?'<p>'+L('Uses the Soniox speech recognition key.','Utilise la clé Soniox de reconnaissance vocale.')+'</p>':''):`<label>${L('New API key (leave blank to keep current key)','Nouvelle clé API (laisser vide pour conserver)')}<input name="api_key" type="password" autocomplete="new-password" spellcheck="false" maxlength="4096"></label>`}
+ <div class="actions"><button class="btn primary" type="submit">${L('Save','Enregistrer')}</button>
+ ${p.text_engine&&p.id!=='ollama'?`<button class="btn" type="button" data-act="ai-check" data-arg="${p.id}">${L('Refresh models','Actualiser les modèles')}</button>`:''}
+ ${!['ollama','soniox_tts'].includes(p.id)?`<button class="btn" type="button" data-act="ai-remove" data-arg="${p.id}">${L('Remove key','Supprimer la clé')}</button>`:''}</div>
+ <p role="status" id="ai-check-${p.id}">${esc(aiModelNotice(p))}</p></form>`).join('')}</div>`;
+}
 function costsView(){
  const c=state.costs;
  return pageHead(L('API OPERATIONS','OPÉRATIONS API'),L('Costs & budgets','Coûts et budgets'),L('Persistent controls for Claude, OpenAI research and X. Periods reset in UTC.','Contrôles persistants pour Claude, la recherche OpenAI et X. Périodes en UTC.'))+
  `<p class="panel">${L('These are your planning allowances, not provider invoices. Set an allowance per request and daily/monthly limits before enabling. Actual charges may differ; configure billing limits with each provider too. Historical spend, Mapbox browser usage, hosting and other applications are excluded. Existing X limits also apply. Pausing affects new requests, not requests already sent.','Ces montants sont vos provisions, pas les factures des fournisseurs. Définissez une provision par requête et des limites journalières/mensuelles avant activation. Les frais réels peuvent différer ; configurez aussi les limites des fournisseurs. Historique, Mapbox du navigateur, hébergement et autres applications exclus. Les limites X existantes restent actives. La pause concerne les nouvelles requêtes.')}</p>`+
- (c?.items||[]).map(p=>`<section class="panel" style="padding:20px;margin-bottom:16px" id="cost-${p.provider}"><h2>${esc(p.provider)} · ${p.paused?L('Paused','En pause'):L('Enabled','Activé')}</h2><p>${p.requests_today}/${p.daily_requests} ${L('requests today','requêtes aujourd’hui')} · $${p.allocated_today_usd.toFixed(4)} / $${p.daily_usd.toFixed(2)} ${L('allocated today','provisionnés aujourd’hui')} · $${p.allocated_month_usd.toFixed(4)} / $${p.monthly_usd.toFixed(2)} ${L('this month','ce mois')}</p><div class="toolbar">${[['request_usd',L('USD allowance / request','Provision USD / requête')],['daily_usd',L('Daily USD limit','Limite USD / jour')],['monthly_usd',L('Monthly USD limit','Limite USD / mois')],['daily_requests',L('Daily request cap','Requêtes max / jour')]].map(([key,label])=>`<label>${label}<input class="input" name="${key}" type="number" min="0" step="${key==='daily_requests'?'1':'0.000001'}" value="${p[key]}"></label>`).join('')}<label><input name="paused" type="checkbox" ${p.paused?'checked':''}> ${L('Pause paid requests','Suspendre les requêtes payantes')}</label><button class="btn" data-act="cost-save" data-arg="${p.provider}">${L('Save limits','Enregistrer')}</button></div></section>`).join('')+
+ (c?.items||[]).map(p=>`<section class="panel" style="padding:20px;margin-bottom:16px" id="cost-${p.provider}"><h2>${esc(p.provider)} · ${p.paused?L('Paused','En pause'):p.unlimited?L('Enabled · No budget cap','Activé · Sans plafond'):L('Enabled','Activé')}</h2><p>${p.requests_today}/${p.unlimited?'∞':p.daily_requests} ${L('requests today','requêtes aujourd’hui')} · $${p.allocated_today_usd.toFixed(4)} / $${p.unlimited?'∞':p.daily_usd.toFixed(2)} ${L('allocated today','provisionnés aujourd’hui')} · $${p.allocated_month_usd.toFixed(4)} / $${p.unlimited?'∞':p.monthly_usd.toFixed(2)} ${L('this month','ce mois')}</p><div class="toolbar">${[['request_usd',L('USD allowance / request','Provision USD / requête')],['daily_usd',L('Daily USD limit','Limite USD / jour')],['monthly_usd',L('Monthly USD limit','Limite USD / mois')],['daily_requests',L('Daily request cap','Requêtes max / jour')]].map(([key,label])=>`<label>${label}<input class="input" name="${key}" type="number" min="0" step="${key==='daily_requests'?'1':'0.000001'}" value="${p[key]}"></label>`).join('')}<label><input name="unlimited" type="checkbox" ${p.unlimited?'checked':''}> ${L('No provider budget or request cap','Aucun plafond fournisseur de budget ou de requêtes')}</label><label><input name="paused" type="checkbox" ${p.paused?'checked':''}> ${L('Pause paid requests','Suspendre les requêtes payantes')}</label><button class="btn" data-act="cost-save" data-arg="${p.provider}">${L('Save limits','Enregistrer')}</button></div></section>`).join('')+
  `<section class="panel" style="padding:20px"><h2>${L('Recent request ledger','Journal récent des requêtes')}</h2><p>${L('Failed or uncertain requests keep their allocation. No costs are reconstructed from old activity.','Les requêtes en échec ou incertaines conservent leur provision. Aucun coût historique n’est reconstitué.')}</p><button class="btn" data-act="cost-export">JSON ↓</button>${(c?.events||[]).map(e=>`<p>${esc(e.at)} · ${esc(e.provider)} · ${esc(e.user_id||'legacy')} · ${esc(e.operation)} · $${e.allocated_usd.toFixed(6)} · ${esc(e.status)}</p>`).join('')||L('No metered requests yet.','Aucune requête comptabilisée.')}</section>`;
 }
 function agreementsView(){
@@ -1813,9 +1946,15 @@ document.addEventListener('mousemove', e => {
 
 const ACTIONS = {
   'agreement-open': id => openAgreement(id),
-  'logout': async () => {await api('/v1/auth/logout',{});sessionStorage.removeItem('congo-token');location.reload()},
+  'ai-mode': () => {state.aiMode=!state.aiMode;store.set('congo-ai-mode',state.aiMode?'1':'0');if(state.aiMode)go('ai-command');else if(state.view==='ai-command')go('briefing');else render();},
+  'ai-motion': () => {state.aiMotion=!state.aiMotion;store.set('congo-ai-motion',state.aiMotion?'1':'0');render();},
+  'ai-prompt': prompt => voiceCenter.open(prompt),
+  'voice-open': () => voiceCenter.open(),
+  'logout': async () => {voiceCenter.close();await api('/v1/auth/logout',{});sessionStorage.removeItem('congo-token');location.reload()},
+  'ai-check': provider => fetchAiModels(provider,true),
+  'ai-remove': async provider => {if(!confirm(L('Remove this shared provider key?','Supprimer cette clé partagée ?')))return;state.aiSettings=await api('/v1/settings/ai',{provider,remove_key:true});aiModelLists.delete(provider);aiModelErrors.delete(provider);render();},
   'cost-export': () => download('congo-signal-costs.json',state.costs),
-  'cost-save': async provider => {const root=document.getElementById('cost-'+provider);const body={provider,paused:root.querySelector('[name=paused]').checked};for(const key of ['request_usd','daily_usd','monthly_usd','daily_requests'])body[key]=Number(root.querySelector('[name='+key+']').value);state.costs=await api('/v1/costs',body);render()},
+  'cost-save': async provider => {const root=document.getElementById('cost-'+provider);const body={provider,paused:root.querySelector('[name=paused]').checked,unlimited:root.querySelector('[name=unlimited]').checked};for(const key of ['request_usd','daily_usd','monthly_usd','daily_requests'])body[key]=Number(root.querySelector('[name='+key+']').value);state.costs=await api('/v1/costs',body);render()},
   'agreement-analyze': async id => {await api(`/v1/agreements/${id}/analyze`,{});await openAgreement(id)},
   'agreement-review': async id => {await api(`/v1/agreements/${id}/review`,{});await load();await openAgreement(id)},
   'agreement-pdf': arg => agreementPdf(arg),
@@ -1833,7 +1972,8 @@ const ACTIONS = {
   'mineral-reset': () => {Object.assign(state,{mineralSearch:'',mineralQuery:'',mineralProvince:'',mineralKind:'',mineralSelected:'',mineralVisible:15,mineralLayers:['IPIS','USGS']});render()},
   'mineral-export': () => {const f=selectedMineral();if(f) download('congo-signal-site.json',{...f,metadata:state.geology.metadata})},
   'map-focus': () => {state.mapFocus=!state.mapFocus;render()},
-  'map-mode': m => { state.radioMode = m === 'radio'; if (state.radioMode && !state.radioSel) state.radioSel = state.radioNow || (stationById('radio-okapi') ? 'radio-okapi' : ''); state.mineralMode = m === 'minerals'; if (!state.mineralMode) { focusTour++; state.focus = null; state.mineralFocusLabels = [] } state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : state.radioMode ? '#radio' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
+  'flight-select': id => selectFlight(id),
+  'map-mode': m => { state.flightMode = m === 'flights'; state.radioMode = m === 'radio'; if (state.radioMode && !state.radioSel) state.radioSel = state.radioNow || (stationById('radio-okapi') ? 'radio-okapi' : ''); state.mineralMode = m === 'minerals'; if (!state.mineralMode) { focusTour++; state.focus = null; state.mineralFocusLabels = [] } state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : state.radioMode ? '#radio' : state.flightMode ? '#flights' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
   market: id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
   'market-open': id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
   'market-sites': id => {
@@ -1918,7 +2058,7 @@ const ACTIONS = {
   'radio-play': id => playStation(id),
   'radio-toggle': () => { if (radioAudio.paused) playStation(state.radioNow); else radioAudio.pause() },
   'radio-stop': () => stopRadio(),
-  'radio-open': () => { state.radioMode = true; state.mineralMode = false; state.radioSel = state.radioNow; history.replaceState(null, '', '#radio'); if (state.view !== 'situation') go('situation'); else render() },
+  'radio-open': () => { state.flightMode=false; state.radioMode = true; state.mineralMode = false; state.radioSel = state.radioNow; history.replaceState(null, '', '#radio'); if (state.view !== 'situation') go('situation'); else render() },
   'radio-place': p => { state.radioPlace = p; render() },
   'reset-map': () => { state.place = ''; render(); mapInstance?.fitBounds([[12, -13.6], [31.4, 5.5]], { padding: 40, duration: 600 }) },
 };
@@ -1957,6 +2097,13 @@ document.addEventListener('submit', async e => {
   const form = e.target.closest('[data-form]'); if (!form) return;
   e.preventDefault();
   const kind = form.dataset.form;
+  if(kind==='ai-engine'||kind==='ai-provider'){
+    const f=new FormData(form);const body=kind==='ai-engine'?{analysis_provider:f.get('analysis_provider'),okapi_provider:f.get('okapi_provider'),enabled:f.has('enabled')}:{provider:form.dataset.provider,model:f.get('model')};
+    if(kind==='ai-provider'&&!body.model)delete body.model;
+    if(kind==='ai-provider' && f.get('api_key')?.trim())body.api_key=f.get('api_key').trim();
+    const button=form.querySelector('[type=submit]');button.disabled=true;
+    try{state.aiSettings=await api('/v1/settings/ai',body);if(body.api_key){aiModelLists.delete(body.provider);aiModelErrors.delete(body.provider)}form.querySelector('[name=api_key]')?.value && (form.querySelector('[name=api_key]').value='');render();toast(L('AI settings saved','Paramètres IA enregistrés'))}catch(err){toast(err.message)}finally{button.disabled=false}return;
+  }
   if(kind==='team'){const f=new FormData(form),body={email:f.get('email'),role:f.get('role'),active:f.has('active'),daily_requests:Number(f.get('daily_requests')),daily_usd:Number(f.get('daily_usd')),monthly_usd:Number(f.get('monthly_usd'))};try{state.team=await api('/v1/team',body);toast(L('Membership saved','Membre enregistré'));await load()}catch(err){toast(err.message)}return}
   if (kind === 'lookup') return openDossier($('#lookup-handle').value);
   if (kind === 'settings') { sessionStorage.setItem('congo-token', $('#token').value.trim()); state.config = null; closeOverlay(); return load() }
@@ -1982,18 +2129,48 @@ document.addEventListener('keydown', e => {
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus() } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus() }
   }
 });
-window.addEventListener('popstate', () => { const v = viewFromHash(); if (v !== state.view) { state.view = v; render() } openFromHash() });
+window.addEventListener('popstate', () => { state.flightMode = location.hash === '#flights'; state.mineralMode = /^#(minerals|mine\/|focus\/)/.test(location.hash); state.radioMode = /^#radio/.test(location.hash); state.view = viewFromHash(); render(); openFromHash() });
 
 // ---------------------------------------------------------------------------------------------
 // Boot
+
+const voiceCenter = createVoiceCenter({api,L,currentView:()=>state.view==='ai-command'?'briefing':state.view,execute:async command=>{
+  if(command.type==='navigate'){
+    if(['minerals','flights','radio','situation'].includes(command.target)){
+      if(command.target==='minerals')Object.assign(state,{mineralSearch:command.query||'',mineralQuery:'',mineralProvince:'',mineralKind:'',mineralSelected:'',mineralFocusLabels:[],mineralLayers:['IPIS','USGS']});
+      state.view='situation';ACTIONS['map-mode'](command.target==='situation'?'news':command.target);
+    }else go(command.target);
+    return L('Opened ','Page ouverte : ')+command.target;
+  }
+  if(command.type==='search'){state.q=command.query;state.place='';state.category='all';state.publisher='';state.visible=20;go('reports');return L('Searching loaded reports for: ','Recherche dans les articles chargés : ')+command.query;}
+  if(command.type==='brief'){
+    const rows=[...state.items].sort((a,b)=>b.rank.score-a.rank.score).slice(0,3);go('briefing');
+    return rows.length?L('Top reports in the loaded collection. These are source claims, not independently verified. ','Principaux articles chargés. Déclarations des sources, non vérifiées indépendamment. ')+rows.map(a=>title(a)+' ('+(a.source_name||a.publisher||'source linked in report')+')').join('. '):L('No reports loaded.','Aucun article chargé.');
+  }
+  if(command.type==='collect'){
+    const results=await Promise.allSettled([api('/v1/jobs',{url:'https://actualite.cd/'}),api('/v1/feeds/refresh',{})]);
+    const queued=results.filter(r=>r.status==='fulfilled').length;
+    const failures=results.filter(r=>r.status==='rejected').map(r=>r.reason.message);
+    if(!queued)throw Error(failures.join(' · '));
+    await load();return L(`Collection worker: ${queued}/2 requests accepted. Articles will appear as jobs complete.`,`Collecteur : ${queued}/2 demandes acceptées. Les articles apparaîtront après traitement.`)+(failures.length?' '+failures.join(' · '):'');
+  }
+  if(command.type==='analyze'){
+    const rows=(state.view==='situation'?situationItems():['reports','saved'].includes(state.view)?libraryItems():[...state.items].sort((a,b)=>b.rank.score-a.rank.score)).filter(a=>['not_requested','failed'].includes(a.brief?.status)).slice(0,5);
+    let queued=0;
+    for(const a of rows){try{await(a.record_type==='evidence'?api(`/v1/evidence/${a.id}/analyze`,{}):api('/v1/intelligence/analyze',{article_id:a.id,task:'brief'}));queued++;}catch(e){throw Error(L(`${queued} queued before stopping: `,`${queued} ajouté(s) avant arrêt : `)+e.message);}}
+    await load();return L(`Analysis worker: ${queued} reports queued. Completion is shown in report AI briefs. Existing budgets apply.`,`Analyse : ${queued} articles ajoutés à la file. Consultez les synthèses IA pour les résultats. Budgets existants appliqués.`);
+  }
+  throw Error('Unsupported command');
+}});
 
 try { state.geometry = await fetch('/drc.geo.json').then(r => r.json()) } catch {}
 try { state.geology = await fetch('/v1/geology/sites').then(r => { if (!r.ok) throw Error(r.status); return r.json() }) } catch {}
 state.enter = true;
 await load();
 openFromHash();
+document.addEventListener('visibilitychange',()=>{document.documentElement.dataset.pageHidden=String(document.hidden)});
 setInterval(async () => {
-  if (document.hidden || (state.modal && state.modal !== 'detail') || document.activeElement?.matches('input,textarea,select')) return;
+  if (['ai-settings','ai-command'].includes(state.view) || document.hidden || (state.modal && state.modal !== 'detail') || document.activeElement?.matches('input,textarea,select')) return;
   await load();
   if (state.detailId && state.detailTab !== 'notes') {
     try { const d = await api(`/v1/intelligence/${state.detailId}`); if (JSON.stringify(d) !== JSON.stringify(state.detail)) { state.detail = d; renderDetail() } } catch {}

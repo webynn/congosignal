@@ -1,6 +1,7 @@
 mod actors;
 mod agreement_discovery;
 mod agreements;
+mod ai_settings;
 mod arms;
 mod authentication;
 mod commodities;
@@ -9,6 +10,7 @@ mod evidence;
 mod extract;
 mod feeds;
 mod fetch;
+mod flights;
 mod images;
 mod intelligence;
 mod radio;
@@ -16,6 +18,7 @@ mod reference;
 mod social;
 mod store;
 mod text;
+mod voice;
 
 use anyhow::Result;
 use axum::{
@@ -294,6 +297,7 @@ async fn main() -> Result<()> {
     if std::env::var("LOAD_DOTENV").as_deref() != Ok("0") {
         dotenvy::dotenv().ok();
     }
+    ai_settings::init()?;
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
@@ -324,6 +328,7 @@ async fn main() -> Result<()> {
     images::init(&db).await?;
     commodities::init(&db).await?;
     radio::init(&db).await?;
+    flights::init(&db).await?;
     let app = App {
         db: db.clone(),
         token,
@@ -358,6 +363,15 @@ async fn main() -> Result<()> {
         .route("/v1/actors/{id}", get(actors::detail))
         .route("/v1/images", get(images::status))
         .route("/v1/images/{kind}/{id}/reject", post(images::reject))
+        .route("/v1/flights", get(flights::list))
+        .route(
+            "/v1/settings/ai",
+            get(ai_settings::get).post(ai_settings::save),
+        )
+        .route("/v1/settings/ai/check", post(ai_settings::check))
+        .route("/v1/voice/status", get(voice::status))
+        .route("/v1/voice/chat", post(voice::converse))
+        .route("/v1/voice/token", post(voice::token))
         .route("/v1/radio", get(radio::list))
         .route("/v1/radio/{id}/listen", post(radio::listen))
         .route("/v1/commodities", get(commodities::list))
@@ -401,6 +415,15 @@ async fn main() -> Result<()> {
         .route(
             "/",
             get(|| async { axum::response::Html(include_str!("../dashboard/index.html")) }),
+        )
+        .route(
+            "/voice.js",
+            get(|| async {
+                (
+                    [("content-type", "text/javascript; charset=utf-8")],
+                    include_str!("../dashboard/voice.js"),
+                )
+            }),
         )
         .route(
             "/app.js",
@@ -460,6 +483,7 @@ async fn main() -> Result<()> {
         result = feeds::worker(db.clone()) => result?,
         result = images::worker(db.clone()) => result?,
         result = commodities::worker(db.clone()) => result?,
+        result = flights::worker(db.clone()) => result?,
         result = radio::worker(db) => result?,
         result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
     }

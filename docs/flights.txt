@@ -1,0 +1,10 @@
+Public flight observations
+
+Open /#flights or Situation > Flights. GET /v1/flights uses the existing authentication middleware.
+The worker scans ADSB.lol every five minutes, using sixteen 250-nautical-mile query circles and clipping to the bundled approximate DRC national polygon. This is not an official FIR boundary or complete airspace surveillance. No observed aircraft does not imply empty airspace.
+
+Source: https://api.adsb.lol/docs (ODbL 1.0). Provider requests contact before production integration. Airline metadata: https://www.adsbdb.com/ . Callsign prefixes are matched to the public airline directory; they do not prove the aircraft operator, flight mission, cargo or passengers. Unknown results stay unknown. Cargo labels mean cargo-operator directory matches.
+
+Military, PIA and LADD flags and military operator names are excluded. No positional history is retained. Only the latest snapshot is stored; positions disappear from the endpoint after ten minutes and are marked stale after two minutes. The browser shows observation age. Public data classification may be incomplete.
+
+FLIGHTS_ENABLED=0 disables collection. FLIGHTS_POLL_SECONDS defaults to 300 (minimum 300). FLIGHTS_DAILY_REQUEST_LIMIT defaults to 5000, shared across all users and both providers; 0 stops requests. This counts requests, not dollars. No paid key or AI call is used. The scan schedule, daily counters and seven-day airline cache persist in SQLite. Rate-limit/service-unavailable replies trigger backoff. Missing tiles and errors are visible in the response/UI. No extrapolated positions or fabricated aircraft are shown.

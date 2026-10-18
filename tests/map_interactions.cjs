@@ -3,7 +3,7 @@ const {readFileSync}=require('node:fs');
 const vm=require('node:vm'),assert=require('node:assert/strict');
 const source=readFileSync('dashboard/app.js','utf8');
 const data=JSON.parse(readFileSync('dashboard/geology/sites.geo.json','utf8'));
-const ctx=vm.createContext({state:{}, norm:s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(), L:a=>a, console, mapInstance:null});
+const ctx=vm.createContext({state:{}, location:{hash:''}, norm:s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(), L:a=>a, console, mapInstance:null});
 vm.runInContext(source.slice(source.indexOf('state.geology = null;'),source.indexOf('function geologyArchive()')),ctx);
 vm.runInContext(source.slice(source.indexOf('function mountMinerals()'),source.indexOf('function situationView()')),ctx);
 ctx.state.geology=data;
@@ -34,3 +34,9 @@ assert.equal(sources['mineral-sites'].data.features.length,0);assert.equal(sourc
 for(const id of Object.keys(sources)) delete sources[id];
 vm.runInContext('mountMinerals()',ctx);assert(sources['mineral-sites'],'style replacement restores source');
 console.log('PASS: real-data filters, distance, unmapped exclusion, article deduplication, clustering, idle stability, selection clearing and style restoration');
+
+ctx.state.flights={items:[{icao24:'abc123',callsign:'ETH123',category:'airline',observed_at:Date.now()/1000},{icao24:'def456',category:'unknown',observed_at:Date.now()/1000-601}]};
+assert.equal(vm.runInContext('flightRows().length',ctx),1);
+ctx.state.flightCategory='cargo_operator';assert.equal(vm.runInContext('flightRows().length',ctx),0);
+ctx.state.flightCategory='';ctx.state.flightQuery='eth';assert.equal(vm.runInContext('flightRows().length',ctx),1);
+console.log('Flight filtering and stale position tests passed');

@@ -1,0 +1,23 @@
+Voice command center (first version)
+
+Open Voice in the top bar on any dashboard page. Commands can be typed or transcribed with Soniox. English/French examples: Open minerals; Ouvre les minerais; Search Goma; Cherche Goma; Brief me; Resume les actualites; Collect latest; Lance la collecte; Analyze top five reports; Analyse les cinq premiers articles.
+
+Navigation and searches run locally. Brief me reads the three highest ranked loaded headlines with attribution; it is not a new AI assessment. Collection dispatches the existing Actualite and feed workers. Analysis queues up to five eligible reports through existing AI endpoints. UI reports queued versus completed; it does not claim analysis has finished. Existing role checks and AI budgets remain authoritative. This is an allowlisted command dispatcher, not an unrestricted autonomous or conversational agent. It cannot change budgets, invite users, execute shell commands, send messages or accept arbitrary tool URLs. Speech transcripts are editable and require Run, reducing unintended execution.
+
+SONIOX_API_KEY stays in the server's Git-ignored .env. /v1/voice/token requires authentication/role, JSON POST, same-origin and configured cost admission. Production APP_ORIGIN must match the browser origin. /v1/voice/status exposes configuration state, not credentials. Soniox starts paused in Costs & budgets; owner sets request allocation, daily/monthly budgets and request cap before enabling. Each credential is single-use, expires after 60 seconds and has a provider-enforced maximum 60-second session. Budget reservation is retained on failures/uncertainty, tagged by user/workspace. Request allocation is a planning allowance, not an invoice. Soniox pricing is token based, with a published typical equivalent of $0.12/hour as checked 2026-10-18; allow headroom and configure provider billing limits too. Other Kalaamy use shares the provider account but is not included in this app's counters.
+
+Browser sends microphone audio directly to Soniox only after Start microphone and browser permission. No wake-word/background listening. UI stops after 55 seconds, on close, on hiding the tab and on navigation away. No audio or transcript is persisted by Congo Signal; recent command activity lives only in page memory. Provider retention is governed by the Soniox account policy. Read response aloud uses an installed local browser/OS voice; no extra TTS key or billing. Speech input requires HTTPS or localhost and MediaRecorder support. Preferred formats: WebM Opus, WebM, MP4. No automatic reconnection or retries that create new billable sessions.
+
+Sources:
+https://soniox.com/docs/guides/temporary-api-keys
+https://soniox.com/docs/api-reference/stt/websocket-api
+https://soniox.com/docs/guides/migrate-websocket-authentication
+https://soniox.com/pricing
+
+Verification: cargo test --locked; node tests/voice_commands.cjs; node tests/map_interactions.cjs. Browser test typed navigation/search, paused-microphone behavior, and close. Actual microphone/provider transcription must be tested after budget activation by the user on their microphone.
+
+
+Okapi conversational upgrade
+The Okapi button now sends natural-language questions and up to six recent conversation turns to /v1/voice/chat. It retrieves bounded excerpts from stored news, social topic counts/posts, mineral records, agreement metadata and public actor summaries. Private analyst notes are excluded. Responses include validated source IDs and at most one allowlisted UI action. Navigation/search may run directly; collection and analysis require a separate launch click. Historical and sampled data is not live or exhaustive. This supersedes the command-grammar description above.
+
+Deployment uses OKAPI_PROVIDER=claude with the existing ANTHROPIC_API_KEY and CLAUDE_MODEL. No Ollama server or local model is required. The optional OKAPI_PROVIDER=ollama is only for local experiments; its live test timed out on this Mac. Soniox STT and TTS have separate cost entries (soniox and soniox_tts), both issuing single-use 60-second credentials. Soniox TTS uses tts-rt-v2 with the built-in Adrian voice. Claude and both Soniox services remain paused until budgets are configured. Natural-language inference and microphone/TTS still need a paid-provider end-to-end test after activation. Unit tests validate actions/citations; no live-provider success is implied.

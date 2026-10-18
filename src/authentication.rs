@@ -193,7 +193,7 @@ fn permit(role: &str, method: &str, path: &str) -> bool {
     if path.starts_with("/v1/team") {
         return ["owner", "administrator"].contains(&role);
     }
-    if path == "/v1/costs" {
+    if path == "/v1/costs" || path.starts_with("/v1/settings/ai") {
         return role == "owner";
     }
     if method == "GET" {
@@ -201,6 +201,9 @@ fn permit(role: &str, method: &str, path: &str) -> bool {
     }
     if role == "owner" {
         return true;
+    }
+    if path == "/v1/voice/token" || path == "/v1/voice/chat" {
+        return ["administrator", "analyst", "reviewer"].contains(&role);
     }
     if path.ends_with("/notes")
         || path.ends_with("/analyze")
@@ -820,6 +823,13 @@ mod tests {
     }
     #[test]
     fn roles() {
+        for role in ["administrator", "analyst", "reviewer", "viewer", "worker"] {
+            assert!(!permit(role, "GET", "/v1/settings/ai"));
+            assert!(!permit(role, "POST", "/v1/settings/ai"));
+            assert!(!permit(role, "POST", "/v1/settings/ai/check"));
+        }
+        assert!(permit("owner", "POST", "/v1/settings/ai"));
+
         assert!(!permit("viewer", "POST", "/v1/intelligence/analyze"));
         assert!(permit("analyst", "POST", "/v1/intelligence/analyze"));
         assert!(!permit("analyst", "POST", "/v1/agreements/x/review"));
@@ -827,6 +837,8 @@ mod tests {
         assert!(!permit("administrator", "POST", "/v1/costs"));
         assert!(!permit("analyst", "GET", "/v1/team"));
         assert!(!permit("viewer", "POST", "/v1/unknown"));
+        assert!(!permit("viewer", "POST", "/v1/voice/token"));
+        assert!(permit("analyst", "POST", "/v1/voice/token"));
     }
     #[tokio::test]
     async fn expired_and_revoked_sessions() {

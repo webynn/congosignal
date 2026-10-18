@@ -1,0 +1,49 @@
+AI settings
+Owners can open #ai-settings to configure shared server-wide Claude, OpenAI,
+DeepSeek and Kimi keys and model IDs, plus Soniox speech recognition/output.
+Blank key inputs preserve existing credentials. Remove key explicitly disables
+environment fallback. Keys are never returned by settings endpoints or stored in
+browser storage. The server saves plaintext secrets with Unix mode 0600 to
+AI_SETTINGS_PATH (default data/ai-settings.json, Git ignored). Protect server backups.
+Docker stores this file in /data. Set APP_ORIGIN to the HTTPS origin in production.
+
+New requests use the selected analysis/Okapi engine immediately. Queued article
+jobs retain their original model and provider. No automatic provider fallback.
+Each hosted provider has independent existing cost limits, paused by default.
+Use Costs & budgets to configure allocations before making paid requests.
+OpenAI web research/image discovery shares the OpenAI key but retains its
+separate task-specific model configuration; it does not switch to Kimi/DeepSeek.
+Soniox TTS shares the Soniox key; STT and TTS have separate model IDs and budgets.
+
+Model discovery checks saved credentials against the official model-list endpoint.
+It does not prove sufficient credit or generation compatibility. Choose a text/chat
+model that supports JSON output. Kimi K2 thinking is disabled; K3 uses low reasoning;
+DeepSeek thinking is disabled. OpenAI uses Chat Completions JSON mode.
+Unknown, refused and truncated structured replies fail without silent retries.
+
+Model selectors load account-visible choices automatically for configured Claude,
+OpenAI, DeepSeek and Kimi keys. Refresh models reloads the list without changing
+selection. The current model remains selectable if discovery fails. Known
+non-chat OpenAI models are excluded. Soniox and local Ollama retain their
+configured model; hosted text-model discovery does not apply to them.
+
+Compatibility review (2026-10-18)
+The server intersects account-visible model IDs with a reviewed adapter policy.
+Unknown future models require a compatibility review before being offered.
+OpenAI image/audio/realtime/Codex/Pro variants are not text-engine choices.
+Claude's current forced-tool adapter explicitly disables thinking; always-thinking
+models are excluded, and an explicit negative capability also excludes a model.
+Kimi K2.6 can disable thinking; K2.7 Code cannot and now uses its default.
+K3 uses reasoning_effort=low. Existing selections are not automatically changed.
+Saved selections missing from a successful filtered list are marked unavailable
+and disabled in the dropdown. A model-list check is not a paid generation test.
+
+Official references:
+https://developers.openai.com/api/docs/models/gpt-4.1
+https://developers.openai.com/api/docs/models/gpt-5.5
+https://developers.openai.com/api/docs/models/gpt-6.1-sol
+https://developers.openai.com/api/docs/guides/structured-outputs
+https://platform.claude.com/docs/en/models/overview
+https://platform.claude.com/docs/en/api/models/list
+https://api-docs.deepseek.com/api/create-chat-completion/
+https://platform.kimi.ai/docs/api/models-overview

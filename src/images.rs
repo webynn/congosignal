@@ -33,11 +33,7 @@ pub struct Subject {
 /// Unix time until which searches pause after an OpenAI auth or credit/rate error.
 static PAUSED_UNTIL: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
 fn api_key() -> Option<String> {
-    ["OPENAI_API_KEY", "OPENAI_KEY"]
-        .iter()
-        .filter_map(|k| std::env::var(k).ok())
-        .map(|k| k.trim().trim_matches('"').to_string())
-        .find(|k| !k.is_empty())
+    crate::ai_settings::key("openai")
 }
 fn enabled() -> bool {
     api_key().is_some()
