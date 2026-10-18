@@ -2,6 +2,7 @@ mod evidence;
 mod extract;
 mod fetch;
 mod intelligence;
+mod social;
 mod store;
 
 use anyhow::Result;
@@ -303,6 +304,7 @@ async fn main() -> Result<()> {
     .await?;
     intelligence::init(&db).await?;
     evidence::init(&db).await?;
+    social::init(&db).await?;
     let app = App {
         db: db.clone(),
         token,
@@ -315,6 +317,8 @@ async fn main() -> Result<()> {
         .route("/v1/articles/{id}/versions", get(versions))
         .route("/v1/stats", get(stats))
         .route("/v1/config", get(intelligence::config))
+        .route("/v1/social", get(social::feed))
+        .route("/v1/social/posts", get(social::posts))
         .route("/v1/sources", get(evidence::list))
         .route("/v1/sources/{id}/refresh", post(evidence::refresh))
         .route("/v1/evidence", get(evidence::documents))
@@ -366,7 +370,8 @@ async fn main() -> Result<()> {
     tokio::select! {
         result = worker(db.clone()) => result?,
         result = intelligence::worker(db.clone()) => result?,
-        result = evidence::worker(db) => result?,
+        result = evidence::worker(db.clone()) => result?,
+        result = social::worker(db) => result?,
         result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
     }
     Ok(())

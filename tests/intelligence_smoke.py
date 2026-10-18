@@ -65,6 +65,8 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-test-') as directory:
     db=Path(directory)/'test.db'
     env=dict(os.environ,EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'),EVIDENCE_POLL_SECONDS='0',LOAD_DOTENV='0',AI_PROVIDER=PROVIDER,ANTHROPIC_API_KEY='test-only-key',CLAUDE_MODEL='test-model',CLAUDE_API_URL=f'http://127.0.0.1:{mock.server_port}/v1/messages',MAPBOX_PUBLIC_TOKEN='sk.must-never-expose',DATABASE_URL=f'sqlite://{db}',BIND_ADDR=f'127.0.0.1:{port}',AI_ENABLED='1',OLLAMA_URL=f'http://127.0.0.1:{mock.server_port}',OLLAMA_MODEL='test-model',API_TOKEN='integration-test-secret-long')
     env.pop('POLL_SECONDS',None)
+    env['X_ENABLED']='0'
+    env.pop('X_BEARER_TOKEN',None)
     def start():
         p=subprocess.Popen([str(ROOT/'target/debug/drc-osint-worker')],env=env,cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         for _ in range(50):
@@ -78,6 +80,13 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-test-') as directory:
         article=dict(id='test-article',source='Actualite.cd',url='https://actualite.cd/2026/10/12/test',fetched_url='https://actualite.cd/2026/10/12/test',title='Santé à Goma',description='Une source de recherche.',category='Santé',author=None,author_method=None,language='fr',published_at='2026-10-12T11:00:00+00:00',modified_at=None,fetched_at='2026-10-12T12:00:00+00:00',content='Une épidémie à Goma.\n\nSelon MSF.',paragraphs=['Une épidémie à Goma.','Selon MSF.'],content_sha256=hashlib.sha256(b'test').hexdigest(),html_sha256=hashlib.sha256(b'html').hexdigest(),extractor_version='fixture')
         with sqlite3.connect(db) as c:c.execute('INSERT INTO articles VALUES(?,?,?,?,?,?,?,?,?)',(article['id'],article['url'],article['title'],article['content'],article['category'],article['published_at'],article['fetched_at'],article['fetched_at'],json.dumps(article)))
         # Curated evidence endpoints share authentication and preserve the last good snapshot.
+        assert api('/v1/social/posts',auth=False)[0]==401
+        assert api('/v1/social/posts')[1]['items']==[]
+        assert api('/v1/social',auth=False)[0]==401
+        social=api('/v1/social')[1]
+        assert social['configured'] is False and social['enabled'] is False
+        assert len(social['items'])==4 and all(i['data'] is None for i in social['items'])
+        assert social['requests_today']==0
         assert api('/v1/sources',auth=False)[0]==401
         assert api('/v1/evidence',auth=False)[0]==401
         assert len(api('/v1/sources')[1]['items'])==14

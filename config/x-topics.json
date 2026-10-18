@@ -1,0 +1,6 @@
+[
+  {"id":"armed-groups","en":"Armed groups & regional involvement","fr":"Groupes armés et implication régionale","query":"(M23 OR \"M 23\" OR \"Alliance Fleuve Congo\" OR FARDC OR FDLR OR Wazalendo OR Wazalendu OR RDF) (RDC OR DRC OR Kivu OR Goma OR Bukavu OR Ituri OR Congo)"},
+  {"id":"eastern-drc","en":"Events in eastern DRC","fr":"Événements dans l’est de la RDC","query":"(Goma OR Bukavu OR Rutshuru OR Masisi OR Walikale OR Uvira OR Beni OR Bunia OR Lubero OR Ituri) (combats OR affrontements OR attaque OR fighting OR clashes OR attack OR mapigano OR vita OR etumba OR bitumba OR intambara OR imirwano)"},
+  {"id":"diplomacy","en":"Kinshasa, ceasefires & diplomacy","fr":"Kinshasa, cessez-le-feu et diplomatie","query":"(Kinshasa OR RDC OR DRC OR Kivu OR M23) (\"cessez-le-feu\" OR cessezlefeu OR ceasefire OR sanctions OR pourparlers OR \"peace talks\" OR mazungumzo OR kimia OR amahoro)"},
+  {"id":"humanitarian","en":"Humanitarian situation","fr":"Situation humanitaire","query":"(RDC OR DRC OR Kivu OR Goma OR Bukavu OR Ituri OR Uvira) (humanitaire OR humanitarian OR déplacés OR deplaces OR réfugiés OR refugies OR displacement OR refugees OR wakimbizi OR impunzi OR choléra OR cholera)"}
+]

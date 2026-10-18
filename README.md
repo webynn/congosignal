@@ -217,3 +217,34 @@ The existing `limit`/`offset` select news; all matching latest evidence snapshot
 Archive listing requests support a bounded integer `page` query (0–10000), for example `POST /v1/jobs` with `{"url":"https://actualite.cd/category/actualite/politique?page=5"}`. Article URLs still strip tracking/query parameters. Historical listing jobs skip URLs already in the article store, use the same robots rules/throttling and persist their child job IDs in the job result. An archive pass is not a complete historical crawl. The October 18 backfill requested pages 1, 5 and 10 of politics, security and society; `data/backfill-run.json` records its job IDs and starting count.
 
 Both `POLL_SECONDS` (news) and `EVIDENCE_POLL_SECONDS` (primary sources) are configured to 21600 in the local environment. Avoid overriding `POLL_SECONDS` with 900 when restarting. Immediate manual jobs do not wait for the next scheduled poll.
+
+
+## X social signals pilot
+
+The bilingual **Social signals / Signaux sociaux** screen is available at `/#social`.
+`GET /v1/social` (same API authentication as other private routes) returns aggregate topic snapshots, query definitions, UTC daily request usage, and collection errors. It does not return or store post objects, user IDs, political affiliations, or account scores. No data is sent to an AI provider.
+
+The worker requests `https://api.x.com/2/tweets/counts/recent` for four bundled queries in `config/x-topics.json`. Each snapshot covers the previous 24 complete UTC hours, using hourly bins and a 30-second indexing buffer. It includes reposts. Topics overlap: do not sum their counts as distinct posts. Keywords are not exhaustive; regional-language vocabulary needs review. Counts and X search results can differ.
+
+Configure only on the server in the Git-ignored `.env` (permissions 0600):
+
+```dotenv
+X_BEARER_TOKEN=your-app-only-token
+X_ENABLED=1
+X_DAILY_REQUEST_LIMIT=24
+```
+
+Collection is disabled unless explicitly enabled and a token is present. Each topic is checked at most every four hours. The UTC request cap defaults to 24 and is bounded to 0–96. Reservations are persisted before requests, including failed attempts, preventing restarts from resetting the cap. X rate-limit resets on 429 defer all topics. No redirects are followed with the bearer credential. No auto-recharge is configured. At the documented $0.005/count request, 24 successful requests correspond to an estimated $0.12/day; X billing remains authoritative. The cap counts requests, not currency.
+
+Refreshing the dashboard only reads SQLite and does not trigger paid collection. Snapshots become stale after 270 minutes. Errors retain the previous successful snapshot visibly, never replacing unavailable coverage with zero counts. A volume flag requires >=20 posts in the latest complete hour and >=3 times the preceding six-hour mean (minimum baseline 1). This is an exploratory indicator, not event confirmation, bot detection, political affiliation or independent corroboration. No external alerts, post collection, translation or claim summaries are enabled in this first slice.
+
+Official API references: https://docs.x.com/x-api/posts/counts/introduction and https://docs.x.com/x-api/getting-started/pricing . Use remains subject to your approved X use case and developer terms.
+
+
+### Public post feed
+
+`GET /v1/social/posts` serves the authenticated dashboard a bounded snapshot of public posts and their author attribution. It is separate from the news JSON export. The Social signals screen shows original text, author display names and handles, publication/collection times, source links, topic and language filters. It assigns no account labels or inferred political beliefs, and does not send posts to AI services.
+
+When X collection is enabled, recent search fetches at most 10 posts per topic once per 24 hours, with author expansions. `X_POST_REQUEST_LIMIT` defaults to 4 requests per UTC day (bounded 0–24). Attempts reserve quota before sending; restart cannot reset it. No pagination or thread expansion occurs. This samples at most 40 posts daily across four topics, which may overlap; it is not every post represented in the count charts. Post reads and author expansions are separately billable by X, in addition to counts. Failure clears that topic's cached posts, and snapshots older than 24 hours are hidden and purged. Disabling collection does not make stale posts visible. Author data is retained only as attribution alongside the short-lived post snapshot. Query vocabulary, not an account label, determines inclusion.
+
+The earlier aggregate-only description applies to the count endpoint; the post endpoint now adds this separate public-source feed. No external alerts or AI summaries are enabled.
