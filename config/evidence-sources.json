@@ -1,0 +1,293 @@
+[
+  {
+    "id": "s-2022-967",
+    "publisher": "UN Group of Experts on the DRC",
+    "title": "S/2022/967 — Group of Experts report",
+    "url": "https://docs.un.org/en/S/2022/967",
+    "fetch_url": "https://digitallibrary.un.org/record/3998599/files/S_2022_967-EN.pdf",
+    "kind": "expert_report",
+    "format": "pdf",
+    "symbol": "S/2022/967",
+    "language": "en",
+    "reference_date": "2022-12-16",
+    "date_kind": "letter_date_from_reference",
+    "pages": [
+      92
+    ],
+    "images": [
+      1
+    ],
+    "expected": "S/2022/967",
+    "notes": "Historical source findings, not current troop positions or independently verified facts. Printed page references must be checked against the downloaded edition. PDF cover retains issue date separately from letter date. Retrieval uses the UN Digital Library mirror; unavailable or mismatched files remain failed rather than imported.",
+    "enabled": true
+  },
+  {
+    "id": "s-2023-431",
+    "publisher": "UN Group of Experts on the DRC",
+    "title": "S/2023/431 — Group of Experts report",
+    "url": "https://docs.un.org/en/S/2023/431",
+    "fetch_url": "https://digitallibrary.un.org/record/4013781/files/S_2023_431-EN.pdf",
+    "kind": "expert_report",
+    "format": "pdf",
+    "symbol": "S/2023/431",
+    "language": "en",
+    "reference_date": "2023-06-13",
+    "date_kind": "letter_date_from_reference",
+    "pages": [
+      15
+    ],
+    "images": [
+      4
+    ],
+    "expected": "S/2023/431",
+    "notes": "Historical source findings, not current troop positions or independently verified facts. Printed page references must be checked against the downloaded edition. PDF cover retains issue date separately from letter date. Retrieval uses the UN Digital Library mirror; unavailable or mismatched files remain failed rather than imported.",
+    "enabled": true
+  },
+  {
+    "id": "s-2024-432",
+    "publisher": "UN Group of Experts on the DRC",
+    "title": "S/2024/432 — Group of Experts report",
+    "url": "https://docs.un.org/en/S/2024/432",
+    "fetch_url": "https://digitallibrary.un.org/record/4053693/files/S_2024_432-EN.pdf",
+    "kind": "expert_report",
+    "format": "pdf",
+    "symbol": "S/2024/432",
+    "language": "en",
+    "reference_date": "2024-05-31",
+    "date_kind": "letter_date_from_reference",
+    "pages": [
+      11,
+      12,
+      13,
+      119
+    ],
+    "images": [
+      8,
+      9,
+      12
+    ],
+    "expected": "S/2024/432",
+    "notes": "Historical source findings, not current troop positions or independently verified facts. Printed page references must be checked against the downloaded edition. PDF cover retains issue date separately from letter date. Retrieval uses the UN Digital Library mirror; unavailable or mismatched files remain failed rather than imported.",
+    "enabled": true
+  },
+  {
+    "id": "s-2025-446",
+    "publisher": "UN Group of Experts on the DRC",
+    "title": "S/2025/446 — Group of Experts report",
+    "url": "https://docs.un.org/en/S/2025/446",
+    "fetch_url": "https://digitallibrary.un.org/record/4085466/files/S_2025_446-EN.pdf",
+    "kind": "expert_report",
+    "format": "pdf",
+    "symbol": "S/2025/446",
+    "language": "en",
+    "reference_date": "2025-07-03",
+    "date_kind": "letter_date_from_reference",
+    "pages": [
+      13,
+      108
+    ],
+    "images": [
+      10,
+      11
+    ],
+    "expected": "S/2025/446",
+    "notes": "Historical source findings, not current troop positions or independently verified facts. Printed page references must be checked against the downloaded edition. PDF cover retains issue date separately from letter date. Retrieval uses the UN Digital Library mirror; unavailable or mismatched files remain failed rather than imported.",
+    "enabled": true
+  },
+  {
+    "id": "s-2026-466",
+    "publisher": "UN Group of Experts on the DRC",
+    "title": "S/2026/466 — Group of Experts report",
+    "url": "https://docs.un.org/en/S/2026/466",
+    "fetch_url": "https://digitallibrary.un.org/record/4119763/files/S_2026_466-EN.pdf",
+    "kind": "expert_report",
+    "format": "pdf",
+    "symbol": "S/2026/466",
+    "language": "en",
+    "reference_date": "2026-06-05",
+    "date_kind": "letter_date_from_reference",
+    "pages": [
+      15,
+      20
+    ],
+    "images": [
+      5,
+      6
+    ],
+    "expected": "S/2026/466",
+    "notes": "Historical source findings, not current troop positions or independently verified facts. Printed page references must be checked against the downloaded edition. PDF cover retains issue date separately from letter date. Retrieval uses the UN Digital Library mirror; unavailable or mismatched files remain failed rather than imported.",
+    "enabled": true
+  },
+  {
+    "id": "un-expert-index",
+    "publisher": "UN Security Council",
+    "title": "DRC Group of Experts report catalogue",
+    "url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports",
+    "fetch_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports",
+    "kind": "catalogue",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": null,
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [],
+    "expected": "S/2026/466",
+    "notes": "Catalogue of report links; newly listed documents require explicit registration before retrieval.",
+    "enabled": true
+  },
+  {
+    "id": "un-peacekeeping",
+    "publisher": "UN Peacekeeping",
+    "title": "Troop and police contributions",
+    "url": "https://peacekeeping.un.org/en/troop-and-police-contributors",
+    "fetch_url": "https://peacekeeping.un.org/en/troop-and-police-contributors",
+    "kind": "statistics_catalogue",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": null,
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [
+      2
+    ],
+    "expected": "contribut",
+    "notes": "Screenshot selects Rwanda, July 2026 and military personnel categories only. The displayed 3,125 is not imported as a verified total. Dashboard figures require a dated export with identical filters; HTML collection preserves official download and dashboard links.",
+    "enabled": true
+  },
+  {
+    "id": "hrw-rwanda-2026",
+    "publisher": "Human Rights Watch",
+    "title": "World Report 2026 — Rwanda",
+    "url": "https://www.hrw.org/world-report/2026/country-chapters/rwanda",
+    "fetch_url": "https://www.hrw.org/world-report/2026/country-chapters/rwanda",
+    "kind": "ngo_report",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": null,
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [
+      3
+    ],
+    "expected": "Kanombe",
+    "notes": "Related primary publication linking the exact HRW social thread. Not the same publication as the September 4, 2025 screenshot; report covers events of 2025.",
+    "enabled": true
+  },
+  {
+    "id": "hrw-kanombe-thread",
+    "publisher": "Human Rights Watch",
+    "title": "Kanombe cemetery geospatial analysis — social thread",
+    "url": "https://x.com/hrw/status/1963609000806588584",
+    "fetch_url": "https://x.com/hrw/status/1963609000806588584",
+    "kind": "social_reference",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": "2025-09-04",
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [
+      3
+    ],
+    "expected": "",
+    "notes": "Exact thread root linked by HRW World Report 2026. Screenshot is post 2/11. Direct social-platform collection is not configured; use the linked HRW publication. Grave counts do not by themselves establish identity or cause of death.",
+    "enabled": false
+  },
+  {
+    "id": "rdf-car-2023",
+    "publisher": "Rwanda Ministry of Defence",
+    "title": "Central African Republic enrols new soldiers trained by RDF",
+    "url": "https://www.mod.gov.rw/docs-media/news-detail/central-african-republic-enrols-new-soldiers-trained-by-rdf",
+    "fetch_url": "https://www.mod.gov.rw/docs-media/news-detail/central-african-republic-enrols-new-soldiers-trained-by-rdf",
+    "kind": "government_statement",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": "2023-11-24",
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [
+      7
+    ],
+    "expected": "512",
+    "notes": "Official statement by an involved government. CAR regional context, not a DRC deployment count. Retain attribution and the 2023 date.",
+    "enabled": true
+  },
+  {
+    "id": "iiss-rwanda-2022",
+    "publisher": "IISS",
+    "title": "Rwanda’s ambitions as a security provider in Sub-Saharan Africa",
+    "url": "https://www.iiss.org/publications/strategic-comments/2022/rwandas-ambitions-as-a-security-provider-in-sub-saharan-africa/",
+    "fetch_url": "https://www.iiss.org/publications/strategic-comments/2022/rwandas-ambitions-as-a-security-provider-in-sub-saharan-africa/",
+    "kind": "research_analysis",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": "2022-11",
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [
+      13
+    ],
+    "expected": "Rwanda",
+    "notes": "Strategic Comments volume 28, comment 23, November 2022. Website access restrictions must be respected; blocked retrieval leaves a reference-only record.",
+    "enabled": true
+  },
+  {
+    "id": "hrw-drc-discovery",
+    "publisher": "Human Rights Watch",
+    "title": "DRC publication discovery",
+    "url": "https://www.hrw.org/africa/democratic-republic-congo",
+    "fetch_url": "https://www.hrw.org/africa/democratic-republic-congo",
+    "kind": "discovery",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": null,
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [],
+    "expected": "",
+    "notes": "Scheduled publication discovery; fetched article text is screened for explicit DRC references.",
+    "enabled": true
+  },
+  {
+    "id": "rdf-discovery",
+    "publisher": "Rwanda Ministry of Defence",
+    "title": "Ministry news discovery",
+    "url": "https://www.mod.gov.rw/news",
+    "fetch_url": "https://www.mod.gov.rw/news",
+    "kind": "discovery",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": null,
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [],
+    "expected": "",
+    "notes": "Scheduled publication discovery; fetched article text is screened for explicit DRC references.",
+    "enabled": true
+  },
+  {
+    "id": "iiss-discovery",
+    "publisher": "IISS",
+    "title": "Strategic Comments discovery",
+    "url": "https://www.iiss.org/publications/strategic-comments/",
+    "fetch_url": "https://www.iiss.org/publications/strategic-comments/",
+    "kind": "discovery",
+    "format": "html",
+    "symbol": null,
+    "language": "en",
+    "reference_date": null,
+    "date_kind": "reference_date",
+    "pages": [],
+    "images": [],
+    "expected": "",
+    "notes": "Scheduled publication discovery; fetched article text is screened for explicit DRC references.",
+    "enabled": true
+  }
+]

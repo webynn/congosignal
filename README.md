@@ -1,0 +1,219 @@
+# Congo Signal · DRC OSINT worker
+
+Rust/Axum API and background collector for public Actualite.cd articles. SQLite keeps the job queue, article records, and editorial revisions with source HTML. This is an ingestion foundation for DRC research; collected reporting is source material, not independently verified intelligence.
+
+## Run
+
+With Rust 1.99+ installed:
+
+```sh
+mkdir -p data
+cargo run --locked
+```
+
+On this machine an isolated toolchain is available:
+
+```sh
+cd '/Users/webynn/Source Control/drc-osint-worker'
+export CARGO_HOME="$PWD/.toolchain/cargo"
+export RUSTUP_HOME="$PWD/.toolchain/rustup"
+export PATH="$CARGO_HOME/bin:$PATH"
+cargo run --locked
+```
+
+The API binds to `127.0.0.1:8080`. Configuration uses environment variables (a `.env` file is not automatically loaded):
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `BIND_ADDR` | `127.0.0.1:8080` | Listening address |
+| `DATABASE_URL` | `sqlite://data/osint.db` | SQLite file; create its parent directory first |
+| `API_TOKEN` | unset | Bearer token for all `/v1` endpoints; at least 24 characters required when binding beyond loopback |
+| `POLL_SECONDS` | unset | Optional homepage collection interval, at least 60 seconds; 900 is a reasonable starting value |
+| `CRAWLER_USER_AGENT` | `DrcOsintWorker/0.1` | Must start with `DrcOsintWorker`; append an operator contact for deployment |
+| `RUST_LOG` | `info` | Logging filter |
+
+Run **one process per database**. Multiple workers need leased job claiming and shared rate limiting before horizontal scaling. The API shuts down on Ctrl-C; interrupted running jobs return to pending on restart.
+
+## Collect
+
+```sh
+curl -X POST http://127.0.0.1:8080/v1/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://actualite.cd/2026/10/12/musique-gally-garvey-devoile-adn-un-album-de-22-titres-porte-notamment-par-des"}'
+```
+
+Returns HTTP 202 with `job_id` and `status_url`. Poll that URL until `completed` or `failed`. Completed article jobs return the article ID; discovery jobs return child job IDs, which finish separately.
+
+Submit `https://actualite.cd/`, `https://actualite.cd/actualite`, or a category URL such as `https://actualite.cd/category/actualite/securite` to discover up to 50 article links on that page. Discovery does not recursively traverse archives or pagination. Query strings are stripped. Repeat a completed article submission to check for updates; active duplicate jobs are coalesced.
+
+When `API_TOKEN` is set, add `-H "Authorization: Bearer $API_TOKEN"` to API requests.
+
+## Query
+
+| Method | Endpoint | Result |
+| --- | --- | --- |
+| GET | `/health` | Process health, unauthenticated |
+| POST | `/v1/jobs` | Queue an article or discovery page |
+| GET | `/v1/jobs/{id}` | Persistent job status, result or error |
+| GET | `/v1/articles?q=Kinshasa&category=Culture&limit=20&offset=0` | Paginated article records |
+| GET | `/v1/articles?since=2026-10-01T00%3A00%3A00Z` | Filter by publication time |
+| GET | `/v1/articles/{id}` | Article, first seen and last seen times |
+| GET | `/v1/articles/{id}/versions` | Latest 100 editorial revisions |
+| GET | `/v1/stats` | Counts by category and job status |
+
+Search is a literal substring over title and body. SQLite's default `lower()` is case insensitive for ASCII only; accents are preserved and accent/case folding for French is future work. Category matching is exact. `since` accepts RFC3339, and pagination limits are clamped to 1–100. These ingestion endpoints return source material. The Congo Signal endpoints below add bilingual AI briefs, explicit place mentions and priority ranking; they do not establish event attribution or cross-source corroboration.
+
+## Provenance and collection behavior
+
+Records contain canonical/fetched URLs, source, title, description, category, author, author extraction method, language, publication/modification/fetch timestamps, paragraphs, plain text, SHA-256 hashes, and extractor version. Timestamps are normalized to UTC when the source provides them. Missing metadata remains null. The final-bold-paragraph author fallback is explicitly labeled `final_bold_paragraph_heuristic` and may require analyst review.
+
+Editorial changes create revisions. Identical text and metadata do not create revisions just because ads or fetch time changed. Each stored revision retains its acquisition HTML and matching `html_sha256` in SQLite's `versions` table. The current record's HTML hash describes the latest fetch; unchanged fetch HTML is not retained. Query retained evidence directly, for example: `SELECT html,data FROM versions WHERE article_id = ?`.
+
+Requests are serialized with a minimum two-second delay, a 30-second timeout, a 5 MB response cap, and origin validation on every redirect. The worker fetches robots.txt before collection and refreshes it hourly, honors allow/disallow rules and conservatively applies crawl delays. Missing robots.txt (404) permits collection; other policy fetch failures fail the job. HTTP 429/5xx responses get up to three attempts with backoff and Retry-After handling; long requested cooldowns fail the job for later resubmission. Network errors are recorded as failures without automatic retry. The nominal pending queue cap is 500 (concurrent submissions may briefly exceed it).
+
+The source adapter targets the site's observed Drupal body block, excluding navigation, related stories, and footer material. A missing or suspiciously short body fails visibly instead of storing the whole page. HTTP clients only fetch the `https://actualite.cd` origin; there is no arbitrary-URL fetch endpoint. Public deployment should put TLS and request limits in front of the API. Raw HTML is stored as evidence and never executed.
+
+## Docker
+
+```sh
+docker build -t drc-osint-worker .
+docker run --rm -p 8080:8080 \
+  -e API_TOKEN='replace-with-a-long-random-token' \
+  -e POLL_SECONDS=900 \
+  -v drc-osint-data:/data drc-osint-worker
+```
+
+## Validation
+
+```sh
+cargo fmt --check
+cargo test --locked
+cargo clippy --locked --all-targets -- -D warnings
+```
+
+Tests use synthetic HTML modeled on the observed site structure, exercising French text, provenance, navigation exclusion, URL restrictions, discovery deduplication, robots rules, and persistent article revisions. A live smoke test should additionally submit an article through the API and inspect the completed record. Docker requires a Docker runtime and is a separate deployment check.
+
+## Congo Signal dashboard and AI
+
+Open **http://127.0.0.1:8080/** for the research workspace. The static dashboard is embedded in the Rust binary, so rebuild after frontend edits. Start both the collector and AI worker with:
+
+```sh
+./scripts/start.sh
+```
+
+The development workspace uses Claude Haiku 4.5 and Mapbox, configured in a private `.env` file (owner-only permissions, excluded from Git and Docker builds). The binary reads `.env` at startup without overriding existing environment variables; set `LOAD_DOTENV=0` to disable loading for tests. Never put the Claude key in frontend files. Configuration:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AI_ENABLED` | disabled in binary; `1` in start script | Enable the separate, serial AI worker |
+| `AI_PROVIDER` | `ollama` | Set `claude` to use the Anthropic Messages API |
+| `ANTHROPIC_API_KEY` | none | Server-only Claude credential |
+| `CLAUDE_MODEL` | `claude-haiku-4-5-20251001` | Claude model for new tasks |
+| `MAPBOX_PUBLIC_TOKEN` | none | Existing public `pk.` token; secret `sk.` tokens are never returned to browsers |
+| `OLLAMA_URL` | `http://127.0.0.1:11434` | Operator-configured Ollama endpoint, never exposed as a browser setting |
+| `OLLAMA_MODEL` | `gemma4:12b` | Model to use for new tasks |
+
+The interface supports English and French, topic/place filters, accent-insensitive search across loaded reports and briefs, priority/newest sorting, geographic mentions, saved reports, analyst review notes, and filtered JSON export. The dashboard loads the latest 200 articles, expandable to 500; the API supports offset pagination for larger collections. API-token deployments ask for a bearer token in Connection settings and retain it only in the current tab's session storage. UI assets are public but all research data and mutation endpoints use the existing `/v1` authentication policy.
+
+Priority is an explainable attention score (0–100), **not a confidence or truth score**. Category contributes 5–35, impact-related terms up to 24, recency up to 20, a recognized DRC location mention 6, and optional AI impact assessment up to 15. High starts at 65, medium at 40. Map markers use a 20-place gazetteer and approximate town centers; they are not verified incident locations. All reporting currently comes from Actualite.cd and is explicitly marked single-source/unverified.
+
+Click **Analyze top 5 reports** to queue bilingual briefs for the highest-ranked unprocessed reports in the current filter. Reports show English headlines once their brief is ready; French remains the original. Each report also has an on-demand **English translation** tab for its full text. Claude sends the requested public article text to Anthropic for inference; Ollama remains an optional local provider. Generation is on demand and consumes the configured provider’s usage. The source article is treated as untrusted input; Claude uses a schema-only result carrier with no executable tools or action permissions. Model outputs remain fallible and require source review.
+
+Provider and model are retained per task, including queued tasks. Switching providers preserves completed cached results and their original provenance. Enrichment tasks are durable and serialized separately from scraping. Results are cached by article ID, source fingerprint and task. Changed source content/title/category/publication date invalidates the displayed analysis. Failed tasks can be retried explicitly; interrupted tasks return to pending after restart. Briefs use up to 14,000 source characters and record/display truncation. Full translations support up to 60,000 characters, reject individual paragraphs above 9,000 characters, and process small paragraph batches. Incomplete or misaligned translations fail instead of silently saving partial text. Analyst notes are independent of AI output.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/v1/config` | Browser-safe Mapbox public token only; same API authentication, no-store response |
+| GET | `/v1/intelligence?limit=200&offset=0` | Ranked recent articles, places, briefs and review state |
+| GET | `/v1/intelligence/status` | AI provider, model and task counts; Claude availability means key configured, not a live billing/connectivity check |
+| GET | `/v1/intelligence/{id}` | Original article, brief, translation and notes |
+| POST | `/v1/intelligence/analyze` | `{ "article_id": "...", "task": "brief" }` or task `translation` |
+| POST | `/v1/intelligence/{id}/notes` | `{ "saved": true, "review": "follow_up", "note": "..." }` |
+
+Review values: `unreviewed`, `reviewed`, `follow_up`. Reviewed does not certify claims. Task statuses: `not_requested`, `pending`, `running`, `completed`, `failed`.
+
+Offline integration validation (uses a temporary SQLite database and a deterministic mock model; no production data or real inference):
+
+```sh
+cargo test --locked
+cargo build --locked
+node --check dashboard/app.js
+python3 tests/intelligence_smoke.py
+TEST_PROVIDER=claude python3 tests/intelligence_smoke.py
+```
+
+### Hosting the AI-enabled version
+
+A 4 GB VPS can run the collector and dashboard with `AI_PROVIDER=claude`, because inference runs through Anthropic. Configure the server environment with the Claude key and Mapbox public token, use HTTPS and the existing API bearer-token protection, and persist the SQLite data directory. API and Mapbox usage are billed to the accounts owning the configured keys. Do not embed `.env` in an image; inject it at runtime (for example Docker `--env-file`). No hosting deployment is included in this workspace.
+
+For local Ollama, run the service separately with the configured model installed. The 12B model does not fit a 4 GB VPS; use a separately provisioned inference service or appropriately sized hardware. In Docker, `127.0.0.1:11434` refers to the container. Keep one API/worker process per SQLite database.
+
+The interactive map loads Mapbox GL JS 3.33.0 and the Mapbox Light style with the configured public token. Allow the deployed origin in any existing Mapbox URL restrictions. It retains one map instance through feed refreshes. Without a public token, supported WebGL or a successful initial style load, the bundled static outline remains available. Coordinates represent approximate place mentions; zoom does not make them precise incident locations. Mapbox attribution is displayed on the map.
+
+### References and attribution
+
+Original implementation inspired by [OpenCTI's source reliability and confidence distinctions](https://docs.opencti.io/latest/usage/reliability-confidence/) and [Ushahidi's report visualization views](https://docs.ushahidi.com/platform-user-manual/5.-modes-for-visualizing-and-managing-data-on-your-deployment). No application code from these platforms was copied. The bundled simplified country outline comes from [world.geo.json](https://github.com/johan/world.geo.json), based on Natural Earth data. Map points are a small hand-curated gazetteer; source articles remain the evidence for place mentions.
+
+Provider references: [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages/create) and [Mapbox GL JS](https://docs.mapbox.com/mapbox-gl-js/example/simple-map/).
+
+## Situation room (October 18, 2026)
+
+The default view is a restrained map-first workspace inspired by God's Eye View. It provides selectable topic layers, a high-priority filter, rolling 24-hour/7-day/30-day publication windows, day selection in a publication histogram, map/satellite basemaps, flat/tilted camera views, location shortcuts, and a linked report rail. Search, date and topic selection apply to map counts and reports; selecting a place narrows the rail. Timeline bins use Kinshasa calendar dates (UTC+1), not inferred incident dates. Rolling windows use elapsed hours from the current time. Undated items appear only in the unrestricted window. Marker color represents the most common topic at that place; marker counts represent articles, not incidents. Articles without a recognized place remain in the report list and are counted separately.
+
+The existing overview, library, saved reports, bilingual Claude analysis, translation, evidence and notes remain accessible. The loaded collection starts at 200 recent reports and can expand to 500; filters and the timeline describe that loaded set, not an exhaustive DRC event database. Satellite imagery is a basemap, not a live feed. No aircraft, vessel, camera or satellite-tracking feeds have been added.
+
+Reference repository: https://github.com/bilawalsidhu/gods-eye-view, inspected at commit `93ea088f4556a5a65b3292a2d15142d5a6c562bc`, cloned separately to `../gods-eye-view-reference`. Its source code is MIT licensed; third-party datasets and models retain separate licenses. This adaptation implements the interface patterns in Congo Signal's own frontend and does not incorporate its source modules or bundled third-party datasets/assets. The reference clone retains the original LICENSE and notices.
+
+
+## Primary-source evidence collection
+
+The screenshots are mapped to 11 curated records, supplemented by three discovery listings, in `config/evidence-sources.json`: five UN Group of Experts reports (2022–2026), the UN report index and peacekeeping dashboard, HRW's Rwanda chapter and linked Kanombe social thread, the Rwanda MOD CAR statement, and IISS analysis. Records retain screenshot numbers, cited pages, dates, source category and attribution notes. The social thread is reference-only. Retrieval failures are explicit and do not erase earlier successful snapshots.
+
+- `GET /v1/sources`: registered sources, provenance notes and retrieval status.
+- `POST /v1/sources/{id}/refresh`: enqueue one registered source; poll the source list for completion.
+- `GET /v1/evidence?source_id=s-2024-432&q=Kibumba&page=12&limit=20&offset=0`: search latest successfully collected documents by page (PDF physical pages are 1-based; HTML has a null page).
+- `GET /v1/evidence/{document_id}`: full extracted text, outgoing links, provenance and content hash for a saved version.
+
+These routes use the same bearer-token protection as the other API routes. The worker validates document identity, respects robots rules and crawl delays, checks each redirect against a fixed HTTPS origin list, and limits response sizes. It runs a separate durable serial queue; refreshes run on the configured schedule and can also be requested explicitly. Raw documents are archived under `EVIDENCE_ARCHIVE_DIR` (default `data/evidence`). Back up that directory with SQLite. Keep one worker process per database.
+
+PDF extraction needs Poppler (`pdftotext` on PATH or `PDFTOTEXT_BIN`). The Dockerfile installs Poppler and persists archives under `/data/evidence`. Failed retrieval, an HTML challenge or a PDF identity mismatch never becomes a successful imported document. UN Digital Library fetch addresses are validated against the document symbol on retrieval.
+
+Source claims remain attributed historical findings. Documents are separate from the news feed, map events and article AI tasks. Bilingual AI briefs are available on demand for document snapshots; full document translation and automatic claim verification are not provided. The peacekeeping screenshot's July 2026 Rwanda military-only total requires a matching dated export; scraping the catalogue does not import that numerical series. HRW's World Report chapter is related context linking the screenshot's thread, not a substitute for the original post. Government statements are labeled as such.
+
+
+## Scheduled discovery and Sources & reports
+
+`EVIDENCE_POLL_SECONDS` defaults to 21600 (six hours); set 0 to disable, or 3600–604800 for another interval. The running local instance uses six hours. Due checks run once a minute and survive restarts through persisted check times. Discovery checks HRW's DRC country page, Rwanda MOD news, IISS Strategic Comments, the UN expert index and the peacekeeping catalogue. Unavailable publishers remain failed and retry when due; robots rules are rechecked each schedule scan. Collection runs while the worker process is running, not while the computer is asleep or the service stopped.
+
+Discovery is bounded to 30 unique publication links per landing-page fetch and 500 discovered records overall. It scans the current listing, not a complete historical archive. New URLs are normalized, deduplicated and saved before collection. Articles are screened using explicit DRC terms with word boundaries; ambiguous “Congo” alone does not qualify. Regional context is opt-in; excluded text remains archived for auditing. Relevance is a heuristic, not factual verification. No social-platform feed or numerical peacekeeping series is collected.
+
+Open **Sources & reports** from the dashboard. Search the collected reports, include regional context, read original extracted text, inspect source status, or generate a bilingual brief. AI briefs are on demand, cached per document snapshot, retain model/hash/time, and show when input is truncated to 14,000 characters. Collected reports now appear in the combined feed; map markers are explicit place mentions, not verified events. Blocked sources are not silently substituted.
+
+New authenticated endpoints:
+- `GET /v1/evidence-feed`: DRC-relevant latest snapshots; `?scope=regional` also includes regional context; `?q=...` searches text.
+- `POST /v1/evidence/{document_id}/analyze`: queue an English/French brief. Poll the feed for status.
+
+Validation includes discovery URL deduplication, origin restrictions, language-aware relevance terms, due-time handling, authentication, snapshot preservation and bilingual brief cache behavior. Docker packaging was updated for configuration and Poppler but has not been built on this machine.
+
+
+### In-site report reader
+
+The map sidebar now groups all registered source records by publisher and shows collection counts and failures. Counts describe source records, including discovery listings, not verified incidents. Map markers now include explicit place mentions from collected reports as well as news.
+
+Archived PDFs open inside the report reader; extracted text remains available below. `GET /v1/evidence/{document_id}/pdf` requires the same API authentication, validates the snapshot ID, PDF type and SHA-256 against the archived file, and serves only PDF bytes with inline disposition and no-store caching. The frontend fetches with the bearer header and uses a temporary blob URL, revoked on close. Missing/uncollected PDFs show an in-site explanation; no publisher restrictions are bypassed. HTML reports open as extracted text, not as embedded third-party webpages.
+
+PDF endpoint checks cover authentication, inline delivery, missing files and tamper detection with an isolated test fixture. The current blocked UN PDFs cannot yet be previewed against a real downloaded snapshot.
+
+
+## Combined feed
+
+The situation room and library now combine the recent Actualite.cd news window with the latest successfully collected DRC-relevant evidence snapshots. Publisher filtering applies to cards and the situation-room map/timeline. Regional context is optional through the checkbox (`GET /v1/intelligence?scope=regional`), so Rwanda/CAR background is not silently classified as DRC reporting. Publication dates are preserved and normalized when known; unknown dates remain null. Day-only source dates are tagged with day precision. Blocked/uncollected documents and discovery catalogues are excluded.
+
+The existing `limit`/`offset` select news; all matching latest evidence snapshots are appended, with `news_limit` and `evidence_count` returned explicitly. Therefore combined item counts can exceed the news limit. Rankings apply to the loaded set; evidence without a source topic receives the existing uncategorized score. Evidence cards open the in-site document reader; their original text and existing bilingual brief remain available. New evidence briefs can be queued through the top-five action or Sources & reports. Evidence bookmarking is not exposed in the library.
+
+
+## Historical collection
+
+Archive listing requests support a bounded integer `page` query (0–10000), for example `POST /v1/jobs` with `{"url":"https://actualite.cd/category/actualite/politique?page=5"}`. Article URLs still strip tracking/query parameters. Historical listing jobs skip URLs already in the article store, use the same robots rules/throttling and persist their child job IDs in the job result. An archive pass is not a complete historical crawl. The October 18 backfill requested pages 1, 5 and 10 of politics, security and society; `data/backfill-run.json` records its job IDs and starting count.
+
+Both `POLL_SECONDS` (news) and `EVIDENCE_POLL_SECONDS` (primary sources) are configured to 21600 in the local environment. Avoid overriding `POLL_SECONDS` with 900 when restarting. Immediate manual jobs do not wait for the next scheduled poll.
