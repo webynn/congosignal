@@ -30,6 +30,7 @@ const paths = {
   close: 'm6 6 12 12 M6 18 18 6',
   external: 'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',
   check: 'm4 12 5 5L20 6',
+  mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z M19 11a7 7 0 0 1-14 0 M12 18v3 M8.5 21h7',
   radio: 'M4.9 19.1a10 10 0 0 1 0-14.2 M19.1 4.9a10 10 0 0 1 0 14.2 M7.8 16.2a6 6 0 0 1 0-8.4 M16.2 7.8a6 6 0 0 1 0 8.4 M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
   user: 'M20 21a8 8 0 0 0-16 0 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
   users: 'M17 21a6 6 0 0 0-12 0 M15 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M22 21a6 6 0 0 0-4-5.6 M16 3.2a4 4 0 0 1 0 7.6',
@@ -1372,7 +1373,7 @@ function aiCommandView() {
     ${HOLO_LAYERS().map(([k, label, col]) => `<label class="holo-layer"><input type="checkbox" data-act="holo-layer" data-arg="${k}" ${holoLayerList().includes(k) ? 'checked' : ''}><i style="background:${col};box-shadow:0 0 10px ${col}"></i>${esc(label)}</label>`).join('')}
     <div class="holo-legend"><span><i style="background:#ff5d6c"></i>${L('High', 'Élevée')}</span><span><i style="background:#ffc65c"></i>${L('Medium', 'Moyenne')}</span><span><i style="background:#6affb9"></i>${L('Routine', 'Courante')}</span></div>
     <button class="holo-motion" data-act="ai-motion" aria-pressed="${!state.aiMotion}">${state.aiMotion ? '❚❚ ' + L('Pause motion', 'Suspendre') : '▶ ' + L('Resume motion', 'Reprendre')}</button></aside>
-  <form class="holo-command" data-form="okapi-ask">${corner}<span class="holo-orb" aria-hidden="true"><i></i><i></i><i></i></span><label class="sr-only" for="okapi-q">${L('Ask Okapi', 'Demander à Okapi')}</label><input id="okapi-q" name="q" autocomplete="off" maxlength="1000" placeholder="${L('Ask Okapi about the DRC…', 'Interrogez Okapi sur la RDC…')}"><button type="button" class="holo-mic" data-act="voice-open" aria-label="${L('Voice', 'Voix')}">${icon('radio')}</button><button type="submit" class="holo-send">${L('Ask', 'Demander')} ${icon('arrow')}</button>
+  <form class="holo-command" data-form="okapi-ask">${corner}<span class="holo-orb" aria-hidden="true"><i></i><i></i><i></i></span><label class="sr-only" for="okapi-q">${L('Ask Okapi', 'Demander à Okapi')}</label><input id="okapi-q" name="q" autocomplete="off" maxlength="1000" placeholder="${L('Ask Okapi about the DRC…', 'Interrogez Okapi sur la RDC…')}"><button type="submit" class="holo-send">${L('Ask', 'Demander')} ${icon('arrow')}</button><button type="button" class="holo-mic" data-act="voice-listen" aria-label="${L('Voice mode: talk to Okapi', 'Mode vocal : parlez à Okapi')}" title="${L('Voice mode: talk to Okapi', 'Mode vocal : parlez à Okapi')}">${icon('mic')}<span>${L('Voice', 'Voix')}</span></button>
     <div class="holo-prompts">${prompts.map(q => `<button type="button" data-act="ai-prompt" data-arg="${esc(q)}">${esc(q)}</button>`).join('')}</div></form>
   <div class="holo-metrics">${metrics.map(([label, n, chart, act, arg, sub]) => `<button data-act="${act}" data-arg="${arg}">${corner}<small>${esc(label)}</small><strong>${nf(n)}</strong><span class="holo-metric-sub">${esc(sub)}</span>${chart}</button>`).join('')}</div>
   </div>`;
@@ -2148,6 +2149,7 @@ const ACTIONS = {
   'holo-layer': (k, el) => { state.holoLayers = el.checked ? [...new Set([...holoLayerList(), k])] : holoLayerList().filter(x => x !== k); store.set('congo-holo-layers', state.holoLayers.join(',')); if (!holoAnimated()) holoFrame(performance.now()) },
   'holo-province': pv => { state.q = pv; state.place = ''; state.radioMode = false; state.mineralMode = false; go('situation') },
   'voice-open': () => voiceCenter.open(),
+  'voice-listen': () => voiceCenter.listen(),
   'logout': async () => {voiceCenter.close();await api('/v1/auth/logout',{});sessionStorage.removeItem('congo-token');location.reload()},
   'ai-check': provider => fetchAiModels(provider,true),
   'ai-remove': async provider => {if(!confirm(L('Remove this shared provider key?','Supprimer cette clé partagée ?')))return;state.aiSettings=await api('/v1/settings/ai',{provider,remove_key:true});aiModelLists.delete(provider);aiModelErrors.delete(provider);render();},

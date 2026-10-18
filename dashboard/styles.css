@@ -1097,8 +1097,11 @@ body {
 .holo-orb i:nth-child(2) { animation-delay: .8s; } .holo-orb i:nth-child(3) { animation-delay: 1.6s; }
 .holo-orb::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #b5ffdd; box-shadow: 0 0 12px #6affb9; }
 @keyframes holo-orb { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
-.holo-mic { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid #6affb933; background: none; color: #8ff5c4; cursor: pointer; }
-.holo-mic:hover { border-color: #8affc9; color: #fff; }
+.holo-mic { position: relative; height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px 0 13px; border: 1px solid #8affc9; background: #6affb914; color: #b5ffdd; font: 600 12px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
+.holo-mic .icon { width: 17px; height: 17px; }
+.holo-mic::after { content: ''; position: absolute; inset: -1px; border: 1px solid #6affb9; animation: holo-mic 2.6s ease-out infinite; pointer-events: none; }
+@keyframes holo-mic { from { opacity: .8; transform: scale(1); } to { opacity: 0; transform: scale(1.18, 1.45); } }
+.holo-mic:hover { background: #6affb92a; color: #fff; }
 .holo-send { height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border: 0; background: #8affc9; color: #021a10; font: 600 12px var(--mono); letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; box-shadow: 0 0 24px #6affb966; }
 .holo-send:hover { background: #c4ffe3; }
 .holo-prompts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 6px 0 2px 32px; }
@@ -1127,3 +1130,17 @@ body {
   .holo-title { order: 0; text-align: left; } .holo-command { order: 2; } .holo-metrics { order: 3; grid-template-columns: repeat(2, minmax(0, 1fr)); } .holo-feed { order: 4; } .holo-side { order: 5; }
   .holo-tip { display: none; }
 }
+
+/* Voice mode banner inside the Okapi panel. */
+.voice-mode { display: flex; align-items: center; gap: 14px; margin: 16px 0 4px; padding: 12px 14px; border: 1px solid #6affb966; background: linear-gradient(90deg, #6affb91a, transparent); }
+.voice-mode small { display: block; font: 500 9.5px var(--mono); letter-spacing: 2.5px; color: #7ff0bd; }
+.voice-mode b { font-size: 15px; font-weight: 500; }
+.voice-mode .btn { margin-left: auto; }
+.vm-orb { position: relative; width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; }
+.vm-orb::after { content: ''; width: 12px; height: 12px; border-radius: 50%; background: #6affb9; box-shadow: 0 0 16px #6affb9; }
+.vm-orb i { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid #6affb9; opacity: 0; }
+.voice-mode[data-state="listening"] .vm-orb i { animation: holo-orb 1.8s ease-out infinite; } .voice-mode[data-state="listening"] .vm-orb i:nth-child(2) { animation-delay: .6s; } .voice-mode[data-state="listening"] .vm-orb i:nth-child(3) { animation-delay: 1.2s; }
+.voice-mode[data-state="thinking"] .vm-orb::after { background: #ffc65c; box-shadow: 0 0 16px #ffc65c; animation: ai-breathe 1s ease-in-out infinite; }
+.voice-mode[data-state="speaking"] .vm-orb::after { background: #82e3f5; box-shadow: 0 0 18px #82e3f5; animation: ai-breathe .5s ease-in-out infinite; }
+.voice-mode[data-state="connecting"] .vm-orb::after { opacity: .5; }
+@media (prefers-reduced-motion: reduce) { .holo-mic::after, .vm-orb i, .vm-orb::after { animation: none !important; } }

@@ -30,3 +30,11 @@ Replay reply retries speech; Silence stops audio and disables automatic speech
 until Speak answers is checked again. Closing, hiding, or recording cancels queued
 audio and pending callbacks. Citations and Markdown are stripped from spoken text.
 No microphone is enabled by opening the panel or by finishing a spoken reply.
+
+Voice mode
+The Voice button next to Ask in the AI command center starts a hands-free conversation. The
+microphone opens straight away; Okapi answers when you pause, speaks the reply, then listens
+again. Voice mode ends when you press End voice mode, close the panel, or hide the tab; when a
+turn passes with no speech (it stops listening after 30 seconds); or on any microphone or Soniox
+error. It never listens while Okapi is speaking. Each turn is a normal Soniox session and counts
+against the Soniox budget.
