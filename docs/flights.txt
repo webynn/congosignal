@@ -1,10 +1,52 @@
 Public flight observations
 
-Open /#flights or Situation > Flights. GET /v1/flights uses the existing authentication middleware.
-The worker scans ADSB.lol every five minutes, using sixteen 250-nautical-mile query circles and clipping to the bundled approximate DRC national polygon. This is not an official FIR boundary or complete airspace surveillance. No observed aircraft does not imply empty airspace.
+Open /#flights or Situation room > Flights. GET /v1/flights uses the existing authentication middleware.
 
-Source: https://api.adsb.lol/docs (ODbL 1.0). Provider requests contact before production integration. Airline metadata: https://www.adsbdb.com/ . Callsign prefixes are matched to the public airline directory; they do not prove the aircraft operator, flight mission, cargo or passengers. Unknown results stay unknown. Cargo labels mean cargo-operator directory matches.
+Sources. Every five minutes the worker scans two community ADS-B networks in parallel, ADSB.lol
+(https://api.adsb.lol/docs, ODbL 1.0) and adsb.fi open data (https://adsb.fi, non-commercial use),
+using sixteen 250-nautical-mile query circles each, eastern circles first. Their receiver sets
+differ, so the merged picture sees more aircraft than either alone. One extra request per scan reads
+ADSB.lol's military list (/v2/mil). Each network has its own pacing, daily request cap and back-off:
+a 429/503 pauses only that network (Retry-After, default 10 minutes). airplanes.live was evaluated
+and refuses unregistered API clients (HTTP 403).
 
-Military, PIA and LADD flags and military operator names are excluded. No positional history is retained. Only the latest snapshot is stored; positions disappear from the endpoint after ten minutes and are marked stale after two minutes. The browser shows observation age. Public data classification may be incomplete.
+Coverage. Community networks have very few receivers in central and eastern Africa. On 2026-10-19
+at ~01:00 Kinshasa time both networks showed zero aircraft over Kinshasa, Goma, Nairobi, Entebbe,
+Kigali, Lusaka, Ndola and Luanda; the first test scan found four aircraft, all on the approaches.
+Most traffic over the DRC is therefore not visible, and an empty map does not mean empty airspace.
+Positions are never extrapolated; positions older than ten minutes disappear, older than two are
+marked stale. Two ways to improve coverage: feed receivers in the DRC (an RTL-SDR and Raspberry Pi
+in Goma, Kinshasa or Lubumbashi, feeding ADSB.lol/adsb.fi) or add a paid provider with satellite
+ADS-B (for example Flightradar24 API or FlightAware AeroAPI).
 
-FLIGHTS_ENABLED=0 disables collection. FLIGHTS_POLL_SECONDS defaults to 300 (minimum 300). FLIGHTS_DAILY_REQUEST_LIMIT defaults to 5000, shared across all users and both providers; 0 stops requests. This counts requests, not dollars. No paid key or AI call is used. The scan schedule, daily counters and seven-day airline cache persist in SQLite. Rate-limit/service-unavailable replies trigger backoff. Missing tiles and errors are visible in the response/UI. No extrapolated positions or fabricated aircraft are shown.
+Region. Aircraft inside the approximate national polygon are region "drc"; aircraft within the
+DRC bounding box widened by about 2° (Kigali, Entebbe, Brazzaville, Ndola...) are "approach" and
+shown dimmed, with a toggle to hide them. Not an official FIR boundary.
+
+Military and privacy. Military aircraft that broadcast ADS-B are shown and labelled (database
+military flag, or a military/state operator name). Aircraft whose owners enrolled them in the PIA
+or LADD privacy programmes are excluded.
+
+Classification (each aircraft states its basis; none establishes payload, passengers or mission):
+  military      ADS-B database military flag, or operator name of an air force/army/state air arm
+  humanitarian  UNO/UNH (United Nations) callsign, or UN/WFP/UNHAS/MONUSCO/ICRC/MAF/ASF operator
+  cargo         adsbdb airframe registered as a freighter variant (e.g. "747 48EF", "777 F6N",
+                BCF/BDSF/P2F), an operator of dedicated freighters (e.g. Astral Aviation ACP,
+                Cargolux CLX), a cargo/freight/logistics operator name, or an AN-12/26/32/72/74,
+                IL-76, AN-124 or L-382 airframe
+  airline       callsign prefix matches the public airline directory
+  unknown       nothing matched
+Helicopters, light aircraft and heavies come from the ADS-B emitter category; squawk 7500/7600/7700
+and emergency status are flagged.
+
+Destination. adsbdb (https://www.adsbdb.com) supplies the published route for a callsign (origin
+and destination airports with coordinates), the aircraft record (type, registration, registered
+owner) and the airline. A route is marked plausible only when the observed position lies near the
+origin-destination path (detour within 30% + 300 km); otherwise it is shown as unverified, because
+callsigns are reused. Lookups are cached in SQLite (aircraft 30 days, routes 12 hours, airlines
+7 days, misses one day) and limited to 40 new aircraft per scan.
+
+Settings. FLIGHTS_ENABLED=0 disables collection. FLIGHTS_POLL_SECONDS defaults to 300 (minimum 300).
+FLIGHTS_DAILY_REQUEST_LIMIT defaults to 5000 per network per UTC day (ADSB.lol, adsb.fi and adsbdb
+counted separately); 0 stops requests. This counts requests, not dollars; no paid key or AI call is
+used. Only the latest snapshot is stored; no positional history is retained.

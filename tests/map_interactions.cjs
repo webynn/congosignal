@@ -39,4 +39,13 @@ ctx.state.flights={items:[{icao24:'abc123',callsign:'ETH123',category:'airline',
 assert.equal(vm.runInContext('flightRows().length',ctx),1);
 ctx.state.flightCategory='cargo_operator';assert.equal(vm.runInContext('flightRows().length',ctx),0);
 ctx.state.flightCategory='';ctx.state.flightQuery='eth';assert.equal(vm.runInContext('flightRows().length',ctx),1);
+// Approaches toggle and new categories; search reaches route airports.
+ctx.state.flightQuery='';ctx.state.flightApproach=true;
+ctx.state.flights={items:[{icao24:'aaa111',callsign:'ETH859',category:'airline',region:'approach',observed_at:Date.now()/1000,route:{origin:{iata:'ADD',city:'Addis Ababa'},destination:{iata:'JNB',city:'Johannesburg'}}},{icao24:'bbb222',category:'military',region:'drc',observed_at:Date.now()/1000}]};
+assert.equal(vm.runInContext('flightRows().length',ctx),2);
+assert.equal(vm.runInContext('flightRows()[0].category',ctx),'military','military listed first');
+ctx.state.flightApproach=false;assert.equal(vm.runInContext('flightRows().length',ctx),1);
+ctx.state.flightApproach=true;ctx.state.flightQuery='johannesburg';assert.equal(vm.runInContext('flightRows().length',ctx),1);
+ctx.state.flightQuery='';ctx.state.flightCategory='military';assert.equal(vm.runInContext('flightRows().length',ctx),1);
+ctx.state.flightCategory='';
 console.log('Flight filtering and stale position tests passed');
