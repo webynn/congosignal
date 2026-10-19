@@ -4,7 +4,8 @@ Open /#flights or Situation room > Flights. GET /v1/flights uses the existing au
 
 Sources. Every five minutes the worker scans two community ADS-B networks in parallel, ADSB.lol
 (https://api.adsb.lol/docs, ODbL 1.0) and adsb.fi open data (https://adsb.fi, non-commercial use),
-using sixteen 250-nautical-mile query circles each, eastern circles first. Their receiver sets
+using sixteen 250-nautical-mile query circles each, eastern circles first (ADSB.lol paced at
+8 s per request after it rate-limited at 4 s; adsb.fi at 2 s). Their receiver sets
 differ, so the merged picture sees more aircraft than either alone. One extra request per scan reads
 ADSB.lol's military list (/v2/mil). Each network has its own pacing, daily request cap and back-off:
 a 429/503 pauses only that network (Retry-After, default 10 minutes). airplanes.live was evaluated

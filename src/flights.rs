@@ -344,7 +344,8 @@ const PROVIDERS: [Provider; 2] = [
         name: "ADSB.lol",
         url: |lat, lon| format!("{SOURCE}/v2/point/{lat}/{lon}/250"),
         list: "ac",
-        pace: 4,
+        // ADSB.lol answered 429 after ~12 requests at 4 s spacing (2026-10-19).
+        pace: 8,
     },
     Provider {
         name: "adsb.fi",
