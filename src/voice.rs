@@ -17,7 +17,8 @@ pub async fn status(
     ))
 }
 /// Built-in voices and languages, used when Soniox's catalogue cannot be fetched.
-const FALLBACK_VOICES: [(&str, &str, &str); 28] = [
+const FALLBACK_VOICES: [(&str, &str, &str); 29] = [
+    ("Tunde", "male", "african"),
     ("Adrian", "male", ""),
     ("Maya", "female", ""),
     ("Daniel", "male", ""),
@@ -157,7 +158,7 @@ pub async fn token(
         while let Some(chunk)=response.chunk().await? {anyhow::ensure!(bytes.len()+chunk.len()<65536,"Unexpected voice response size");bytes.extend_from_slice(&chunk);}
         let data:Value=serde_json::from_slice(&bytes)?;
         anyhow::ensure!(data["api_key"].as_str().is_some_and(|v|!v.is_empty()),"Soniox returned no temporary credential");
-        Ok::<Value,anyhow::Error>(json!({"api_key":data["api_key"],"expires_at":data["expires_at"],"max_session_seconds":60,"model":crate::ai_settings::model(if speaking {"soniox_tts"}else{"soniox"}),"voice":"Adrian"}))
+        Ok::<Value,anyhow::Error>(json!({"api_key":data["api_key"],"expires_at":data["expires_at"],"max_session_seconds":60,"model":crate::ai_settings::model(if speaking {"soniox_tts"}else{"soniox"}),"voice":"Tunde"}))
     }.await;
     // Never persist credentials, transcripts or microphone audio in cost logs.
     crate::costs::finish(reservation,if result.is_ok(){"credential_issued"}else{"credential_failed"},json!({"max_session_seconds":60,"billing":"allocated estimate; actual provider usage may differ"})).await?;

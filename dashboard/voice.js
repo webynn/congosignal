@@ -34,12 +34,15 @@ export function createVoiceCenter({api,L,execute,currentView}) {
   /// Language for Okapi's reply and its spoken voice: chosen, else detected from speech, else the page language.
   const replyLang=()=>prefs.lang!=='auto'?prefs.lang:(detectedLang||pageLang());
   const ACCENT_FOR={fr:'french',sw:'african',es:'spanish',pt:'portuguese',ar:'arabic',de:'german',it:'italian',ja:'japanese',ko:'korean',zh:'chinese',hi:'indian',bn:'indian',ta:'indian',te:'indian',mr:'indian',gu:'indian',kn:'indian',ml:'indian',pa:'indian',ur:'indian',ru:'slavic',uk:'slavic',pl:'slavic',cs:'slavic',sk:'slavic',bg:'slavic',hr:'slavic',sr:'slavic',sl:'slavic',bs:'slavic',mk:'slavic',be:'slavic',id:'southeast_asian',ms:'southeast_asian',th:'southeast_asian',vi:'southeast_asian',tl:'southeast_asian'};
-  /// Chosen voice, or for "Automatic" the first voice whose accent suits the language (Adrian otherwise).
+  /// Default voice: Tunde (African accent). "Automatic" uses it in every language when the catalogue has it.
+  const DEFAULT_VOICE='Tunde';
+  /// Chosen voice, else Tunde, else the first voice whose accent suits the language, else Adrian.
   function voiceFor(lang){
     const voices=catalog?.voices||[];
     if(prefs.voice&&(!voices.length||voices.some(v=>v.id===prefs.voice)))return prefs.voice;
+    if(!voices.length||voices.some(v=>v.id===DEFAULT_VOICE))return DEFAULT_VOICE;
     const accent=ACCENT_FOR[lang];
-    return (accent&&voices.find(v=>v.accent===accent)?.id)||(voices.some(v=>v.id==='Adrian')||!voices.length?'Adrian':voices[0].id);
+    return (accent&&voices.find(v=>v.accent===accent)?.id)||(voices.some(v=>v.id==='Adrian')?'Adrian':voices[0].id);
   }
   const SAMPLES={en:'Hello, I am Okapi. I will read your intelligence briefings in this voice.',fr:'Bonjour, je suis Okapi. Je lirai vos synthèses de renseignement avec cette voix.',sw:'Habari, mimi ni Okapi. Nitakusomea taarifa zako za kiintelijensia kwa sauti hii.',es:'Hola, soy Okapi. Leeré tus informes de inteligencia con esta voz.',pt:'Olá, eu sou o Okapi. Vou ler os seus relatórios com esta voz.',de:'Hallo, ich bin Okapi. Ich lese Ihre Lageberichte mit dieser Stimme vor.',it:'Ciao, sono Okapi. Leggerò i tuoi rapporti con questa voce.',ar:'مرحبا، أنا أوكابي. سأقرأ تقاريرك بهذا الصوت.'};
   function renderPrefs(){
@@ -52,7 +55,7 @@ export function createVoiceCenter({api,L,execute,currentView}) {
     const more=document.createElement('optgroup');more.label=L('All languages','Toutes les langues');more.append(...rest.map(c=>opt(c,langName(c),prefs.lang===c)));ls.append(more);
     const lang=replyLang(),auto=voiceFor(lang),groups=new Map();
     for(const v of catalog?.voices||[]){const k=v.accent||'other';groups.set(k,[...(groups.get(k)||[]),v]);}
-    const preferred=ACCENT_FOR[lang];
+    const preferred=(catalog?.voices||[]).find(v=>v.id===voiceFor(lang))?.accent||ACCENT_FOR[lang];
     vs.replaceChildren(opt('',L(`Automatic · ${auto}`,`Automatique · ${auto}`),!prefs.voice));
     for(const [accent,list] of [...groups].sort((a,b)=>(b[0]===preferred)-(a[0]===preferred)||a[0].localeCompare(b[0]))){
       const g=document.createElement('optgroup');g.label=accent.replace(/_/g,' ').replace(/^./,c=>c.toUpperCase())+(accent===preferred?' ★':'');
