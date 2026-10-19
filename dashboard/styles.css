@@ -1007,12 +1007,8 @@ body {
 .eq:not(.on) i:nth-child(3n+1) { height: 45%; } .eq:not(.on) i:nth-child(3n+2) { height: 80%; } .eq:not(.on) i:nth-child(3n) { height: 30%; }
 .mode-switch button { display: inline-flex; align-items: center; gap: 5px; } .mode-switch button .icon { width: 13px; height: 13px; }
 
-.flight-marker {width:34px;height:34px;border:1px solid currentColor;border-radius:50%;background:#16252ee8;font-size:23px;line-height:30px;text-align:center;cursor:pointer;box-shadow:0 2px 8px #0005}
-.flight-marker.selected {outline:3px solid #fff;outline-offset:2px}
-.flight-marker:focus-visible {outline:3px solid #fff;outline-offset:3px}
 .mode-switch {flex-wrap:wrap}
 
-.flights-view .map-float.tl{top:auto;bottom:38px;right:16px;max-width:none;pointer-events:none}
 .flights-view .map-float.tr{max-width:calc(100% - 66px)}
 
 /* Persistent voice panel, independent of dashboard polling/renders. */
@@ -1144,3 +1140,59 @@ body {
 .voice-mode[data-state="speaking"] .vm-orb::after { background: #82e3f5; box-shadow: 0 0 18px #82e3f5; animation: ai-breathe .5s ease-in-out infinite; }
 .voice-mode[data-state="connecting"] .vm-orb::after { opacity: .5; }
 @media (prefers-reduced-motion: reduce) { .holo-mic::after, .vm-orb i, .vm-orb::after { animation: none !important; } }
+
+/* Flights: rotated plane markers, category chips, route card and list. */
+.flight-marker { display: flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; cursor: pointer; color: var(--c); }
+.fm-plane { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--c) 16%, #06100dcc); border: 1px solid color-mix(in srgb, var(--c) 70%, transparent); box-shadow: 0 0 14px -2px var(--c); transition: transform .3s; }
+.fm-plane svg, .fd-icon svg, .fr-plane svg, .fr-line em svg { width: 62%; height: 62%; fill: currentColor; }
+.fm-label { padding: 2px 7px; border-radius: 4px; background: #04100cd9; border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); color: #e8fff4; font: 500 10.5px var(--mono); white-space: nowrap; }
+.fm-label small { color: var(--c); font-size: 10px; }
+.flight-marker.approach { opacity: .55; } .flight-marker.approach .fm-label { display: none; }
+.flight-marker:hover { opacity: 1; } .flight-marker:hover .fm-label { display: inline; }
+.flight-marker.selected { opacity: 1; z-index: 3; } .flight-marker.selected .fm-plane { background: var(--c); color: #04100c; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent), 0 0 24px var(--c); } .flight-marker.selected .fm-label { display: inline; }
+.flight-marker.military .fm-plane { border-width: 2px; }
+.flight-marker.emergency .fm-plane { animation: fm-sos 1s ease-in-out infinite alternate; }
+@keyframes fm-sos { to { box-shadow: 0 0 0 8px #ff5d6c55, 0 0 30px #ff5d6c; } }
+.flight-marker:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 14px; }
+.flight-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+.flight-cats button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); color: var(--text-2); font-size: 12px; }
+.flight-cats button i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 6px var(--c); }
+.flight-cats button b { font: 500 11px var(--mono); color: var(--muted); }
+.flight-cats button.active { border-color: var(--c, var(--accent)); color: var(--text); background: color-mix(in srgb, var(--c, var(--accent)) 14%, var(--panel-2)); }
+.flight-coverage { font-size: 12px; line-height: 1.55; color: var(--text-2); }
+.flight-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font: 10.5px var(--mono); }
+.flight-legend span { display: inline-flex; align-items: center; gap: 5px; } .flight-legend i { width: 8px; height: 8px; border-radius: 50%; } .flight-legend i.faded { background: #a4acb5; opacity: .45; }
+.flight-detail { padding: 2px 0 10px; border-bottom: 1px solid var(--line); }
+.fd-head { display: flex; gap: 12px; align-items: center; }
+.fd-icon { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid var(--c); box-shadow: 0 0 20px -6px var(--c); }
+.fd-head h2 { margin: 2px 0 0; font: 500 22px var(--mono); letter-spacing: .5px; }
+.fd-cat { margin: 12px 0; font-size: 12px; line-height: 1.5; color: var(--text-2); } .fd-cat b { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 4px; background: var(--c); color: #04100c; font: 600 10.5px var(--mono); letter-spacing: .6px; text-transform: uppercase; }
+.fd-emergency { margin: 10px 0 0; padding: 8px 10px; border: 1px solid #ff5d6c; background: #ff5d6c1c; color: #ffb3ba; font: 600 12px var(--mono); }
+.flight-route { display: grid; grid-template-columns: 1fr 1.1fr 1fr; align-items: center; gap: 8px; padding: 14px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm, 6px); background: var(--panel-2); }
+.flight-route > div:last-of-type { text-align: right; }
+.flight-route small { display: block; font: 500 9.5px var(--mono); letter-spacing: 1.6px; color: var(--muted); }
+.flight-route strong { display: block; font: 500 24px var(--mono); letter-spacing: 1px; color: var(--text); }
+.flight-route span { display: block; font-size: 11px; color: var(--text-2); line-height: 1.35; }
+.flight-route p { grid-column: 1 / -1; margin: 6px 0 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.flight-route.doubt strong { color: var(--text-2); } .flight-route.doubt p { color: #ffc65c; }
+.flight-route.none { display: block; } .flight-route.none span { font: 500 9.5px var(--mono); letter-spacing: 1.6px; color: var(--muted); } .flight-route.none b { display: block; margin-top: 4px; font-size: 12px; font-weight: 500; color: var(--text-2); }
+.fr-line { position: relative; height: 2px; background: repeating-linear-gradient(90deg, var(--c) 0 6px, transparent 6px 11px); }
+.fr-line em { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%) rotate(90deg); display: grid; place-items: center; color: var(--c); background: var(--panel-2); }
+.flight-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 9px 8px; border: 0; border-left: 2px solid transparent; border-bottom: 1px solid var(--line); background: none; color: var(--text); text-align: left; cursor: pointer; }
+.flight-row:hover { background: var(--hover); } .flight-row.selected { border-left-color: var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); }
+.flight-row.approach { opacity: .7; }
+.fr-plane { width: 24px; height: 24px; display: grid; place-items: center; color: var(--c); }
+.flight-row strong { display: block; font: 500 12.5px var(--mono); } .flight-row small { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fr-meta { text-align: right; } .fr-meta b { display: block; font: 500 10px var(--mono); letter-spacing: .5px; color: var(--c); text-transform: uppercase; } .fr-meta small { font-family: var(--mono); }
+.fr-sos { font-style: normal; padding: 0 4px; border-radius: 3px; background: #ff5d6c; color: #fff; font-size: 9.5px; }
+@media (prefers-reduced-motion: reduce) { .flight-marker.emergency .fm-plane { animation: none; box-shadow: 0 0 0 4px #ff5d6c88; } }
+.flights-view .filters-pane { overflow-x: hidden; }
+.flights-view .check { white-space: normal; align-items: flex-start; line-height: 1.4; }
+.flight-cats button { max-width: 100%; }
+/* Okapi language and voice preferences. */
+.voice-prefs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; margin: 16px 0 4px; }
+.voice-prefs label { display: grid; gap: 4px; min-width: 0; }
+.voice-prefs label span { font: 500 9.5px var(--mono); letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); }
+.voice-prefs .select { width: 100%; }
+.voice-prefs-note { margin: 4px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted); min-height: 1em; }
+@media (max-width: 520px) { .voice-prefs { grid-template-columns: 1fr 1fr; } .voice-prefs .btn { grid-column: 1 / -1; } }
