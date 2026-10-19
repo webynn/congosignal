@@ -39,3 +39,18 @@ again. Voice mode ends when you press End voice mode, close the panel, or hide t
 turn passes with no speech (it stops listening after 30 seconds); or on any microphone or Soniox
 error. It never listens while Okapi is speaking. Each turn is a normal Soniox session and counts
 against the Soniox budget.
+
+Language and voice (2026-10-19)
+The Okapi panel has Language and Voice selectors, saved per browser.
+- Language "Auto" sends language hints fr/en/sw with Soniox language identification; the language
+  detected in your speech becomes the reply language for Okapi's answer and its spoken voice.
+  Choosing a language sends it as a strict hint to speech-to-text and as reply_language to
+  /v1/voice/chat, so Okapi answers in it even when the question is typed in another language.
+- GET /v1/voice/options lists voices and languages for the configured TTS model from Soniox's
+  catalogue (/v1/tts-models plus /v1/shared-voices), cached for a day; the server key never reaches
+  the browser. With tts-rt-v2 on 2026-10-19: 200 voices (accents include 11 French and 1 African,
+  Tunde) and 63 languages including French and Swahili. If the catalogue cannot be fetched a
+  built-in list of 28 voices and 60 languages is used.
+- Voice "Automatic" picks a voice whose accent suits the reply language (French → French accent,
+  Swahili → Tunde), else Adrian. Preview plays a short sample and uses one Soniox speech session.
+- Soniox does not support Lingala, Kikongo or Tshiluba for speech recognition or synthesis.

@@ -370,6 +370,7 @@ async fn main() -> Result<()> {
         )
         .route("/v1/settings/ai/check", post(ai_settings::check))
         .route("/v1/voice/status", get(voice::status))
+        .route("/v1/voice/options", get(voice::options))
         .route("/v1/voice/chat", post(voice::converse))
         .route("/v1/voice/token", post(voice::token))
         .route("/v1/radio", get(radio::list))

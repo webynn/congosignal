@@ -24,6 +24,43 @@ export function createVoiceCenter({api,L,execute,currentView}) {
   let panel,previousFocus,stream,recorder,ws,timer,closeTimer,connecting=false,running=false,epoch=0,finalText='',reply='',history=[],pending=null,ttsSocket=null,ttsTimer,audio=null,audioUrl=null,audioContext=null,speechEpoch=0,playhead=0,speechSources=new Set();
   // Voice mode: listen → answer → speak → listen again, until ended, closed or an error occurs.
   let voiceMode=false,resumeTimer;
+  // Language and voice preferences (per browser). lang 'auto' detects FR/EN/SW from speech.
+  const PREFS_KEY='okapi-voice-prefs';
+  let prefs=(()=>{try{return {lang:'auto',voice:'',...JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')}}catch{return {lang:'auto',voice:''}}})();
+  let catalog=null,detectedLang='';
+  const savePrefs=()=>{try{localStorage.setItem(PREFS_KEY,JSON.stringify(prefs))}catch{}};
+  const pageLang=()=>(document.documentElement.lang||'en').slice(0,2);
+  const langName=code=>{try{return new Intl.DisplayNames([pageLang()],{type:'language'}).of(code)||code}catch{return code}};
+  /// Language for Okapi's reply and its spoken voice: chosen, else detected from speech, else the page language.
+  const replyLang=()=>prefs.lang!=='auto'?prefs.lang:(detectedLang||pageLang());
+  const ACCENT_FOR={fr:'french',sw:'african',es:'spanish',pt:'portuguese',ar:'arabic',de:'german',it:'italian',ja:'japanese',ko:'korean',zh:'chinese',hi:'indian',bn:'indian',ta:'indian',te:'indian',mr:'indian',gu:'indian',kn:'indian',ml:'indian',pa:'indian',ur:'indian',ru:'slavic',uk:'slavic',pl:'slavic',cs:'slavic',sk:'slavic',bg:'slavic',hr:'slavic',sr:'slavic',sl:'slavic',bs:'slavic',mk:'slavic',be:'slavic',id:'southeast_asian',ms:'southeast_asian',th:'southeast_asian',vi:'southeast_asian',tl:'southeast_asian'};
+  /// Chosen voice, or for "Automatic" the first voice whose accent suits the language (Adrian otherwise).
+  function voiceFor(lang){
+    const voices=catalog?.voices||[];
+    if(prefs.voice&&(!voices.length||voices.some(v=>v.id===prefs.voice)))return prefs.voice;
+    const accent=ACCENT_FOR[lang];
+    return (accent&&voices.find(v=>v.accent===accent)?.id)||(voices.some(v=>v.id==='Adrian')||!voices.length?'Adrian':voices[0].id);
+  }
+  const SAMPLES={en:'Hello, I am Okapi. I will read your intelligence briefings in this voice.',fr:'Bonjour, je suis Okapi. Je lirai vos synthèses de renseignement avec cette voix.',sw:'Habari, mimi ni Okapi. Nitakusomea taarifa zako za kiintelijensia kwa sauti hii.',es:'Hola, soy Okapi. Leeré tus informes de inteligencia con esta voz.',pt:'Olá, eu sou o Okapi. Vou ler os seus relatórios com esta voz.',de:'Hallo, ich bin Okapi. Ich lese Ihre Lageberichte mit dieser Stimme vor.',it:'Ciao, sono Okapi. Leggerò i tuoi rapporti con questa voce.',ar:'مرحبا، أنا أوكابي. سأقرأ تقاريرك بهذا الصوت.'};
+  function renderPrefs(){
+    if(!panel)return;
+    const ls=$('[data-pref-lang]'),vs=$('[data-pref-voice]'),note=$('[data-pref-note]');
+    const langs=(catalog?.languages||[{code:'en'},{code:'fr'},{code:'sw'}]).map(l=>l.code).filter(Boolean);
+    const first=['fr','en','sw'].filter(c=>langs.includes(c)),rest=langs.filter(c=>!first.includes(c)).sort((a,b)=>langName(a).localeCompare(langName(b)));
+    const opt=(value,label,sel)=>{const o=document.createElement('option');o.value=value;o.textContent=label;o.selected=sel;return o};
+    ls.replaceChildren(opt('auto',L('Auto · detect French, English, Swahili','Auto · détecte français, anglais, swahili'),prefs.lang==='auto'),...first.map(c=>opt(c,langName(c),prefs.lang===c)));
+    const more=document.createElement('optgroup');more.label=L('All languages','Toutes les langues');more.append(...rest.map(c=>opt(c,langName(c),prefs.lang===c)));ls.append(more);
+    const lang=replyLang(),auto=voiceFor(lang),groups=new Map();
+    for(const v of catalog?.voices||[]){const k=v.accent||'other';groups.set(k,[...(groups.get(k)||[]),v]);}
+    const preferred=ACCENT_FOR[lang];
+    vs.replaceChildren(opt('',L(`Automatic · ${auto}`,`Automatique · ${auto}`),!prefs.voice));
+    for(const [accent,list] of [...groups].sort((a,b)=>(b[0]===preferred)-(a[0]===preferred)||a[0].localeCompare(b[0]))){
+      const g=document.createElement('optgroup');g.label=accent.replace(/_/g,' ').replace(/^./,c=>c.toUpperCase())+(accent===preferred?' ★':'');
+      g.append(...list.map(v=>opt(v.id,`${v.id} · ${v.gender||''}${v.style?.length?' · '+v.style.slice(0,2).join(', '):''}`,prefs.voice===v.id)));vs.append(g);
+    }
+    const chosen=(catalog?.voices||[]).find(v=>v.id===voiceFor(lang));
+    note.textContent=[chosen?.description,catalog?.source==='built-in list'?L('Voice catalogue unavailable; showing the built-in list.','Catalogue indisponible ; liste intégrée affichée.'):'',['ln','kg','lua'].includes(pageLang())?'':L('Lingala, Kikongo and Tshiluba are not supported by Soniox yet.','Le lingala, le kikongo et le tshiluba ne sont pas encore pris en charge par Soniox.')].filter(Boolean).join(' ');
+  }
   const $=s=>panel.querySelector(s);
   function speechStatus(t){if(panel)$('[data-speech-status]').textContent=t;}
   function unlockAudio(){
@@ -66,7 +103,7 @@ export function createVoiceCenter({api,L,execute,currentView}) {
       socket.onopen=()=>{
         if(session!==epoch)return;
         clearTimeout(timer);
-        socket.send(JSON.stringify({model:credential.model,audio_format:'auto',language_hints:['en','fr'],enable_endpoint_detection:true}));
+        socket.send(JSON.stringify({model:credential.model,audio_format:'auto',enable_endpoint_detection:true,...(prefs.lang==='auto'?{language_hints:['fr','en','sw'],enable_language_identification:true}:{language_hints:[prefs.lang],language_hints_strict:true})}));
         const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(v=>MediaRecorder.isTypeSupported(v));
         if(!mime){release();message(L('No supported recording format. Use Chrome.','Aucun format compatible. Utilisez Chrome.'));return;}
         try{
@@ -82,7 +119,7 @@ export function createVoiceCenter({api,L,execute,currentView}) {
         try{
           const data=JSON.parse(e.data);
           if(data.error_code){failVoiceMode(L('Soniox ended the session. Review your transcript or retry.','Soniox a interrompu la session. Vérifiez le texte ou réessayez.'));return;}
-          let partial='';for(const t of data.tokens||[]){const value=String(t.text||'').replace(/<[^>]*>/g,'');if(t.is_final)finalText+=value;else partial+=value;}
+          let partial='';for(const t of data.tokens||[]){const value=String(t.text||'').replace(/<[^>]*>/g,'');if(t.is_final){finalText+=value;if(prefs.lang==='auto'&&typeof t.language==='string'&&/^[a-z]{2}$/.test(t.language)&&value.trim())detectedLang=t.language;}else partial+=value;}
           $('textarea').value=(finalText+partial).slice(0,1000);
           if((data.tokens||[]).some(t=>t.text==='<end>')&&recorder?.state==='recording')stopping();
           if(data.finished){release();message(L('Transcript ready.','Transcription prête.'));if((voiceMode||$('[data-auto-send]').checked)&&$('textarea').value.trim())run();else if(voiceMode)endVoiceMode(L('No speech heard · voice mode ended to save Soniox credit.','Aucune parole entendue · mode vocal arrêté pour économiser Soniox.'));}
@@ -99,7 +136,7 @@ export function createVoiceCenter({api,L,execute,currentView}) {
     unlockAudio();stopSpeaking();pending=null;$('[data-confirm]').hidden=true;running=true;$('[data-run]').disabled=true;
     const session=epoch;modeState('thinking');message(L('Okapi is reading your workspace…','Okapi consulte vos données…'));
     try{
-      const response=await api('/v1/voice/chat',{message:question,history:history.slice(0,6).reverse().map(h=>({user:h.text,assistant:h.result})),view:currentView()});
+      const response=await api('/v1/voice/chat',{message:question,history:history.slice(0,6).reverse().map(h=>({user:h.text,assistant:h.result})),view:currentView(),language:prefs.lang!=='auto'?prefs.lang:detectedLang});
       if(!panel||session!==epoch)return;
       if(!supportedAction(response.action)||typeof response.answer!=='string')throw Error(L('Unsupported assistant response. No action taken.','Réponse non prise en charge. Aucune action exécutée.'));
       reply=response.answer;showSources(response.citations);
@@ -110,6 +147,8 @@ export function createVoiceCenter({api,L,execute,currentView}) {
     }catch(e){if(panel&&session===epoch)message(e.message);}
     finally{running=false;if(panel)$('[data-run]').disabled=false;resume();}
   }
+  /// TTS language: the reply language when the catalogue supports it, else English.
+  const ttsLang=()=>{const l=replyLang();return !catalog||catalog.languages?.some(x=>x.code===l)?l:'en'};
   function stopSpeaking(){
     speechEpoch++;clearTimeout(ttsTimer);
     if(ttsSocket){ttsSocket.onclose=null;ttsSocket.onerror=null;ttsSocket.onmessage=null;ttsSocket.close();ttsSocket=null;}
@@ -118,21 +157,22 @@ export function createVoiceCenter({api,L,execute,currentView}) {
     if(audio){audio.pause();audio=null;}if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null;}
     speechStatus(L('Speech stopped','Lecture arrêtée'));
   }
-  async function speak(){
-    if(!reply||stream||connecting)return;
+  async function speak(sample){
+    const source=sample?.text||reply;
+    if(!source||stream||connecting)return;
     unlockAudio();stopSpeaking();const session=epoch,utterance=speechEpoch;
     const valid=()=>panel&&session===epoch&&utterance===speechEpoch;
     const fail=text=>{if(!valid())return;stopSpeaking();speechStatus(text);resume();};
     speechStatus(L('Preparing spoken reply…','Préparation de la réponse vocale…'));
     try{
       if(!audioContext||audioContext.state!=='running')throw Error(L('Sound is blocked. Click Replay reply to enable playback.','Son bloqué. Cliquez sur Relire la réponse pour autoriser la lecture.'));
-      const text=speechText(reply);if(!text)throw Error(L('No text to speak.','Aucun texte à lire.'));
+      const text=speechText(source);if(!text)throw Error(L('No text to speak.','Aucun texte à lire.'));
       const credential=await api('/v1/voice/token',{usage:'tts'});if(!valid())return;
       const socket=new WebSocket('wss://tts-rt.soniox.com/tts-websocket',['soniox-api-key',credential.api_key]);ttsSocket=socket;
       let bytes=0,ended=false,terminated=false,carry=null;
       const completed=()=>{if(valid()&&terminated&&!speechSources.size){speechStatus(L('Reply spoken · ready for your next question','Réponse lue · prêt pour votre prochaine question'));resume();}};
       ttsTimer=setTimeout(()=>fail(L('Speech timed out. Click Replay reply to retry.','Délai vocal dépassé. Cliquez sur Relire la réponse.')),60000);
-      socket.onopen=()=>{if(!valid())return;socket.send(JSON.stringify({model:credential.model,voice:credential.voice,language:(document.documentElement.lang||'en').slice(0,2),audio_format:'pcm_s16le',sample_rate:24000,stream_id:'okapi'}));socket.send(JSON.stringify({stream_id:'okapi',text,text_end:true}));};
+      socket.onopen=()=>{if(!valid())return;socket.send(JSON.stringify({model:credential.model,voice:voiceFor(sample?.language||ttsLang()),language:sample?.language||ttsLang(),audio_format:'pcm_s16le',sample_rate:24000,stream_id:'okapi'}));socket.send(JSON.stringify({stream_id:'okapi',text,text_end:true}));};
       socket.onmessage=event=>{
         if(!valid())return;
         try{
@@ -169,8 +209,8 @@ export function createVoiceCenter({api,L,execute,currentView}) {
     unlockAudio();
     if(panel){if(typeof prompt==='string')$('textarea').value=prompt;$('textarea').focus();return;}
     previousFocus=document.activeElement;panel=document.createElement('section');panel.className='voice-center';panel.setAttribute('role','dialog');panel.setAttribute('aria-label',L('Okapi assistant','Assistant Okapi'));
-    panel.innerHTML=`<header><div><small>CONGO SIGNAL · OKAPI</small><h2>${L('Talk to Okapi','Parlez à Okapi')}</h2></div><button class="btn" data-close aria-label="${L('Close voice center','Fermer le centre vocal')}">×</button></header><div class="voice-mode" data-voice-mode hidden><span class="vm-orb" aria-hidden="true"><i></i><i></i><i></i></span><div><small>${L('VOICE MODE','MODE VOCAL')}</small><b data-vm-label role="status" aria-live="polite"></b></div><button class="btn sm" data-voice-end>${L('End voice mode','Quitter le mode vocal')}</button></div><p>${L('Ask about your news, social intelligence, mineral sites or agreements. Okapi answers with sources and can navigate for you.','Interrogez vos actualités, réseaux sociaux, sites miniers ou accords. Okapi répond avec ses sources et peut naviguer pour vous.')}</p><div class="actions"><button class="btn primary" data-mic>${L('Start microphone','Activer le micro')}</button><button class="btn" data-stop disabled>${L('Stop','Arrêter')}</button></div><p class="voice-status" data-status role="status" aria-live="polite">${L('Ready · microphone off','Prêt · microphone désactivé')}</p><textarea class="input" rows="3" maxlength="1000" aria-label="${L('Voice command','Commande vocale')}" placeholder="${L('Open minerals','Ouvre les minerais')}"></textarea><div class="actions"><button class="btn primary" data-run>${L('Ask Okapi','Demander à Okapi')}</button><button class="btn" data-speak>${L('Replay reply','Relire la réponse')}</button><button class="btn" data-silence>${L('Silence','Silence')}</button></div><div class="voice-options"><label><input type="checkbox" data-auto-send checked> ${L('Send when I finish speaking','Envoyer à la fin de ma phrase')}</label><label><input type="checkbox" data-auto-speak checked> ${L('Speak answers with Soniox','Lire les réponses avec Soniox')}</label></div><button class="btn primary" data-confirm hidden></button><p data-speech-status role="status" aria-live="polite"></p><ul data-citations></ul><details open><summary>${L('Try asking','Exemples de questions')}</summary><ul><li>${L('Can you show me the mineral sites?','Peux-tu me montrer les sites miniers ?')}</li><li>${L('What is happening across social intelligence?','Que se passe-t-il sur les réseaux sociaux ?')}</li><li>${L('What are the main news stories, and what sources support them?','Quelles sont les principales actualités et leurs sources ?')}</li></ul></details><p class="muted">${L('Audio goes to Soniox only while recording. Nothing is recorded in the background. Conversation stays in page memory and is sent with retrieved evidence to the configured AI provider. Collection and analysis use existing workers, permissions and budgets.','L’audio est transmis à Soniox pendant l’enregistrement uniquement. Aucune écoute en arrière-plan. La conversation reste en mémoire et est transmise avec les sources au fournisseur IA configuré. Collecte et analyse respectent les permissions et budgets existants.')}</p><ol data-history></ol>`;
-    document.body.append(panel);$('[data-close]').onclick=close;$('[data-voice-end]').onclick=()=>{epoch++;release();stopSpeaking();endVoiceMode(L('Voice mode ended · microphone off','Mode vocal terminé · micro désactivé'));};$('[data-mic]').onclick=record;$('[data-stop]').onclick=stopping;$('[data-run]').onclick=run;$('[data-speak]').onclick=speak;$('[data-silence]').onclick=()=>{stopSpeaking();$('[data-auto-speak]').checked=false;speechStatus(L('Muted · enable Speak answers to hear replies again','Muet · activez Lire les réponses pour rétablir la voix'));};$('[data-auto-speak]').onchange=()=>{if(!$('[data-auto-speak]').checked)stopSpeaking();else{unlockAudio();speechStatus(L('Spoken replies enabled','Réponses vocales activées'));}};$('[data-confirm]').onclick=async()=>{if(!pending||running)return;const task=pending;pending=null;running=true;$('[data-confirm]').hidden=true;try{message(await execute(task));}catch(e){message(e.message);}finally{running=false;}};
+    panel.innerHTML=`<header><div><small>CONGO SIGNAL · OKAPI</small><h2>${L('Talk to Okapi','Parlez à Okapi')}</h2></div><button class="btn" data-close aria-label="${L('Close voice center','Fermer le centre vocal')}">×</button></header><div class="voice-mode" data-voice-mode hidden><span class="vm-orb" aria-hidden="true"><i></i><i></i><i></i></span><div><small>${L('VOICE MODE','MODE VOCAL')}</small><b data-vm-label role="status" aria-live="polite"></b></div><button class="btn sm" data-voice-end>${L('End voice mode','Quitter le mode vocal')}</button></div><div class="voice-prefs"><label><span>${L('Language','Langue')}</span><select class="select" data-pref-lang></select></label><label><span>${L('Voice','Voix')}</span><select class="select" data-pref-voice></select></label><button class="btn sm" data-preview title="${L('Plays a short sample (one Soniox speech session)','Lit un court extrait (une session vocale Soniox)')}">▶ ${L('Preview','Écouter')}</button></div><p class="voice-prefs-note" data-pref-note></p><p>${L('Ask about your news, social intelligence, mineral sites or agreements. Okapi answers with sources and can navigate for you.','Interrogez vos actualités, réseaux sociaux, sites miniers ou accords. Okapi répond avec ses sources et peut naviguer pour vous.')}</p><div class="actions"><button class="btn primary" data-mic>${L('Start microphone','Activer le micro')}</button><button class="btn" data-stop disabled>${L('Stop','Arrêter')}</button></div><p class="voice-status" data-status role="status" aria-live="polite">${L('Ready · microphone off','Prêt · microphone désactivé')}</p><textarea class="input" rows="3" maxlength="1000" aria-label="${L('Voice command','Commande vocale')}" placeholder="${L('Open minerals','Ouvre les minerais')}"></textarea><div class="actions"><button class="btn primary" data-run>${L('Ask Okapi','Demander à Okapi')}</button><button class="btn" data-speak>${L('Replay reply','Relire la réponse')}</button><button class="btn" data-silence>${L('Silence','Silence')}</button></div><div class="voice-options"><label><input type="checkbox" data-auto-send checked> ${L('Send when I finish speaking','Envoyer à la fin de ma phrase')}</label><label><input type="checkbox" data-auto-speak checked> ${L('Speak answers with Soniox','Lire les réponses avec Soniox')}</label></div><button class="btn primary" data-confirm hidden></button><p data-speech-status role="status" aria-live="polite"></p><ul data-citations></ul><details open><summary>${L('Try asking','Exemples de questions')}</summary><ul><li>${L('Can you show me the mineral sites?','Peux-tu me montrer les sites miniers ?')}</li><li>${L('What is happening across social intelligence?','Que se passe-t-il sur les réseaux sociaux ?')}</li><li>${L('What are the main news stories, and what sources support them?','Quelles sont les principales actualités et leurs sources ?')}</li></ul></details><p class="muted">${L('Audio goes to Soniox only while recording. Nothing is recorded in the background. Conversation stays in page memory and is sent with retrieved evidence to the configured AI provider. Collection and analysis use existing workers, permissions and budgets.','L’audio est transmis à Soniox pendant l’enregistrement uniquement. Aucune écoute en arrière-plan. La conversation reste en mémoire et est transmise avec les sources au fournisseur IA configuré. Collecte et analyse respectent les permissions et budgets existants.')}</p><ol data-history></ol>`;
+    document.body.append(panel);$('[data-close]').onclick=close;$('[data-voice-end]').onclick=()=>{epoch++;release();stopSpeaking();endVoiceMode(L('Voice mode ended · microphone off','Mode vocal terminé · micro désactivé'));};$('[data-mic]').onclick=record;$('[data-stop]').onclick=stopping;$('[data-run]').onclick=run;$('[data-speak]').onclick=()=>speak();$('[data-pref-lang]').onchange=e=>{prefs.lang=e.target.value;detectedLang='';savePrefs();renderPrefs();};$('[data-pref-voice]').onchange=e=>{prefs.voice=e.target.value;savePrefs();renderPrefs();};$('[data-preview]').onclick=()=>{unlockAudio();const lang=ttsLang();speak({text:SAMPLES[lang]||SAMPLES.en,language:SAMPLES[lang]?lang:'en'});};renderPrefs();if(!catalog)api('/v1/voice/options').then(o=>{catalog=o;renderPrefs();}).catch(()=>{});$('[data-silence]').onclick=()=>{stopSpeaking();$('[data-auto-speak]').checked=false;speechStatus(L('Muted · enable Speak answers to hear replies again','Muet · activez Lire les réponses pour rétablir la voix'));};$('[data-auto-speak]').onchange=()=>{if(!$('[data-auto-speak]').checked)stopSpeaking();else{unlockAudio();speechStatus(L('Spoken replies enabled','Réponses vocales activées'));}};$('[data-confirm]').onclick=async()=>{if(!pending||running)return;const task=pending;pending=null;running=true;$('[data-confirm]').hidden=true;try{message(await execute(task));}catch(e){message(e.message);}finally{running=false;}};
     panel.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')close();if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run();}});if(typeof prompt==='string')$('textarea').value=prompt;$('textarea').focus();
     api('/v1/voice/status').then(s=>{if(panel&&s.paused)message(L('Voice spending paused · set Soniox limits in Costs & budgets. Text questions use your AI budget.','Budget vocal en pause · configurez Soniox dans Coûts et budgets. Questions écrites soumises au budget IA.'));else if(panel&&!s.configured)message(L('Soniox key missing. Typed commands still work.','Clé Soniox absente. Les commandes écrites restent disponibles.'));}).catch(e=>message(e.message));
   }

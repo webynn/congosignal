@@ -16,6 +16,110 @@ pub async fn status(
         json!({"configured":crate::ai_settings::key("soniox").is_some(),"paused":paused != 0,"provider":"soniox","max_session_seconds":60,"model":crate::ai_settings::model("soniox")}),
     ))
 }
+/// Built-in voices and languages, used when Soniox's catalogue cannot be fetched.
+const FALLBACK_VOICES: [(&str, &str, &str); 28] = [
+    ("Adrian", "male", ""),
+    ("Maya", "female", ""),
+    ("Daniel", "male", ""),
+    ("Noah", "male", ""),
+    ("Nina", "female", ""),
+    ("Emma", "female", ""),
+    ("Jack", "male", ""),
+    ("Claire", "female", ""),
+    ("Grace", "female", ""),
+    ("Owen", "male", ""),
+    ("Mina", "female", ""),
+    ("Kenji", "male", ""),
+    ("Rafael", "male", "spanish"),
+    ("Mateo", "male", "spanish"),
+    ("Lucia", "female", "spanish"),
+    ("Sofia", "female", "spanish"),
+    ("Oliver", "male", "british"),
+    ("Arthur", "male", "british"),
+    ("Isla", "female", "british"),
+    ("Victoria", "female", "british"),
+    ("Cooper", "male", "australian"),
+    ("Mason", "male", "australian"),
+    ("Ruby", "female", "australian"),
+    ("Elise", "female", "australian"),
+    ("Arjun", "male", "indian"),
+    ("Rohan", "male", "indian"),
+    ("Priya", "female", "indian"),
+    ("Meera", "female", "indian"),
+];
+/// Soniox TTS languages (ISO 639-1); speech-to-text supports the same set.
+const FALLBACK_LANGUAGES: [&str; 60] = [
+    "af", "sq", "ar", "az", "eu", "be", "bn", "bs", "bg", "ca", "zh", "hr", "cs", "da", "nl", "en",
+    "et", "fi", "fr", "gl", "de", "el", "gu", "he", "hi", "hu", "id", "it", "ja", "kn", "kk", "ko",
+    "lv", "lt", "mk", "ms", "ml", "mr", "no", "fa", "pl", "pt", "pa", "ro", "ru", "sr", "sk", "sl",
+    "es", "sw", "sv", "tl", "ta", "te", "th", "tr", "uk", "ur", "vi", "cy",
+];
+static OPTIONS: std::sync::Mutex<Option<(std::time::Instant, Value)>> = std::sync::Mutex::new(None);
+fn fallback_options(model: &str) -> Value {
+    json!({"model":model,"source":"built-in list","voices":FALLBACK_VOICES.iter().map(|(id,g,a)|json!({"id":id,"gender":g,"accent":a})).collect::<Vec<_>>(),"languages":FALLBACK_LANGUAGES.iter().map(|c|json!({"code":c})).collect::<Vec<_>>()})
+}
+/// Voices and languages available for the configured TTS model, from Soniox's catalogue
+/// (models plus shared voices), cached for a day. Listing is free; no credential reaches the browser.
+pub async fn options() -> ApiResult<Json<Value>> {
+    let model = crate::ai_settings::model("soniox_tts");
+    if let Some((at, v)) = OPTIONS.lock().unwrap().as_ref()
+        && at.elapsed() < std::time::Duration::from_secs(86400)
+        && v["model"] == model.as_str()
+    {
+        return Ok(Json(v.clone()));
+    }
+    let Some(key) = crate::ai_settings::key("soniox") else {
+        return Ok(Json(fallback_options(&model)));
+    };
+    let fetched = async {
+        let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(15)).build()?;
+        let get = |url: String| {
+            let (client, key) = (client.clone(), key.clone());
+            async move {
+                let r = client.get(url).bearer_auth(key).send().await?;
+                anyhow::ensure!(r.status().is_success(), "Soniox catalogue returned HTTP {}", r.status());
+                anyhow::ensure!(r.content_length().unwrap_or(0) < 4_000_000, "Soniox catalogue too large");
+                Ok::<Value, anyhow::Error>(r.json().await?)
+            }
+        };
+        let models = get("https://api.soniox.com/v1/tts-models".into()).await?;
+        let entry = models["models"].as_array().into_iter().flatten()
+            .find(|m| m["id"] == model.as_str() || m["aliased_model_id"] == model.as_str())
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Configured TTS model {model} is not in the Soniox catalogue"))?;
+        let mut voices: Vec<Value> = entry["voices"].as_array().cloned().unwrap_or_default();
+        // Shared voices carry accent/age/style; merge them in by id (bounded pagination).
+        let mut cursor = String::new();
+        for _ in 0..3 {
+            let page = get(format!("https://api.soniox.com/v1/shared-voices?model={model}&limit=200{}", if cursor.is_empty() { String::new() } else { format!("&cursor={cursor}") })).await;
+            let Ok(page) = page else { break };
+            for v in page["voices"].as_array().into_iter().flatten() {
+                match voices.iter_mut().find(|x| x["id"] == v["id"]) {
+                    Some(x) => { for k in ["accent", "age", "style", "use_case", "description", "gender"] { if !v[k].is_null() { x[k] = v[k].clone() } } }
+                    None => voices.push(v.clone()),
+                }
+            }
+            match page["next_page_cursor"].as_str() { Some(c) if !c.is_empty() => cursor = c.to_string(), _ => break }
+        }
+        voices.retain(|v| v["id"].as_str().is_some_and(|id| !id.is_empty() && id.len() <= 64));
+        voices.truncate(600);
+        let languages = entry["languages"].as_array().cloned().unwrap_or_default();
+        anyhow::ensure!(!voices.is_empty() && !languages.is_empty(), "Soniox catalogue had no voices or languages");
+        Ok::<Value, anyhow::Error>(json!({"model":model,"source":"Soniox catalogue","voices":voices,"languages":languages}))
+    }
+    .await;
+    let value = match fetched {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "Soniox voice catalogue unavailable; using built-in list");
+            let mut v = fallback_options(&model);
+            v["notice"] = json!(e.to_string());
+            return Ok(Json(v));
+        }
+    };
+    *OPTIONS.lock().unwrap() = Some((std::time::Instant::now(), value.clone()));
+    Ok(Json(value))
+}
 fn token_spec() -> Value {
     json!({"usage_type":"transcribe_websocket","expires_in_seconds":60,"single_use":true,"max_session_duration_seconds":60})
 }
@@ -81,6 +185,9 @@ pub struct Conversation {
     history: Vec<Value>,
     #[serde(default)]
     view: String,
+    /// ISO 639-1 code the user chose (or Soniox detected) for the conversation; empty = follow the question.
+    #[serde(default)]
+    language: String,
 }
 fn limited(v: &Value, n: usize) -> String {
     v.as_str().unwrap_or("").chars().take(n).collect()
@@ -167,6 +274,11 @@ pub async fn converse(
         || request.message.chars().count() > 2000
         || request.history.len() > 8
         || request.view.len() > 32
+        || request.language.len() > 8
+        || !request
+            .language
+            .chars()
+            .all(|c| c.is_ascii_alphabetic() || c == '-')
     {
         return Err(ApiError(
             StatusCode::BAD_REQUEST,
@@ -223,7 +335,7 @@ pub async fn converse(
     let actors = crate::actors::list(State(app.clone())).await?.0;
     let rows=actors["items"].as_array().into_iter().flatten().map(|a|json!({"id":format!("actor:{}",a["id"].as_str().unwrap_or("")),"title":a["name"],"url":format!("/#actor/{}",a["id"].as_str().unwrap_or("")),"description":a["description"],"titles":a["titles"],"sanctions":a["sanctions"],"notice":actors["notice"]})).collect();
     sources.extend(selected(rows, &request.message, 5));
-    let input = json!({"question":request.message,"conversation":history,"current_view":request.view,"as_of":chrono::Utc::now().to_rfc3339(),"coverage":{"news_total":news["total"],"news_retrieval":"ranked selection from up to 500 most recent loaded reports; snippets truncated; not exhaustive","social":social["notice"],"social_archive":social["archive"],"posts":posts["coverage"],"agreement_metadata":"metadata only, may be truncated; full PDF analysis not performed"},"sources":sources});
+    let input = json!({"question":request.message,"reply_language":request.language,"conversation":history,"current_view":request.view,"as_of":chrono::Utc::now().to_rfc3339(),"coverage":{"news_total":news["total"],"news_retrieval":"ranked selection from up to 500 most recent loaded reports; snippets truncated; not exhaustive","social":social["notice"],"social_archive":social["archive"],"posts":posts["coverage"],"agreement_metadata":"metadata only, may be truncated; full PDF analysis not performed"},"sources":sources});
     let answer=crate::intelligence::okapi_answer(input).await.map_err(|e|ApiError(StatusCode::SERVICE_UNAVAILABLE,if e.to_string().contains("Cost controls"){"Okapi's AI budget is paused, unconfigured or exhausted. Check Costs & budgets.".into()}else{"Okapi's AI provider is unavailable or returned an incomplete answer. Check AI configuration.".into()}))?;
     let answer = validate_answer(answer, &sources).map_err(|_| {
         ApiError(
