@@ -1,8 +1,10 @@
-//! Publisher syndication feeds (RSS 2.0 / Atom) collected as news articles.
-//! Used where a publisher offers a feed but blocks automated page access: items keep the
-//! publisher's title, lede, author, section and time, link to the original, and are screened for
-//! DRC relevance (Great Lakes neighbours are kept as flagged regional context). Conditional GET
-//! (ETag / Last-Modified) keeps polling cheap; the raw feed item is retained as evidence.
+//! Publisher sources collected as news articles, configured in config/news-feeds.json.
+//! "feed": a publisher feed whose pages block automated access; items keep the publisher's title,
+//! lede, author, section and time and link to the original. "feed_full_text" / "listing" /
+//! "reliefweb_api": full article text where the publisher allows it (see fulltext.rs). Everything
+//! is screened for DRC relevance (Great Lakes neighbours are kept as flagged regional context).
+//! Conditional GET (ETag / Last-Modified) keeps feed polling cheap; raw items are kept as evidence.
+mod fulltext;
 use crate::extract::{Article, digest};
 use crate::text::{self, Doc, Term};
 use crate::{ApiResult, App, reference, store};
@@ -16,6 +18,15 @@ use std::sync::LazyLock;
 use tokio::sync::Notify;
 use url::Url;
 
+#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq, Debug)]
+#[serde(rename_all = "snake_case")]
+enum Mode {
+    #[default]
+    Feed,
+    FeedFullText,
+    Listing,
+    ReliefwebApi,
+}
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Feed {
     pub id: String,
@@ -25,6 +36,33 @@ pub struct Feed {
     language: String,
     coverage: String,
     access_note: String,
+    #[serde(default)]
+    mode: Mode,
+    #[serde(default)]
+    listing_paths: Vec<String>,
+    /// Minimum seconds between requests to the publisher (robots Crawl-delay may raise it).
+    #[serde(default)]
+    page_delay_seconds: u64,
+    /// Article pages fetched per poll at most.
+    #[serde(default)]
+    max_pages: usize,
+    /// Per-source poll interval overriding FEED_POLL_SECONDS (still off when that is 0).
+    #[serde(default)]
+    poll_seconds: Option<u64>,
+}
+impl Feed {
+    /// Why the source cannot run, if it needs configuration.
+    fn not_configured(&self) -> Option<&'static str> {
+        (self.mode == Mode::ReliefwebApi && fulltext::reliefweb_appname().is_none())
+            .then_some(fulltext::RELIEFWEB_NOT_CONFIGURED)
+    }
+    /// Poll interval in seconds; FEED_POLL_SECONDS=0 turns every source off.
+    fn every(&self) -> u64 {
+        match poll_seconds() {
+            0 => 0,
+            n => self.poll_seconds.unwrap_or(n).clamp(300, 86400),
+        }
+    }
 }
 #[derive(Deserialize)]
 struct Config {
@@ -255,9 +293,10 @@ fn canonical(feed: &Feed, link: &str) -> Result<Url> {
 /// Section from the publisher URL path (e.g. /1851360/politique/slug/), mapped to the feed's
 /// category vocabulary where it matches.
 fn section(url: &Url, categories: &[String]) -> Option<String> {
+    // Radio Okapi paths read /YYYY/MM/DD/actualite/<section>/slug.
     let seg = url
         .path_segments()?
-        .find(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()))?;
+        .find(|s| !s.is_empty() && !s.chars().all(|c| c.is_ascii_digit()) && *s != "actualite")?;
     let mapped = match seg {
         "politique" => "Politique",
         s if s.starts_with("economie") => "Économie",
@@ -266,6 +305,9 @@ fn section(url: &Url, categories: &[String]) -> Option<String> {
         "sport" | "sports" => "Sport",
         s if s.starts_with("opinion") || s == "tribune" => "Opinion",
         "sante" => "Santé",
+        "securite" => "Sécurité",
+        "justice" => "Justice",
+        "revue-de-presse" => "Revue de presse",
         _ => return categories.first().cloned(),
     };
     Some(mapped.into())
@@ -313,16 +355,32 @@ fn to_article(feed: &Feed, item: &Item) -> Result<Option<Article>> {
 // ---------------------------------------------------------------------------------------------
 // Polling
 
-async fn poll(db: &SqlitePool, client: &reqwest::Client, feed: &Feed) -> Result<Value> {
-    let id = format!("news-feed:{}", feed.id);
-    let previous: Value =
+async fn previous_detail(db: &SqlitePool, feed: &Feed) -> Result<Value> {
+    Ok(
         sqlx::query_scalar::<_, Option<String>>("SELECT detail FROM reference_sync WHERE id=?")
-            .bind(&id)
+            .bind(format!("news-feed:{}", feed.id))
             .fetch_optional(db)
             .await?
             .flatten()
             .and_then(|d| serde_json::from_str(&d).ok())
-            .unwrap_or_default();
+            .unwrap_or_default(),
+    )
+}
+async fn poll(
+    db: &SqlitePool,
+    client: &reqwest::Client,
+    pages: &mut fulltext::Pages,
+    feed: &Feed,
+) -> Result<Value> {
+    let previous = previous_detail(db, feed).await?;
+    let full_text = feed.mode == Mode::FeedFullText;
+    if full_text {
+        // The feed lives on the publisher's host, so it shares the page pacing and robots policy.
+        let delay = pages
+            .permit(&Url::parse(&feed.url)?, feed.page_delay_seconds)
+            .await?;
+        fulltext::Pages::turn(&feed.site, delay).await;
+    }
     let mut req = client.get(&feed.url);
     if let Some(etag) = previous["etag"].as_str() {
         req = req.header("If-None-Match", etag);
@@ -352,24 +410,101 @@ async fn poll(db: &SqlitePool, client: &reqwest::Client, feed: &Feed) -> Result<
     let items = parse_feed(&String::from_utf8_lossy(&bytes))?;
     anyhow::ensure!(!items.is_empty(), "feed returned no items");
     let (mut drc, mut regional, mut skipped, mut invalid) = (0, 0, 0, 0);
+    let (mut fetched, mut full, mut pending, mut chars) = (0, 0, 0, 0usize);
+    let (mut page_errors, mut stop) = (Vec::new(), false);
+    let mut failed = fulltext::failures(&previous);
     for item in &items {
         match to_article(feed, item) {
-            Ok(Some(a)) => {
+            Ok(Some(mut a)) => {
                 if a.relevance.as_ref().is_some_and(|r| r["scope"] == "drc") {
                     drc += 1;
                 } else {
                     regional += 1;
                 }
-                store::save(db, &a, &item.raw).await?;
+                let mut raw = item.raw.clone();
+                if full_text {
+                    // Never overwrite stored full text with the feed summary.
+                    if fulltext::coverage_of(db, &a.id).await?.as_deref() == Some("full_text") {
+                        full += 1;
+                        continue;
+                    }
+                    a.coverage = Some("feed_summary".into());
+                    let attempts = failed.get(&a.url).copied().unwrap_or(0);
+                    if !stop && fetched < feed.max_pages && attempts < fulltext::MAX_ATTEMPTS {
+                        fetched += 1;
+                        let url = Url::parse(&a.url)?;
+                        let page = match pages.html(&url, feed.page_delay_seconds).await {
+                            Ok(html) => fulltext::extract_page(&html).map(|p| (p, html)),
+                            Err(e) => Err(e),
+                        };
+                        match page {
+                            Ok((p, html)) => {
+                                let mut f =
+                                    fulltext::page_article(feed, &url, p, &html, Some(item));
+                                // Keep the feed's screening: the item was selected on it.
+                                f.relevance = a.relevance.take();
+                                raw = format!("{}\n{html}", item.raw);
+                                a = f;
+                                full += 1;
+                                chars += a.content.chars().count();
+                                failed.remove(&a.url);
+                            }
+                            Err(e) => {
+                                stop = fulltext::throttled(&e);
+                                *failed.entry(a.url.clone()).or_default() += 1;
+                                page_errors.push(format!("{}: {e}", url.path()));
+                            }
+                        }
+                    }
+                    if a.coverage.as_deref() == Some("feed_summary") {
+                        pending += 1;
+                    }
+                }
+                store::save(db, &a, &raw).await?;
             }
             Ok(None) => skipped += 1,
             Err(_) => invalid += 1,
         }
     }
-    Ok(
-        json!({"items":items.len(),"drc":drc,"regional":regional,"skipped":skipped,"invalid":invalid,
-              "etag":etag,"last_modified":last_modified,"not_modified":false}),
-    )
+    let mut detail = json!({"items":items.len(),"drc":drc,"regional":regional,"skipped":skipped,"invalid":invalid,
+              "etag":etag,"last_modified":last_modified,"not_modified":false});
+    if full_text {
+        let fresh = fetched - page_errors.len();
+        detail["full_text"] = json!(full);
+        detail["summary_only"] = json!(pending);
+        detail["page_fetches"] = json!(fetched);
+        detail["page_errors"] = json!(page_errors.len());
+        detail["last_page_error"] = json!(page_errors.last());
+        detail["avg_chars"] = json!((fresh > 0).then(|| chars / fresh));
+        detail["page_failures"] = fulltext::failures_json(&failed);
+    }
+    Ok(detail)
+}
+/// Poll one source and record the outcome for GET /v1/feeds.
+async fn run(
+    db: &SqlitePool,
+    client: &reqwest::Client,
+    pages: &mut fulltext::Pages,
+    feed: &Feed,
+) -> Result<()> {
+    let previous = previous_detail(db, feed).await?;
+    let result = match feed.mode {
+        Mode::Feed | Mode::FeedFullText => poll(db, client, pages, feed).await,
+        Mode::Listing => fulltext::poll_listing(db, pages, feed, &previous).await,
+        Mode::ReliefwebApi => fulltext::poll_reliefweb(db, client, feed).await,
+    };
+    // A failed poll keeps the per-URL failure counts so broken pages stay bounded.
+    let detail = result.as_ref().cloned().unwrap_or_else(
+        |_| json!({"page_failures": previous.get("page_failures").cloned().unwrap_or_default()}),
+    );
+    let count = result
+        .as_ref()
+        .map(|d| (d["drc"].as_u64().unwrap_or(0) + d["regional"].as_u64().unwrap_or(0)) as usize)
+        .map_err(|e| anyhow::anyhow!(e.to_string()));
+    if let Err(e) = &count {
+        tracing::warn!(feed = %feed.id, error = %e, "news feed poll failed");
+    }
+    reference::record(db, &format!("news-feed:{}", feed.id), &count, detail).await
 }
 pub async fn worker(db: SqlitePool) -> Result<()> {
     let client = reqwest::Client::builder()
@@ -377,25 +512,18 @@ pub async fn worker(db: SqlitePool) -> Result<()> {
         .timeout(std::time::Duration::from_secs(30))
         .redirect(reqwest::redirect::Policy::limited(3))
         .build()?;
+    let mut pages = fulltext::Pages::new()?;
     loop {
         let every = poll_seconds();
         if every > 0 {
             for feed in feeds() {
                 let id = format!("news-feed:{}", feed.id);
+                if feed.not_configured().is_some() {
+                    continue;
+                }
+                let every = feed.every();
                 if reference::due(&db, &id, every as i64).await? {
-                    let result = poll(&db, &client, feed).await;
-                    let detail = result.as_ref().cloned().unwrap_or_else(|_| json!({}));
-                    let count = result
-                        .as_ref()
-                        .map(|d| {
-                            (d["drc"].as_u64().unwrap_or(0) + d["regional"].as_u64().unwrap_or(0))
-                                as usize
-                        })
-                        .map_err(|e| anyhow::anyhow!(e.to_string()));
-                    if let Err(e) = &count {
-                        tracing::warn!(feed = %feed.id, error = %e, "news feed poll failed");
-                    }
-                    reference::record(&db, &id, &count, detail).await?;
+                    run(&db, &client, &mut pages, feed).await?;
                 }
             }
         }
@@ -413,20 +541,26 @@ pub async fn list(State(app): State<App>) -> ApiResult<Json<Value>> {
     let sync = reference::sync_rows(&app.db, "news-feed:").await?;
     let mut out = Vec::new();
     for f in feeds() {
-        let collected: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM articles WHERE json_extract(data,'$.source')=?",
+        // ReliefWeb articles are credited "ReliefWeb · <organisation>".
+        let (collected, full_text, latest): (i64, i64, Option<String>) = sqlx::query_as(
+            "SELECT count(*), coalesce(sum(json_extract(data,'$.coverage')='full_text'),0), max(published_at)
+             FROM articles WHERE json_extract(data,'$.source')=?1 OR json_extract(data,'$.source') LIKE ?1 || ' · %'",
         )
         .bind(&f.name)
         .fetch_one(&app.db)
         .await?;
-        let latest: Option<String> = sqlx::query_scalar(
-            "SELECT max(published_at) FROM articles WHERE json_extract(data,'$.source')=?",
-        )
-        .bind(&f.name)
-        .fetch_one(&app.db)
-        .await?;
+        let mut sync = sync
+            .iter()
+            .find(|s| s["id"] == format!("news-feed:{}", f.id))
+            .cloned();
+        // Per-URL failure bookkeeping is internal.
+        if let Some(d) = sync.as_mut().and_then(|s| s["detail"].as_object_mut()) {
+            d.remove("page_failures");
+        }
         out.push(json!({"id":f.id,"name":f.name,"url":f.url,"site":f.site,"coverage":f.coverage,"access_note":f.access_note,
-            "collected":collected,"latest_published":latest,"sync":sync.iter().find(|s| s["id"] == format!("news-feed:{}", f.id))}));
+            "mode":f.mode,"configured":f.not_configured().is_none(),"status_note":f.not_configured(),
+            "poll_seconds":f.every(),
+            "collected":collected,"full_text":full_text,"latest_published":latest,"sync":sync}));
     }
     Ok(Json(json!({"items":out,"poll_seconds":poll_seconds()})))
 }
@@ -454,8 +588,11 @@ pub async fn submitted(db: &SqlitePool, url: &Url) -> Result<Option<Value>> {
         .await?;
     Ok(Some(match id {
         Some(id) => json!({"status":"already_collected","article_id":id,"source":feed.name}),
-        None => {
+        None if feed.mode == Mode::Feed => {
             json!({"status":"feed_only","source":feed.name,"message":format!("{} is collected from its official feed every {} minutes; individual pages cannot be fetched automatically. {} New DRC articles appear automatically; older articles no longer in the feed are not available.", feed.name, poll_seconds() / 60, feed.access_note)})
+        }
+        None => {
+            json!({"status":"collected_automatically","source":feed.name,"message":format!("{} is collected automatically every {} minutes with full text. {} Individual URLs are not queued; new DRC articles appear automatically.", feed.name, feed.every() / 60, feed.access_note)})
         }
     }))
 }
@@ -506,5 +643,34 @@ mod tests {
             to_article(feed, &items[4]).is_err(),
             "links outside the publisher are rejected"
         );
+    }
+    /// Manual live check against the real publishers (never run by default; honours all delays):
+    /// LIVE_DB=sqlite://agent.db cargo test live_collect -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore]
+    async fn live_collect() {
+        let db = store::open(&std::env::var("LIVE_DB").unwrap_or("sqlite::memory:".into()))
+            .await
+            .unwrap();
+        reference::init(&db).await.unwrap();
+        let client = reqwest::Client::builder()
+            .user_agent(reference::user_agent())
+            .build()
+            .unwrap();
+        let mut pages = fulltext::Pages::new().unwrap();
+        for feed in feeds().iter().filter(|f| f.mode != Mode::Feed) {
+            if let Some(note) = feed.not_configured() {
+                println!("{}: {note}", feed.id);
+                continue;
+            }
+            run(&db, &client, &mut pages, feed).await.unwrap();
+            let row: (Option<String>, Option<String>, Option<String>) =
+                sqlx::query_as("SELECT status, error, detail FROM reference_sync WHERE id=?")
+                    .bind(format!("news-feed:{}", feed.id))
+                    .fetch_one(&db)
+                    .await
+                    .unwrap();
+            println!("{}: {row:?}", feed.id);
+        }
     }
 }

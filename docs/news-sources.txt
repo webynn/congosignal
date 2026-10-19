@@ -1,0 +1,84 @@
+Full-text news sources: Radio Okapi, 7sur7.cd, ReliefWeb
+
+Configured in config/news-feeds.json ("mode") and collected by the feeds worker (src/feeds.rs,
+src/feeds/fulltext.rs) next to Jeune Afrique (feed summary only) and the Actualite.cd crawler.
+GET /v1/feeds shows each source's status; POST /v1/feeds/refresh ("Collect latest") polls them all.
+Every item is screened for DRC relevance like the Jeune Afrique feed (DRC terms or a recognised DRC
+place; Great Lakes neighbours kept as flagged regional context; anything else skipped).
+Access checked on 2026-10-19.
+
+Radio Okapi (https://www.radiookapi.net), mode "feed_full_text"
+  Who: the United Nations radio in the DRC, run by MONUSCO (co-run with Fondation Hirondelle
+  2002-2014), per https://www.radiookapi.net/page/propos. Public-interest broadcaster; the feed
+  carries "Copyright Radio Okapi". Articles are stored for internal research with attribution and a
+  link to the original; do not republish them wholesale.
+  Feed: https://www.radiookapi.net/feed/actualite (50 latest news items, title + lede, ETag and
+  Last-Modified honoured). The site-wide https://www.radiookapi.net/rss.xml only lists stale admin
+  and test pages ("2026 Actualité", "Test NL"...), so it is not used; the homepage advertises
+  feeds.feedburner.com/radiookapi/actu, which mirrors /feed/actualite.
+  Pages: robots.txt (User-agent: *) allows article paths and sets Crawl-delay: 10; it disallows
+  /admin/, /search/, /user/... The worker checks robots.txt (cached 1 h) before each request and
+  spaces every request to the host, the feed included, at least 10 s apart. For each new DRC item,
+  up to 20 per poll, it fetches the article page and extracts the Drupal body
+  (article .field-name-body: paragraphs, subheadings, list items; no JSON-LD is published).
+  Author and time come from the feed (dc:creator, usually "Radio Okapi") and the page metadata
+  (article:published_time). If a page fails, the feed summary is stored (coverage "feed_summary")
+  and the page is retried on later polls, at most three times. Stored full text is never replaced
+  by a summary.
+
+7sur7.cd (https://7sur7.cd), mode "listing"
+  Who: private Kinshasa news site ("Copyright © 7sur7.cd"). Stored for internal research with
+  attribution and a link; do not republish.
+  No feed (/feed and /rss.xml return 404). robots.txt (User-agent: *, no Crawl-delay) disallows
+  /admin/, /search/, /user/..., /node/add/ and their /index.php/ variants; article pages are
+  allowed. Each poll reads the homepage and /category/une, /category/politique,
+  /category/securite, /category/economie, keeps links on 7sur7.cd matching /YYYY/MM/DD/slug (Drupal
+  /index.php/ alias, query and fragment removed) dated within the last 14 days, skips articles
+  already stored, and fetches at most 25 new pages, 5 s apart, robots-checked.
+  Extraction: the article's body field (article .field--name-body, property schema:text); the
+  sidebar and footer reuse the same field class and are ignored, as are blocks hidden with
+  display:none (the site carries injected hidden spam links). Title from og:title, time from
+  article:published_time (or <time datetime>), section from article:section, author from the final
+  bold sign-off paragraph ("Joël Losinu, à Komanda" -> "Joël Losinu", labelled
+  final_bold_paragraph_heuristic). Pages screened out as not about the DRC, or failing three
+  times (tenders published as images, removed pages), are not fetched again.
+
+ReliefWeb (https://reliefweb.int, UN OCHA), mode "reliefweb_api"
+  Access: API only, https://api.reliefweb.int/v2/reports. Since 1 November 2025 the API requires a
+  pre-approved appname (https://apidoc.reliefweb.int/parameters#appname); an unapproved one gets
+  HTTP 403 "You are not using an approved appname". reliefweb.int pages answer with a bot challenge
+  and are never fetched.
+  Without RELIEFWEB_APPNAME the source shows "not configured: request an appname at
+  https://apidoc.reliefweb.int/parameters#appname" and makes no request. With it, every 2 hours the
+  worker POSTs one query: primary_country.iso3 = "cod", date.created in the last 7 days, sorted
+  newest first, limit 50, fields title, body, body-html, url, url_alias, dates, source, language,
+  format, theme, disaster, origin. Body text comes from body-html (paragraphs, headings, list items,
+  table cells) or the Markdown body. Reports with no body (attachment-only PDFs and maps) are
+  skipped. Source is "ReliefWeb · <first contributing organisation>"; category is the format
+  (Situation Report, News and Press Release...); themes and disasters are kept in the relevance
+  record. Quota: 1000 calls per day (the worker uses 12).
+  Terms (https://apidoc.reliefweb.int, "Terms of service"): anyone can use the API; reports are
+  contributed by information partners and may contain copyrighted material owned by the original
+  source, whose intellectual property rights must be respected. ReliefWeb's own site content is
+  CC BY 4.0 except where noted; each report's terms are its contributing organisation's.
+  Note: on 2026-10-19 the API answered HTTP 406 "Blocked due to bot activity" to user agents
+  containing "DrcOsintWorker"/"osint", while other user agents reached the appname check (403). The
+  worker keeps the app's identifying user agent and reports a 406 as "blocked by its bot filter";
+  mention the user agent to ReliefWeb (hdx@un.org) when requesting the appname.
+
+Polling and safety (all sources)
+  FEED_POLL_SECONDS (default 1800, 0 disables everything) sets the interval; "poll_seconds" in the
+  config overrides it per source (ReliefWeb 7200). Requests use reference::user_agent()
+  ("DrcOsintWorker/0.1 (Congo Signal DRC open-source research[; contact])"), a 30 s timeout,
+  same-host https redirects only (the final URL is robots-checked again), HTML only, 5 MB cap.
+  A 429 or 503 pauses the host (Retry-After, clamped to 1 min-1 h, default 15 min) and ends page
+  fetching for that poll. The raw page HTML (Radio Okapi: feed item + page) or the API record is
+  stored with each revision.
+
+Live check (2026-10-19, one bounded run on a database copy)
+  Radio Okapi: 50 feed items, 45 DRC; 20 pages fetched, 19 full text (1 connection error, kept as
+  feed summary for retry), average 2,360 characters (1,271-4,466).
+  7sur7.cd: 64 candidate links, 25 pages fetched, 21 full text, average 2,334 characters
+  (535-7,017); 1 page screened out, 3 failures (old tenders linked from a sidebar, since excluded
+  by the 14-day window).
+  ReliefWeb: not configured (no approved appname).
