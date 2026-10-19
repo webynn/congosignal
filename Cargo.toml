@@ -8,7 +8,7 @@ anyhow = "1"
 dotenvy = "0.15"
 axum = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "json", "multipart"] }
 robotstxt = "0.3"
 scraper = "0.24"
 serde = { version = "1", features = ["derive"] }
@@ -25,3 +25,5 @@ csv = "1.4.0"
 jsonwebtoken = "9"
 base64 = "0.22"
 calamine = { version = "0.37.0", default-features = false }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder", "hostname", "tokio1"] }

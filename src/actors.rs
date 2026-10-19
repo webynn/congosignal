@@ -741,6 +741,16 @@ fn build_actors(records: Vec<Record>) -> Vec<Actor> {
     actors.sort_by(|a, b| a.name.cmp(&b.name));
     actors
 }
+/// Watchable actors: id, display name, sanctioned flag and the match terms used for mentions.
+pub async fn watch_terms(db: &SqlitePool) -> Result<Vec<(String, String, bool, Vec<Term>)>> {
+    Ok(build_actors(load_records(db).await?)
+        .into_iter()
+        .map(|a| {
+            let terms = a.terms();
+            (a.id, a.name, !a.records.is_empty(), terms)
+        })
+        .collect())
+}
 impl Actor {
     fn terms(&self) -> Vec<Term> {
         let mut out: Vec<Term> = Vec::new();

@@ -4,8 +4,10 @@ mod agreements;
 mod ai_settings;
 mod arms;
 mod authentication;
+mod brief;
 mod commodities;
 mod costs;
+mod events;
 mod evidence;
 mod extract;
 mod feeds;
@@ -13,12 +15,14 @@ mod fetch;
 mod flights;
 mod images;
 mod intelligence;
+mod notify;
 mod radio;
 mod reference;
 mod social;
 mod store;
 mod text;
 mod voice;
+mod watch;
 
 use anyhow::Result;
 use axum::{
@@ -329,6 +333,8 @@ async fn main() -> Result<()> {
     commodities::init(&db).await?;
     radio::init(&db).await?;
     flights::init(&db).await?;
+    watch::init(&db).await?;
+    events::init(&db).await?;
     let app = App {
         db: db.clone(),
         token,
@@ -340,6 +346,15 @@ async fn main() -> Result<()> {
             "/v1/team",
             get(authentication::team).post(authentication::change_member),
         )
+        .route("/v1/watches", get(watch::list).post(watch::save))
+        .route("/v1/watches/test", post(watch::test))
+        .route("/v1/watches/telegram-chats", get(watch::telegram_chats))
+        .route("/v1/watches/{id}", axum::routing::delete(watch::remove))
+        .route("/v1/watches/{id}/results", get(watch::results))
+        .route("/v1/alerts", get(watch::alerts))
+        .route("/v1/alerts/read", post(watch::mark_read))
+        .route("/v1/events", get(events::list))
+        .route("/v1/brief", get(brief::get))
         .route("/v1/jobs", post(submit))
         .route("/v1/jobs/{id}", get(job))
         .route("/v1/articles", get(articles))
@@ -485,6 +500,8 @@ async fn main() -> Result<()> {
         result = images::worker(db.clone()) => result?,
         result = commodities::worker(db.clone()) => result?,
         result = flights::worker(db.clone()) => result?,
+        result = watch::worker(db.clone()) => result?,
+        result = events::worker(db.clone()) => result?,
         result = radio::worker(db) => result?,
         result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
     }

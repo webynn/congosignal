@@ -136,6 +136,13 @@ pub struct Place {
     lat: f64,
     lon: f64,
 }
+/// Explicit DRC places in `text`, in order: (name, province, lat, lon).
+pub fn place_tuples(text: &str) -> Vec<(String, String, f64, f64)> {
+    places(text)
+        .into_iter()
+        .map(|p| (p.name.to_string(), p.province.to_string(), p.lat, p.lon))
+        .collect()
+}
 /// First explicit DRC place in `text`: (name, province, lat, lon).
 pub fn first_place(text: &str) -> Option<(String, String, f64, f64)> {
     places(text)

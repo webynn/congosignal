@@ -202,6 +202,10 @@ fn permit(role: &str, method: &str, path: &str) -> bool {
     if role == "owner" {
         return true;
     }
+    // Watchlists and alerts are personal: any member may manage their own.
+    if path.starts_with("/v1/watches") || path.starts_with("/v1/alerts") {
+        return role != "worker";
+    }
     if path == "/v1/voice/token" || path == "/v1/voice/chat" {
         return ["administrator", "analyst", "reviewer"].contains(&role);
     }
