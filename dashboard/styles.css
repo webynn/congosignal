@@ -1265,3 +1265,39 @@ body {
 .alert-row p { margin: 5px 0 0; font-size: 12px; line-height: 1.5; color: var(--text-2); }
 .alert-meta { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 1100px) { .watch-layout { grid-template-columns: 1fr; } .form-grid, .watch-channels { grid-template-columns: 1fr; } .watch-row { grid-template-columns: 30px minmax(0, 1fr); } .watch-row .actions { grid-column: 1 / -1; flex-wrap: wrap; } }
+
+/* Accessibility: muted and status text at WCAG AA (≥4.5:1) on panels in both themes. */
+:root { --muted: #7a8c94; }
+:root[data-theme="light"] { --muted: #5f6a66; --warning: #8a5900; --good: #0f7232; --signal: #0a6a95; }
+:root[data-theme="light"] .classbar { background: linear-gradient(90deg, #285c16, #346f1d 50%, #285c16); }
+.input:focus, .select:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px; }
+
+/* Tablet: keep the top bar inside the viewport; map first in map views. */
+@media (max-width: 1100px) {
+  .topbar { min-width: 0; }
+  .crumb { min-width: 0; overflow: hidden; }
+  .crumb strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .omni { flex: 0 0 40px; width: 40px; height: 34px; padding: 0; justify-content: center; margin-left: auto; }
+  .omni span, .omni kbd { display: none; }
+  .live-pill, .clocks { display: none; }
+  .situation { grid-template-rows: 62vh auto auto; }
+  .situation .stage { order: -1; }
+  .post-topics .tag { white-space: normal; min-width: 0; }
+}
+/* Phone: every nav item reachable (the bottom bar scrolls), no overlapping map HUD. */
+@media (max-width: 720px) {
+  .rail { overflow-x: auto; overflow-y: hidden; justify-content: flex-start; gap: 2px; scroll-snap-type: x proximity; scrollbar-width: none; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail .nav-item { flex: 0 0 auto; min-width: 52px; scroll-snap-align: start; }
+  .hud-pos, .hud-readout { display: none; }
+  .holo-stage { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .drawer-top { flex-wrap: nowrap; }
+  .drawer-top .actions .btn span { display: none; }
+}
+/* Touch: comfortable tap targets. */
+@media (pointer: coarse) {
+  .btn.sm, .seg button, .chip, .iconbtn, .linkbtn, .flight-cats button { min-height: 40px; }
+  .iconbtn { min-width: 40px; }
+  .geo-marker { min-width: 34px; height: 34px; }
+}
+@media (max-width: 720px) { .topbar { overflow-x: auto; scrollbar-width: none; } .topbar::-webkit-scrollbar { display: none; } .topbar > * { flex-shrink: 0; } }

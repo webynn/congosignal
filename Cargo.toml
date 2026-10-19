@@ -25,5 +25,6 @@ csv = "1.4.0"
 jsonwebtoken = "9"
 base64 = "0.22"
 calamine = { version = "0.37.0", default-features = false }
+tower-http = { version = "0.6", features = ["compression-gzip", "compression-br"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder", "hostname", "tokio1"] }

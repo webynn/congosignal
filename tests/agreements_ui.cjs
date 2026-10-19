@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('dashboard/app.js','utf8');
-const context=vm.createContext({state:{lang:'en',agreements:{items:[],metadata:{}},agSearch:'',agCategory:'',agTerm:'',agDrafts:false},L:x=>x,norm:s=>s.toLowerCase(),esc:s=>String(s??'').replaceAll('<','&lt;'),nf:n=>String(n),pageHead:()=>'',emptyState:()=>''});
+const context=vm.createContext({state:{lang:'en',agreements:{items:[],metadata:{}},agSearch:'',agCategory:'',agTerm:'',agDrafts:false},L:x=>x,norm:s=>s.toLowerCase(),esc:s=>String(s??'').replaceAll('<','&lt;'),srv:s=>s||'',nf:n=>String(n),pageHead:()=>'',emptyState:()=>''});
 vm.runInContext(source.slice(source.indexOf('const agreementStatus='),source.indexOf('async function openAgreement(')),context);
 const a={id:'one',title:'Example',categories:['peace'],parties:'DRC',date:'2025-01-01',signed_term:'Example presidency',documents:[],assessment:{reviewed:false,status:'completed',data:{outcomes:[{dimension:'security',score:2}]}}};
 context.state.agreements.items=[a];

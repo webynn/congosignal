@@ -485,7 +485,9 @@ async fn main() -> Result<()> {
                     include_str!("../dashboard/drc.geo.json"),
                 )
             }),
-        );
+        )
+        // gzip/brotli for JSON and the dashboard: the report list alone is ~1 MB uncompressed.
+        .layer(tower_http::compression::CompressionLayer::new());
     let listener = tokio::net::TcpListener::bind(bind).await?;
     tracing::info!(%bind,"API worker listening");
     tokio::select! {
