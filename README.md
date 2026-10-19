@@ -392,3 +392,36 @@ Rights: web images are third-party works whose reuse rights are not cleared. The
 - **API.** `GET /v1/radio` lists stations. `POST /v1/radio/{id}/listen` counts a play locally and, for directory stations, registers a click with Radio Browser. `REFERENCE_SYNC=0` disables the directory sync and the health checks.
 
 To add a station, append an entry to `config/radio-stations.json` with these fields: `id`, `name`, `city`, `homepage`, `stream`, `languages`, `tags`, `coverage` and `source_note`. Use the stream URL from the station's own player.
+
+## Watchlists, alerts, event log and briefs
+
+**Watchlists & alerts (`/#alerts`).** Each member keeps their own watches:
+- Words or phrases. Acronyms such as M23 match only when written in capitals.
+- Places, or key figures (matched on their names and aliases).
+- Any sanctioned person. Sanctioned organisations such as M23 or the RDF are optional, because they appear in most posts.
+- Military flights, or specific aircraft (callsign, registration, ICAO hex or type; prefixes such as `ETH` or `UNO` work).
+- A daily or weekly brief.
+
+New articles and X posts are matched as they are collected, and the flight picture on every scan. Creating a watch does not flood you with old matches; past matches are under **Results**. Every hit goes to the alert inbox (the bell in the top bar). Email and Telegram are optional for each watch, with one batched message per watch per run. Briefs arrive as a Word attachment. **Watch** buttons on key-figure profiles, flights, events and report searches create a watch in one click.
+
+| Variable | Purpose |
+| --- | --- |
+| `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS, 465 TLS), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Email delivery |
+| `TELEGRAM_BOT_TOKEN` | Telegram delivery. Create the bot with @BotFather, message it, then use **Find my chat** to pick the chat id |
+| `APP_PUBLIC_URL` | Base URL for links in emails and Telegram messages (defaults to `APP_ORIGIN`) |
+
+Secrets stay on the server. **Test email** and **Test Telegram** confirm delivery.
+
+**Event log (`/#events`).** Dated incidents are extracted from every collected report. Each sentence is checked for:
+- an incident cue in French or English: clash, attack, drone or shelling, abduction, displacement, seizure of territory, protest, arrest, sexual violence, outbreak or disaster;
+- a DRC place written as a location ("à Goma", "territoire de Masisi", "Walikale :"), so a capital used as shorthand for its government does not count.
+
+Dates follow the publication date, adjusted for "hier", named weekdays and explicit dates. Armed groups and death tolls come from the same sentence. Reports of the same type, place and day merge into one incident showing how many reports and outlets cover it; the toll shown is the highest any source reported. Extraction is automatic and unverified, and every incident keeps its source excerpts. The view has a map, a per-day timeline with playback, and filters. `GET /v1/events?days=30`.
+
+**Briefs.** On the Briefing page, **Daily brief** or **Weekly brief** downloads as **Word** (.docx) or opens a print view to save as **PDF**, in the current language. `GET /v1/brief?period=daily|weekly&format=docx|html|json&lang=en|fr`. A brief contains:
+- headline figures and the most-reported provinces;
+- the priority reports (the AI summary where one exists, otherwise the lede);
+- key incidents and the air picture;
+- a numbered source list that every item cites.
+
+**Sources.** Radio Okapi and 7sur7.cd are collected in full text, respecting robots.txt and crawl delays. ReliefWeb (UN OCHA) needs an approved app name: request one at https://apidoc.reliefweb.int/parameters#appname and set `RELIEFWEB_APPNAME`. See `docs/news-sources.txt`.
