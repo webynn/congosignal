@@ -741,13 +741,14 @@ fn build_actors(records: Vec<Record>) -> Vec<Actor> {
     actors.sort_by(|a, b| a.name.cmp(&b.name));
     actors
 }
-/// Watchable actors: id, display name, sanctioned flag and the match terms used for mentions.
-pub async fn watch_terms(db: &SqlitePool) -> Result<Vec<(String, String, bool, Vec<Term>)>> {
+/// Watchable actors: id, display name, sanctioned flag, person flag and the mention match terms.
+pub async fn watch_terms(db: &SqlitePool) -> Result<Vec<crate::watch::ActorEntry>> {
     Ok(build_actors(load_records(db).await?)
         .into_iter()
         .map(|a| {
             let terms = a.terms();
-            (a.id, a.name, !a.records.is_empty(), terms)
+            let person = a.kind == "person";
+            (a.id, a.name, !a.records.is_empty(), person, terms)
         })
         .collect())
 }

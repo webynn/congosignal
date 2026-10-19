@@ -30,6 +30,8 @@ const paths = {
   close: 'm6 6 12 12 M6 18 18 6',
   external: 'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',
   check: 'm4 12 5 5L20 6',
+  bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.9 1.9 0 0 0 3.4 0',
+  mail: 'M4 4h16v16H4z m0 0 8 8 8-8',
   mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z M19 11a7 7 0 0 1-14 0 M12 18v3 M8.5 21h7',
   radio: 'M4.9 19.1a10 10 0 0 1 0-14.2 M19.1 4.9a10 10 0 0 1 0 14.2 M7.8 16.2a6 6 0 0 1 0-8.4 M16.2 7.8a6 6 0 0 1 0 8.4 M14 12a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
   user: 'M20 21a8 8 0 0 0-16 0 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
@@ -57,12 +59,12 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 // ---------------------------------------------------------------------------------------------
 // State
 
-const VIEWS = ['briefing', 'situation', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team', 'ai-settings', 'ai-command'];
+const VIEWS = ['briefing', 'situation', 'events', 'alerts', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team', 'ai-settings', 'ai-command'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
-const viewFromHash = () => { const h = location.hash.slice(1); if (h === 'flights' || h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('report/')) return 'reports'; if (h === 'flights' || h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
 const hashPart = prefix => location.hash.startsWith(`#${prefix}/`) ? decodeURIComponent(location.hash.slice(prefix.length + 2)) : '';
-function openFromHash() { if (hashPart('radio')) { state.radioMode = true; state.flightMode = false; state.mineralMode = false; state.radioSel = hashPart('radio'); render() } else if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; state.radioMode = false; state.flightMode = false; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
+function openFromHash() { if (hashPart('report')) openDetail(hashPart('report')); else if (hashPart('radio')) { state.radioMode = true; state.flightMode = false; state.mineralMode = false; state.radioSel = hashPart('radio'); render() } else if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; state.radioMode = false; state.flightMode = false; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
 const state = {
   aiMode: store.get('congo-ai-mode')==='1'||viewFromHash()==='ai-command', aiMotion: store.get('congo-ai-motion')!=='0',
   lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
@@ -182,7 +184,7 @@ async function load() {
     state.auth=await api('/v1/auth/me');state.loginRequired=false;
   } catch(e) {if(state.authConfig?.mode==='oidc'){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
   try {
-    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings] = await Promise.all([
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -201,9 +203,12 @@ async function load() {
       api('/v1/radio').catch(() => null),
       api('/v1/flights').catch(() => null),
       state.auth?.user?.role==='owner' ? api('/v1/settings/ai').catch(() => null) : null,
+      api('/v1/watches').catch(() => null),
+      api('/v1/alerts?limit=200').catch(() => null),
+      api(`/v1/events?days=${state.evDays}`).catch(() => null),
     ]);
     if (state.agDetail?.assessment?.status === 'running') state.agDetail = await api('/v1/agreements/'+state.agDetail.id);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, error: '' });
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, error: '' });
   } catch (e) { state.error = e.message }
   state.loaded = true;
   render();
@@ -245,6 +250,8 @@ const NAV = () => [
   ...(state.aiMode ? [['ai-command','spark','OKAPI / AI']] : []),
   ['briefing', 'grid', L('Briefing', 'Synthèse'), state.items.filter(a => a.rank.band === 'high').length, true],
   ['situation', 'map', L('Situation room', 'Vue de situation')],
+  ['events', 'history', L('Event log', 'Journal des événements'), (state.events?.items || []).filter(e => Date.now() - Date.parse(e.date) < 7 * 864e5).length],
+  ['alerts', 'bell', L('Watchlists & alerts', 'Veilles et alertes'), state.alerts?.unread, true],
   ['reports', 'layers', L('Reports', 'Articles'), state.total],
   ['social', 'radio', L('Social intelligence', 'Veille sociale'), state.social?.archive?.posts],
   ['sources', 'book', L('Primary sources', 'Sources primaires'), state.ev?.items?.length],
@@ -270,7 +277,7 @@ function feedStatuses() {
     [failed ? 'warn' : 'ok', L('Documents', 'Documents'), src.length ? `${src.length - failed}/${src.length}` : '—'],
   ];
 }
-const VIEW_CODES = { briefing: 'BRF', situation: 'SIT', reports: 'RPT', social: 'SOC', sources: 'SRC', actors: 'ACT', arms: 'ARM', saved: 'SAV', method: 'MTH' };
+const VIEW_CODES = { briefing: 'BRF', situation: 'SIT', events: 'EVT', alerts: 'ALR', reports: 'RPT', social: 'SOC', sources: 'SRC', actors: 'ACT', arms: 'ARM', saved: 'SAV', method: 'MTH' };
 /// Top-ranked recent reports for the scrolling priority wire.
 function wireItems() {
   const cutoff = Date.now() - 96 * 3600000;
@@ -286,7 +293,7 @@ function shell(content) {
   const nav = NAV().filter(([v])=>!['costs','ai-settings'].includes(v)||state.auth?.user?.role==='owner');
   return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
     <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC situational awareness', 'Veille de situation · RDC')}</small></div></a>
-    <nav>${nav.map(([id, ic, label, count, hot], i) => `${i === 4 ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)} · ${i + 1}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : `<kbd class="nav-key">${i + 1}</kbd>`}</button>`).join('')}</nav>
+    <nav>${nav.map(([id, ic, label, count, hot], i) => `${id === 'social' ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)} · ${i + 1}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : `<kbd class="nav-key">${i + 1}</kbd>`}</button>`).join('')}</nav>
     <div class="rail-bottom"><p>${esc(state.auth?.user?.email||'')} · ${esc(state.auth?.user?.role||'')}</p>${state.auth?.mode==='oidc'?`<button class="btn" data-act="logout">${L('Sign out','Déconnexion')}</button>`:''}<div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
   </aside><div class="workspace"><div class="chrome">
     <div class="classbar"><span>${L('UNCLASSIFIED // OPEN SOURCE', 'NON CLASSIFIÉ // SOURCES OUVERTES')}</span><span class="classbar-mid">CONGO SIGNAL · ${L('DRC SITUATIONAL AWARENESS', 'VEILLE DE SITUATION RDC')}</span><span>${L('ATTRIBUTED · UNVERIFIED UNLESS STATED', 'ATTRIBUÉ · NON VÉRIFIÉ SAUF MENTION')}</span></div>
@@ -294,7 +301,7 @@ function shell(content) {
       <div class="crumb"><span class="crumb-code">${VIEW_CODES[state.view] || 'OPS'}</span><strong>${esc(viewLabel(state.view))}</strong></div>
       <button class="omni" data-act="palette" aria-label="${L('Search everything', 'Tout rechercher')}">${icon('search')}<span>${L('Search reports, places, actors, weapons…', 'Rechercher articles, lieux, acteurs, armes…')}</span><kbd>⌘K</kbd></button>
       <div class="clocks" aria-label="${L('Current time', 'Heure actuelle')}"><span><small>UTC</small><b id="clock-utc">${clockText(0)}</b></span><span><small>KIN</small><b id="clock-kin">${clockText(1)}</b></span></div>
-      ${onAirChip()}<span class="live-pill ${state.error ? 'down' : ''}"><i class="dot ${state.error ? 'bad' : 'ok live'}"></i>${state.error ? L('OFFLINE', 'HORS LIGNE') : 'LIVE'}</span>
+      ${onAirChip()}<button class="iconbtn bell ${state.alerts?.unread ? 'has' : ''}" data-act="nav" data-arg="alerts" aria-label="${esc(L(`Alerts: ${state.alerts?.unread || 0} unread`, `Alertes : ${state.alerts?.unread || 0} non lues`))}" title="${esc(L('Watchlists & alerts', 'Veilles et alertes'))}">${icon('bell')}${state.alerts?.unread ? `<b>${state.alerts.unread > 99 ? '99+' : state.alerts.unread}</b>` : ''}</button><span class="live-pill ${state.error ? 'down' : ''}"><i class="dot ${state.error ? 'bad' : 'ok live'}"></i>${state.error ? L('OFFLINE', 'HORS LIGNE') : 'LIVE'}</span>
       <div class="seg" role="group" aria-label="Language"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'active' : ''}">EN</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'active' : ''}">FR</button></div>
       <button class="btn sm ai-mode-switch" data-act="ai-mode" aria-pressed="${state.aiMode}">${icon('spark')}${state.aiMode?L('Exit AI mode','Quitter le mode IA'):L('AI mode','Mode IA')}</button>
       <button class="btn sm" data-act="voice-open">Okapi</button>
@@ -322,7 +329,7 @@ function render() {
   document.documentElement.dataset.aiMotion=state.aiMotion?'on':'off';
   document.documentElement.dataset.theme=state.aiMode?'dark':state.theme;
   mapHost?.remove();
-  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView, "ai-settings": aiSettingsView, "ai-command": aiCommandView };
+  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView, "ai-settings": aiSettingsView, "ai-command": aiCommandView, events: eventsView, alerts: alertsView };
   $('#app').innerHTML = shell(views[state.view]());
   if(state.view==='ai-settings') loadAiModels();
   for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
@@ -416,7 +423,7 @@ function briefingView() {
   const queue = [...state.items].sort((a, b) => b.rank.score - a.rank.score).slice(0, 8);
   const today = new Date().toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Kinshasa' });
   const kpi = (label, ic, value, foot, extra = '', cls = '') => `<div class="panel kpi ${cls}"><div class="kpi-label">${icon(ic)}${label}</div><div class="kpi-value">${value}</div><div class="kpi-foot">${foot}</div>${extra}</div>`;
-  return pageHead(`DRC · ${L('OPEN-SOURCE MONITORING', 'VEILLE EN SOURCES OUVERTES')} · ${esc(today)}`, L('Daily briefing', 'Synthèse du jour'), L('What changed across news, primary documents and public conversation — ranked for analyst attention, linked to every source.', 'Ce qui a changé dans les articles, les documents primaires et la conversation publique — classé pour l’analyste, relié à chaque source.'), `${btnExport()}${btnCollect()}${btnBatch()}`)
+  return pageHead(`DRC · ${L('OPEN-SOURCE MONITORING', 'VEILLE EN SOURCES OUVERTES')} · ${esc(today)}`, L('Daily briefing', 'Synthèse du jour'), L('What changed across news, primary documents and public conversation — ranked for analyst attention, linked to every source.', 'Ce qui a changé dans les articles, les documents primaires et la conversation publique — classé pour l’analyste, relié à chaque source.'), `${btnBrief()}${btnExport()}${btnCollect()}${btnBatch()}`)
     + `<div class="kpis">
       ${kpi(L('Reports loaded', 'Articles chargés'), 'layers', nf(state.items.length), `${nf(state.total)} ${L('news articles collected', 'articles collectés')}`, `<span data-tip="${esc(L('Publications per day, last 14 days', 'Publications par jour, 14 derniers jours'))}">${spark(perDay)}</span>`)}
       ${kpi(L('High priority', 'Priorité élevée'), 'alert', nf(high.length), L('score ≥ 65 · attention, not truth', 'score ≥ 65 · attention, pas vérité'), '', high.length ? 'alert' : '')}
@@ -449,7 +456,7 @@ function reportsView() {
   const publishers = [...new Set(state.items.map(a => a.source))].sort();
   return pageHead(saved ? L('ANALYST WORKSPACE', 'ESPACE ANALYSTE') : L('NEWS + PRIMARY DOCUMENTS', 'ARTICLES + DOCUMENTS PRIMAIRES'), saved ? L('Saved reports', 'Articles sauvegardés') : L('Report library', 'Bibliothèque'), L('Ranked by an explainable attention score. Every report links to its original source and provenance.', 'Classés selon un score d’attention explicable. Chaque article renvoie à sa source et à sa provenance.'), `${btnExport()}${btnCollect()}${btnBatch()}`)
     + `<div class="split"><section class="panel">
-      <div class="toolbar"><label class="search">${icon('search')}<input id="report-q" class="input" type="search" data-model="q" value="${esc(state.q)}" placeholder="${L('Search title, text, places, AI briefs…', 'Rechercher titre, texte, lieux, synthèses…')}" aria-label="${L('Search reports', 'Rechercher')}"></label>
+      <div class="toolbar"><label class="search">${icon('search')}<input id="report-q" class="input" type="search" data-model="q" value="${esc(state.q)}" placeholder="${L('Search title, text, places, AI briefs…', 'Rechercher titre, texte, lieux, synthèses…')}" aria-label="${L('Search reports', 'Rechercher')}"></label>${state.q.trim() ? `<button class="btn sm" data-act="watch-quick" data-arg="${esc(`search|${state.q.trim().replace(/\|/g, ' ')}|${state.q.trim()}`)}" title="${L('Alert me when new reports match this search', 'M’alerter quand de nouveaux articles correspondent')}">${icon('bell')}${L('Save search', 'Enregistrer la recherche')}</button>` : ''}
         <select class="select" data-model="publisher" aria-label="${L('Publisher', 'Source')}"><option value="">${L('All publishers', 'Toutes les sources')}</option>${publishers.map(p => `<option value="${esc(p)}" ${state.publisher === p ? 'selected' : ''}>${esc(p)} (${state.items.filter(a => a.source === p).length})</option>`).join('')}</select>
         <select class="select" data-model="sort" aria-label="${L('Sort', 'Tri')}"><option value="priority" ${state.sort === 'priority' ? 'selected' : ''}>${L('Priority', 'Priorité')}</option><option value="latest" ${state.sort === 'latest' ? 'selected' : ''}>${L('Newest', 'Plus récents')}</option></select>
         <div class="chips" style="width:100%">${Object.keys(CATS).map(k => `<button class="chip ${state.category === k ? 'active' : ''}" data-act="category" data-arg="${k}">${k !== 'all' ? `<i class="swatch" style="background:${layerColor(k)}"></i>` : ''}${layerName(k)}</button>`).join('')}${state.place ? `<button class="chip active" data-act="clear-place">${icon('pin')}${esc(state.place)} ×</button>` : ''}<span style="flex:1"></span><label class="check"><input type="checkbox" data-model="includeRegional" ${state.includeRegional ? 'checked' : ''}>${L('Include regional context', 'Inclure le contexte régional')}</label></div>
@@ -726,7 +733,7 @@ const airportShort=a=>a?(a.iata||a.icao||a.name||'?'):'?';
 function flightRows(){const q=norm(state.flightQuery||'');return (state.flights?.items||[]).filter(f=>(Date.now()/1000-f.observed_at)<=600&&(state.flightApproach||f.region!=='approach')&&(!state.flightCategory||f.category===state.flightCategory)&&(!q||norm([f.callsign,f.registration,f.icao24,f.aircraft_type,f.type_name,f.airline,f.owner,f.route?.origin?.city,f.route?.destination?.city,f.route?.origin?.iata,f.route?.destination?.iata].filter(Boolean).join(' ')).includes(q))).sort((a,b)=>FLIGHT_CATS.indexOf(a.category)-FLIGHT_CATS.indexOf(b.category)||(a.region==='drc'?0:1)-(b.region==='drc'?0:1)||flightName(a).localeCompare(flightName(b)))}
 const planeSvg=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.8 0 1.4.9 1.4 2v5.3l7.6 4.4v2l-7.6-2.3v4.8l2.2 1.6V21L12 20l-3.6 1v-1.2l2.2-1.6v-4.8L3 15.7v-2l7.6-4.4V4c0-1.1.6-2 1.4-2Z"/></svg>`;
 function routeCard(f){const r=f.route;if(!r)return `<div class="flight-route none"><span>${L('Route','Trajet')}</span><b>${L('No published route for this callsign','Aucun trajet publié pour cet indicatif')}</b></div>`;const ap=(a,lab)=>`<div><small>${lab}</small><strong>${esc(airportShort(a))}</strong><span>${esc([a.city||a.name,a.country].filter(Boolean).join(' · '))}</span></div>`;return `<div class="flight-route ${r.plausible?'':'doubt'}">${ap(r.origin,L('FROM','DÉPART'))}<i class="fr-line" style="--c:${flightColor(f)}"><em>${planeSvg}</em></i>${ap(r.destination,L('TO','ARRIVÉE'))}<p>${r.plausible?L('Published schedule for this callsign; consistent with the observed position.','Horaire publié pour cet indicatif ; cohérent avec la position observée.'):L('Published schedule does not match the observed position: the callsign may be reused, so treat this route as unverified.','L’horaire publié ne correspond pas à la position observée : l’indicatif peut être réutilisé, trajet non vérifié.')} <a href="${esc(r.source_url)}" target="_blank" rel="noopener noreferrer">adsbdb ↗</a></p></div>`}
-function flightDetail(f){if(!f)return `<div class="pane-section muted" style="font-size:12.5px">${L('Select an aircraft on the map or in the list to see its route, operator and classification basis.','Sélectionnez un aéronef sur la carte ou dans la liste pour voir son trajet, son opérateur et la base de classification.')}</div>`;const v=x=>x==null||x===''?'—':x;return `<section class="flight-detail" style="--c:${flightColor(f)}"><div class="fd-head"><span class="fd-icon" style="transform:rotate(${f.track_degrees||0}deg)">${planeSvg}</span><div><div class="eyebrow">${esc(f.icao24)} · ${f.region==='drc'?L('IN DRC AIRSPACE','ESPACE AÉRIEN RDC'):L('APPROACHES','ABORDS')}</div><h2>${esc(flightName(f))}</h2></div></div>${f.emergency?`<p class="fd-emergency">${icon('alert')} ${esc(f.emergency)}</p>`:''}<p class="fd-cat"><b>${esc(flightLabel(f.category))}</b> ${esc(f.classification_basis||'')}</p>${routeCard(f)}<dl class="props">${[[L('Aircraft','Appareil'),v(f.type_name||f.aircraft_type)],[L('Registration','Immatriculation'),v(f.registration)],[L('Registered owner','Propriétaire'),v([f.owner,f.owner_country].filter(Boolean).join(' · '))],[L('Airline (callsign)','Compagnie (indicatif)'),v(f.airline)],[L('Altitude','Altitude'),f.altitude_ft==null?'—':`${nf(Math.round(f.altitude_ft))} ft`],[L('Ground speed','Vitesse sol'),f.ground_speed_knots==null?'—':`${Math.round(f.ground_speed_knots)} kt`],[L('Vertical rate','Taux vertical'),f.vertical_rate_fpm==null?'—':`${f.vertical_rate_fpm>0?'+':''}${Math.round(f.vertical_rate_fpm)} ft/min`],[L('Heading','Cap'),f.track_degrees==null?'—':`${Math.round(f.track_degrees)}°`],[L('Squawk','Transpondeur'),v(f.squawk)],[L('Observed','Observé'),`${Math.max(0,Math.round((Date.now()/1000-f.observed_at)/60))} min ${L('ago','')} · ${(f.sources||[]).join(' + ')||'ADS-B'}`]].map(([k,x])=>`<dt>${esc(k)}</dt><dd>${esc(x)}</dd>`).join('')}</dl><p class="muted" style="font-size:11.5px">${L('Classification states what matched (database flag, operator, airframe or callsign). It does not establish the cargo, passengers or mission of this flight.','La classification indique ce qui correspond (base de données, opérateur, appareil ou indicatif). Elle n’établit ni la cargaison, ni les passagers, ni la mission de ce vol.')}</p></section>`}
+function flightDetail(f){if(!f)return `<div class="pane-section muted" style="font-size:12.5px">${L('Select an aircraft on the map or in the list to see its route, operator and classification basis.','Sélectionnez un aéronef sur la carte ou dans la liste pour voir son trajet, son opérateur et la base de classification.')}</div>`;const v=x=>x==null||x===''?'—':x;return `<section class="flight-detail" style="--c:${flightColor(f)}"><div class="fd-head"><span class="fd-icon" style="transform:rotate(${f.track_degrees||0}deg)">${planeSvg}</span><div><div class="eyebrow">${esc(f.icao24)} · ${f.region==='drc'?L('IN DRC AIRSPACE','ESPACE AÉRIEN RDC'):L('APPROACHES','ABORDS')}</div><h2>${esc(flightName(f))}</h2></div></div>${f.emergency?`<p class="fd-emergency">${icon('alert')} ${esc(f.emergency)}</p>`:''}<p class="fd-cat"><b>${esc(flightLabel(f.category))}</b> ${esc(f.classification_basis||'')}</p><button class="btn sm" data-act="watch-quick" data-arg="${esc(`aircraft|${(f.registration||f.callsign||f.icao24||'').trim()}|${flightName(f)}`)}">${icon('bell')} ${L('Watch this aircraft','Suivre cet aéronef')}</button>${routeCard(f)}<dl class="props">${[[L('Aircraft','Appareil'),v(f.type_name||f.aircraft_type)],[L('Registration','Immatriculation'),v(f.registration)],[L('Registered owner','Propriétaire'),v([f.owner,f.owner_country].filter(Boolean).join(' · '))],[L('Airline (callsign)','Compagnie (indicatif)'),v(f.airline)],[L('Altitude','Altitude'),f.altitude_ft==null?'—':`${nf(Math.round(f.altitude_ft))} ft`],[L('Ground speed','Vitesse sol'),f.ground_speed_knots==null?'—':`${Math.round(f.ground_speed_knots)} kt`],[L('Vertical rate','Taux vertical'),f.vertical_rate_fpm==null?'—':`${f.vertical_rate_fpm>0?'+':''}${Math.round(f.vertical_rate_fpm)} ft/min`],[L('Heading','Cap'),f.track_degrees==null?'—':`${Math.round(f.track_degrees)}°`],[L('Squawk','Transpondeur'),v(f.squawk)],[L('Observed','Observé'),`${Math.max(0,Math.round((Date.now()/1000-f.observed_at)/60))} min ${L('ago','')} · ${(f.sources||[]).join(' + ')||'ADS-B'}`]].map(([k,x])=>`<dt>${esc(k)}</dt><dd>${esc(x)}</dd>`).join('')}</dl><p class="muted" style="font-size:11.5px">${L('Classification states what matched (database flag, operator, airframe or callsign). It does not establish the cargo, passengers or mission of this flight.','La classification indique ce qui correspond (base de données, opérateur, appareil ou indicatif). Elle n’établit ni la cargaison, ni les passagers, ni la mission de ce vol.')}</p></section>`}
 function flightMap(){if(state.config?.mapbox_public_token&&window.mapboxgl&&!mapFailed)return '<div id="map-slot"></div>';const xy=(lon,lat)=>[25+(lon-12)*18,25+(5.5-lat)*13.8];const path=state.geometry?.features?.[0]?.geometry.coordinates.map(r=>r.map((p,i)=>`${i?'L':'M'}${xy(...p).join(',')}`).join(' ')+'Z').join(' ')||'';return `<div class="static-map"><svg viewBox="0 0 405 290" aria-label="${L('Flight map','Carte des vols')}"><path class="map-country" d="${path}"/>${flightRows().map(f=>{const [x,y]=xy(f.longitude,f.latitude);return `<circle cx="${x}" cy="${y}" r="4" fill="${flightColor(f)}" data-act="flight-select" data-arg="${esc(f.icao24)}" tabindex="0" role="button" aria-label="${esc(flightName(f))}"><title>${esc(flightName(f))}</title></circle>`}).join('')}</svg></div>`}
 function flightSourceStatus(d){if(!d)return L('Unavailable','Indisponible');if(!d.enabled)return L('Disabled','Désactivé');return ({ok:L('Scan complete','Scan terminé'),partial:L('Partial scan','Scan partiel'),pending:L('First scan in progress','Premier scan en cours')})[d.status]||L('Sources unavailable','Sources indisponibles')}
 function flightsSituation(){const d=state.flights,all=(d?.items||[]).filter(f=>(Date.now()/1000-f.observed_at)<=600&&(state.flightApproach||f.region!=='approach')),rows=flightRows(),selected=rows.find(f=>f.icao24===state.flightSelected)||all.find(f=>f.icao24===state.flightSelected);const count=k=>all.filter(f=>f.category===k).length,inDrc=all.filter(f=>f.region==='drc').length;const next=d?.next_check_at?Math.max(0,Math.round((d.next_check_at-Date.now()/1000)/60)):null;
@@ -1172,6 +1179,178 @@ function focusPanel() {
     ${c ? `<section class="panel market-card"><div class="panel-head"><h2>${L('Market', 'Marché')}</h2><button class="linkbtn" data-act="market-open" data-arg="${esc(c.id)}">${L('Full market', 'Marché complet')} →</button></div><div class="panel-body">${s ? `<div class="price-line"><b>${s.value}</b><small>${esc(s.unit)}</small>${changeBadge(s.change)}<span class="grow"></span>${s.history.length > 1 ? spark(s.history.slice(-24), 'var(--signal)', 120, 28) : ''}</div><div class="muted" style="font-size:11.5px">${esc(s.note)}</div>` : ''}<div class="eyebrow" style="margin:12px 0 6px">${L('Who buys', 'Qui achète')}</div>${buyersBlock(h, 5)}</div></section>` : ''}
     <p class="notice">${L('Areas group historical site records by proximity; outlines are drawn around those sites with a small margin. They are not concession boundaries, deposits or zones of control.', 'Les zones regroupent des références historiques par proximité ; les contours entourent ces sites avec une marge. Ce ne sont ni des concessions, ni des gisements, ni des zones de contrôle.')}</p></div>`;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Event log, watchlists and alerts, exportable briefs.
+
+state.watches = null; state.alerts = null; state.events = null; state.watchEdit = null; state.watchResults = null; state.alertsUnread = false;
+state.evDays = 30; state.evType = ''; state.evProvince = ''; state.evQ = ''; state.evDay = ''; state.evOpen = ''; state.briefPeriod = 'daily';
+const EVENT_TYPES = {
+  armed_clash: ['Armed clash', 'Affrontement armé', '#ff5d6c'], attack_on_civilians: ['Attack on civilians', 'Attaque contre des civils', '#ff8a3d'],
+  explosive_or_drone: ['Drone, shelling, explosion', 'Drone, bombardement, explosion', '#ffc65c'], abduction: ['Abduction', 'Enlèvement', '#c99bff'],
+  territorial_control: ['Territorial control', 'Contrôle territorial', '#e5ad53'], displacement: ['Displacement', 'Déplacement', '#82e3f5'],
+  sexual_violence: ['Sexual violence', 'Violences sexuelles', '#ff6fb5'], protest_unrest: ['Protest, unrest', 'Manifestation, troubles', '#7ab8ff'],
+  arrest_detention: ['Arrest, detention', 'Arrestation, détention', '#a4acb5'], health_outbreak: ['Disease outbreak', 'Épidémie', '#6affb9'], disaster: ['Disaster', 'Catastrophe', '#5fa8d3'],
+};
+const evLabel = k => EVENT_TYPES[k] ? L(EVENT_TYPES[k][0], EVENT_TYPES[k][1]) : k;
+const evColor = k => EVENT_TYPES[k]?.[2] || '#a4acb5';
+const WATCH_KINDS = {
+  search: ['Words or phrases', 'Mots ou expressions', 'search'], place: ['Places', 'Lieux', 'pin'], actor: ['Key figures', 'Personnalités', 'flag'],
+  sanctioned: ['Any sanctioned person', 'Toute personne sanctionnée', 'shield'], military_flight: ['Military flights', 'Vols militaires', 'globe'],
+  aircraft: ['Aircraft (callsign, registration…)', 'Aéronefs (indicatif, immatriculation…)', 'globe'], brief: ['Daily or weekly brief', 'Synthèse quotidienne ou hebdomadaire', 'book'],
+};
+const watchKind = k => WATCH_KINDS[k] ? L(WATCH_KINDS[k][0], WATCH_KINDS[k][1]) : k;
+
+// --- Event log ---------------------------------------------------------------------------------
+function eventRows(withDay = true) {
+  const q = norm(state.evQ.trim());
+  return (state.events?.items || []).filter(e => (!state.evType || e.kind === state.evType) && (!state.evProvince || e.province === state.evProvince)
+    && (!withDay || !state.evDay || e.date === state.evDay)
+    && (!q || norm([e.place, e.province, ...(e.actors || []), ...e.sources.map(s => `${s.title} ${s.excerpt}`)].join(' ')).includes(q)));
+}
+const evDays = () => { const n = Math.min(state.evDays, 90); return [...Array(n)].map((_, i) => new Date(Date.now() - (n - 1 - i) * 864e5).toISOString().slice(0, 10)) };
+function eventMap(rows) {
+  const xy = (lon, lat) => [20 + (lon - 12) * 18, 16 + (5.6 - lat) * 18];
+  const ring = state.geometry?.features?.[0]?.geometry?.coordinates || [];
+  const path = ring.map(r => r.map((p, i) => `${i ? 'L' : 'M'}${xy(...p).map(v => v.toFixed(1)).join(',')}`).join(' ') + 'Z').join(' ');
+  const dots = [...rows].sort((a, b) => (b.fatalities || 0) - (a.fatalities || 0)).map(e => {
+    const [x, y] = xy(e.lon, e.lat), r = 3.5 + Math.sqrt(e.fatalities || 0) * 1.6 + (e.reports - 1) * 1.2;
+    return `<circle class="ev-dot ${state.evOpen === e.id ? 'open' : ''}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${evColor(e.kind)}" data-act="ev-open" data-arg="${esc(e.id)}" tabindex="0" role="button" aria-label="${esc(`${e.date} · ${evLabel(e.kind)} · ${e.place}`)}" data-tip="${esc(`${e.date} · ${evLabel(e.kind)} · ${e.place}${e.fatalities ? ` · ${e.fatalities} ${L('deaths reported', 'morts rapportés')}` : ''}`)}"/>`;
+  }).join('');
+  return `<svg class="ev-map" viewBox="0 0 400 380" role="img" aria-label="${L('Map of extracted incidents', 'Carte des incidents extraits')}"><path class="map-country" d="${path}"/>${dots}</svg>`;
+}
+function eventsView() {
+  const d = state.events, all = d?.items || [], rows = eventRows(), dayless = eventRows(false), days = evDays();
+  const per = days.map(day => { const m = {}; for (const e of dayless) if (e.date === day) m[e.kind] = (m[e.kind] || 0) + 1; return m });
+  const max = Math.max(1, ...per.map(m => Object.values(m).reduce((a, b) => a + b, 0)));
+  const provinces = [...new Set(all.map(e => e.province))].sort();
+  const kinds = Object.keys(EVENT_TYPES).filter(k => all.some(e => e.kind === k));
+  const deaths = rows.reduce((n, e) => n + (e.fatalities || 0), 0), corroborated = rows.filter(e => e.outlets > 1 || e.reports > 1).length;
+  const byDate = [...rows.reduce((m, e) => m.set(e.date, [...(m.get(e.date) || []), e]), new Map())];
+  const card = e => `<article class="ev-card ${state.evOpen === e.id ? 'open' : ''}" id="ev-${esc(e.id)}" style="--c:${evColor(e.kind)}">
+    <header><span class="ev-type">${esc(evLabel(e.kind))}</span><strong>${esc(e.place)}</strong><small>${esc(e.province)}</small>${e.fatalities ? `<b class="ev-toll">${e.fatalities} ${L('deaths reported', 'morts rapportés')}</b>` : ''}${e.reports > 1 ? `<span class="badge">${e.reports} ${L('reports', 'articles')} · ${e.outlets} ${L('outlets', 'médias')}</span>` : ''}</header>
+    ${e.actors?.length ? `<div class="chips">${e.actors.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div>` : ''}
+    <p class="ev-excerpt">“${esc(e.sources[0]?.excerpt || '')}”</p>
+    <details ${state.evOpen === e.id ? 'open' : ''}><summary>${L('Sources', 'Sources')} (${e.sources.length})</summary>${e.sources.map(s => `<div class="ev-source"><div><strong>${esc(s.title)}</strong><small>${esc(s.source || '')} · ${esc(String(s.published_at || '').slice(0, 10))}${s.fatalities ? ` · ${s.fatalities} ${L('deaths', 'morts')}` : ''}</small><p>“${esc(s.excerpt)}”</p></div><div class="actions"><button class="btn sm" data-act="report" data-arg="${esc(s.article_id)}">${L('Open report', 'Ouvrir')}</button>${s.url ? `<a class="btn sm ghost" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${L('Original', 'Original')} ↗</a>` : ''}</div></div>`).join('')}</details>
+    <div class="ev-foot"><button class="linkbtn" data-act="watch-quick" data-arg="${esc(`place|${e.place}|${e.place}`)}">${icon('bell')} ${L('Watch', 'Suivre')} ${esc(e.place)}</button></div></article>`;
+  return pageHead(`DRC · ${L('EVENT LOG', 'JOURNAL DES ÉVÉNEMENTS')}`, L('Incidents over time', 'Incidents dans le temps'), L('Dated incidents extracted from every collected report: what happened, where, when, who was named and the death toll reported. Reports of the same incident are merged so you can see corroboration.', 'Incidents datés extraits de chaque article collecté : quoi, où, quand, qui est cité et le bilan rapporté. Les articles d’un même incident sont regroupés pour montrer la corroboration.'),
+    `<div class="seg">${[7, 30, 90].map(n => `<button class="${state.evDays === n ? 'active' : ''}" data-act="ev-days" data-arg="${n}" aria-pressed="${state.evDays === n}">${n} ${L('d', 'j')}</button>`).join('')}</div><button class="btn" data-act="ev-play" aria-pressed="${!!evPlayer}">${evPlayer ? '❚❚ ' + L('Pause', 'Pause') : '▶ ' + L('Play timeline', 'Lire la chronologie')}</button>`)
+    + `<div class="kpis ev-kpis">${[[L('Incidents', 'Incidents'), rows.length], [L('Deaths reported', 'Morts rapportés'), deaths], [L('Places', 'Lieux'), new Set(rows.map(e => e.place)).size], [L('Corroborated', 'Corroborés'), corroborated]].map(([l, v]) => `<div class="panel kpi"><div class="kpi-label">${l}</div><div class="kpi-value">${nf(v)}</div></div>`).join('')}</div>
+    <div class="ev-layout">
+      <section class="panel ev-map-panel"><div class="panel-head"><h2>${icon('map')} ${state.evDay ? esc(dayLabel(state.evDay)) : L('All days in range', 'Toute la période')}</h2>${state.evDay ? `<button class="linkbtn" data-act="ev-day" data-arg="">${L('All days', 'Tous les jours')}</button>` : ''}</div>${eventMap(rows)}
+        <div class="ev-timeline" role="group" aria-label="${L('Incidents per day', 'Incidents par jour')}">${days.map((day, i) => { const m = per[i], total = Object.values(m).reduce((a, b) => a + b, 0); return `<button class="ev-day ${state.evDay === day ? 'active' : ''}" data-act="ev-day" data-arg="${day}" aria-pressed="${state.evDay === day}" aria-label="${esc(`${dayLabel(day)}: ${total}`)}" data-tip="${esc(`${dayLabel(day)} · ${total} ${L('incidents', 'incidents')}`)}"><span>${Object.keys(EVENT_TYPES).filter(k => m[k]).map(k => `<i style="height:${(m[k] / max * 100).toFixed(1)}%;background:${evColor(k)}"></i>`).join('')}</span></button>` }).join('')}</div>
+        <div class="ev-axis"><span>${esc(dayLabel(days[0]))}</span><span>${esc(dayLabel(days.at(-1)))}</span></div>
+        <p class="notice">${esc(L(d?.notice || '', 'Incidents extraits automatiquement des textes (mots-indices, lieux du gazetier, dates relatives à la publication). Non vérifiés : consultez les extraits sources. Les articles de même type, lieu et jour sont regroupés ; le bilan est le plus élevé rapporté par une source.'))}</p></section>
+      <section class="ev-list">
+        <div class="toolbar"><label class="search">${icon('search')}<input id="ev-q" class="input" type="search" data-model="evQ" value="${esc(state.evQ)}" placeholder="${L('Place, armed group, word…', 'Lieu, groupe armé, mot…')}" aria-label="${L('Search incidents', 'Rechercher des incidents')}"></label>
+          <select class="select" data-model="evProvince" aria-label="${L('Province', 'Province')}"><option value="">${L('All provinces', 'Toutes les provinces')}</option>${provinces.map(p => `<option ${state.evProvince === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></div>
+        <div class="flight-cats ev-types"><button class="${state.evType ? '' : 'active'}" data-act="ev-type" data-arg="" aria-pressed="${!state.evType}">${L('All', 'Tous')}<b>${dayless.length}</b></button>${kinds.map(k => `<button class="${state.evType === k ? 'active' : ''}" data-act="ev-type" data-arg="${k}" aria-pressed="${state.evType === k}" style="--c:${evColor(k)}"><i></i>${esc(evLabel(k))}<b>${(state.events?.items || []).filter(e => e.kind === k).length}</b></button>`).join('')}</div>
+        ${byDate.map(([day, list]) => `<h3 class="ev-date">${esc(dayLabel(day))}<small>${list.length}</small></h3>${list.map(card).join('')}`).join('') || emptyState(L('No incidents match', 'Aucun incident ne correspond'), d ? L('Widen the period or clear filters.', 'Élargissez la période ou effacez les filtres.') : L('The event log is being built from collected reports.', 'Le journal est en cours de construction.'))}
+      </section></div>`;
+}
+let evPlayer = null;
+function toggleEvPlay() {
+  if (evPlayer) { clearInterval(evPlayer); evPlayer = null; render(); return }
+  const days = evDays(); let i = Math.max(0, days.indexOf(state.evDay) + 1); if (i >= days.length) i = 0;
+  state.evDay = days[i]; render();
+  evPlayer = setInterval(() => {
+    if (state.view !== 'events') { clearInterval(evPlayer); evPlayer = null; return }
+    i++; if (i >= days.length) { clearInterval(evPlayer); evPlayer = null; render(); return }
+    state.evDay = days[i]; render();
+  }, reducedMotion() ? 1600 : 800);
+}
+
+// --- Watchlists and alerts ---------------------------------------------------------------------
+const blankWatch = (kind = 'search') => ({ id: '', name: '', kind, termsText: '', region: 'drc', period: 'daily', hour: 6, orgs: false, email: '', telegram: '', active: true });
+function watchToEdit(w) {
+  const names = w.kind === 'actor' ? w.terms.map(id => state.actors?.items?.find(a => a.id === id)?.name || id) : w.terms;
+  return { id: w.id, name: w.name, kind: w.kind, termsText: names.join(', '), region: w.options?.region || 'drc', period: w.options?.period || 'daily', hour: w.options?.hour_utc ?? 6, orgs: !!w.options?.include_organisations, email: w.notify?.email || '', telegram: w.notify?.telegram || '', active: w.active };
+}
+function actorIdFor(name) {
+  const f = norm(name.trim()); const items = state.actors?.items || [];
+  return (items.find(a => norm(a.name) === f) || items.find(a => (a.aliases || []).some(x => norm(x) === f)) || items.find(a => a.id === name.trim()))?.id;
+}
+async function saveWatch(edit) {
+  let terms = edit.termsText.split(',').map(t => t.trim()).filter(Boolean);
+  if (edit.kind === 'actor') {
+    const ids = terms.map(actorIdFor);
+    const missing = terms.filter((_, i) => !ids[i]);
+    if (missing.length) throw Error(L(`Unknown key figure: ${missing.join(', ')}. Pick names from the list.`, `Personnalité inconnue : ${missing.join(', ')}. Choisissez dans la liste.`));
+    terms = ids;
+  }
+  const body = { id: edit.id || null, name: edit.name.trim() || terms.slice(0, 3).join(', ') || watchKind(edit.kind), kind: edit.kind, terms, options: { region: edit.region, period: edit.period, hour_utc: Number(edit.hour), include_organisations: !!edit.orgs }, notify: { email: edit.email.trim() || null, telegram: edit.telegram.trim() || null }, active: edit.active };
+  await api('/v1/watches', body);
+}
+async function refreshWatches() {
+  const [watches, alerts] = await Promise.all([api('/v1/watches').catch(() => null), api('/v1/alerts?limit=200').catch(() => null)]);
+  Object.assign(state, { watches, alerts }); render();
+}
+function watchForm() {
+  const e = state.watchEdit; if (!e) return '';
+  const ch = state.watches?.channels || {};
+  const placeList = [...new Set([...placesList().map(p => p.name), ...(state.events?.items || []).map(x => x.place)])].sort();
+  const needsTerms = ['search', 'place', 'actor', 'aircraft'].includes(e.kind);
+  return `<section class="panel watch-form"><div class="panel-head"><h2>${icon('bell')} ${e.id ? L('Edit watch', 'Modifier la veille') : L('New watch', 'Nouvelle veille')}</h2><button class="iconbtn" data-act="watch-cancel" aria-label="${L('Cancel', 'Annuler')}">${icon('close')}</button></div><div class="panel-body form-grid">
+    <label>${L('What to watch', 'Que suivre')}<select class="select" data-model="watchEdit.kind">${Object.keys(WATCH_KINDS).map(k => `<option value="${k}" ${e.kind === k ? 'selected' : ''}>${esc(watchKind(k))}</option>`).join('')}</select></label>
+    <label>${L('Name', 'Nom')}<input class="input" id="watch-name" data-model="watchEdit.name" value="${esc(e.name)}" maxlength="80" placeholder="${L('e.g. Goma and M23', 'ex. Goma et M23')}"></label>
+    ${needsTerms ? `<label class="wide">${{ search: L('Words or phrases, comma-separated (acronyms like M23 match in capitals only)', 'Mots ou expressions, séparés par des virgules (les sigles comme M23 en majuscules uniquement)'), place: L('Places, comma-separated', 'Lieux, séparés par des virgules'), actor: L('Key figures, comma-separated', 'Personnalités, séparées par des virgules'), aircraft: L('Callsigns, registrations, ICAO hex or type codes (prefixes work: ETH, UNO)', 'Indicatifs, immatriculations, code OACI ou type (préfixes acceptés : ETH, UNO)') }[e.kind]}<input class="input" id="watch-terms" data-model="watchEdit.termsText" value="${esc(e.termsText)}" list="watch-suggest" autocomplete="off"></label>
+      <datalist id="watch-suggest">${(e.kind === 'actor' ? (state.actors?.items || []).map(a => a.name) : e.kind === 'place' ? placeList : []).slice(0, 600).map(v => `<option value="${esc(v)}">`).join('')}</datalist>` : ''}
+    ${e.kind === 'sanctioned' ? `<label class="check wide"><input type="checkbox" data-model="watchEdit.orgs" ${e.orgs ? 'checked' : ''}>${L('Also sanctioned organisations and armed groups (M23, RDF… appear in most posts)', 'Inclure aussi les organisations et groupes armés sanctionnés (M23, RDF… présents dans la plupart des publications)')}</label>` : ''}
+    ${e.kind === 'military_flight' ? `<label>${L('Area', 'Zone')}<select class="select" data-model="watchEdit.region"><option value="drc" ${e.region === 'drc' ? 'selected' : ''}>${L('Inside the DRC', 'Dans la RDC')}</option><option value="any" ${e.region === 'any' ? 'selected' : ''}>${L('DRC and approaches', 'RDC et abords')}</option></select></label>` : ''}
+    ${e.kind === 'brief' ? `<label>${L('Frequency', 'Fréquence')}<select class="select" data-model="watchEdit.period"><option value="daily" ${e.period === 'daily' ? 'selected' : ''}>${L('Daily', 'Quotidienne')}</option><option value="weekly" ${e.period === 'weekly' ? 'selected' : ''}>${L('Weekly (Mondays)', 'Hebdomadaire (lundi)')}</option></select></label><label>${L('Hour (UTC; Kinshasa = UTC+1)', 'Heure (UTC ; Kinshasa = UTC+1)')}<input class="input" type="number" min="0" max="23" data-model="watchEdit.hour" value="${esc(e.hour)}"></label>` : ''}
+    <div class="wide watch-channels"><div class="eyebrow">${L('Also notify me by', 'Me prévenir aussi par')}</div>
+      <label>${L('Email', 'E-mail')}<input class="input" id="watch-email" type="email" data-model="watchEdit.email" value="${esc(e.email)}" placeholder="${esc(/@/.test(state.watches?.email_default || '') ? state.watches.email_default : 'analyst@example.org')}"></label>
+      <label>${L('Telegram chat id', 'Identifiant de discussion Telegram')}<span class="inline"><input class="input" id="watch-telegram" data-model="watchEdit.telegram" value="${esc(e.telegram)}" placeholder="123456789"><button class="btn sm" data-act="telegram-chats" ${ch.telegram ? '' : 'disabled'}>${L('Find my chat', 'Trouver ma discussion')}</button></span></label>
+      ${state.telegramChats ? `<div class="chips">${state.telegramChats.chats.map(c => `<button class="chip" data-act="telegram-pick" data-arg="${esc(c.id)}">${esc(c.label)} · ${esc(c.id)}</button>`).join('') || `<span class="muted">${L(`No chats yet. Send any message to @${state.telegramChats.bot || 'your bot'} on Telegram, then try again.`, `Aucune discussion. Envoyez un message à @${state.telegramChats.bot || 'votre bot'} sur Telegram puis réessayez.`)}</span>`}</div>` : ''}
+      <div class="actions"><button class="btn sm" data-act="watch-test" data-arg="email" ${ch.email ? '' : 'disabled'}>${L('Test email', 'Tester l’e-mail')}</button><button class="btn sm" data-act="watch-test" data-arg="telegram" ${ch.telegram ? '' : 'disabled'}>${L('Test Telegram', 'Tester Telegram')}</button></div>
+      ${!ch.email || !ch.telegram ? `<p class="notice">${!ch.email ? L('Email needs SMTP settings on the server (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM). ', 'L’e-mail nécessite des paramètres SMTP sur le serveur (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM). ') : ''}${!ch.telegram ? L('Telegram needs a bot token on the server (TELEGRAM_BOT_TOKEN, from @BotFather). ', 'Telegram nécessite un jeton de bot sur le serveur (TELEGRAM_BOT_TOKEN, via @BotFather). ') : ''}${L('Alerts always appear in this inbox.', 'Les alertes apparaissent toujours dans cette boîte.')}</p>` : ''}</div>
+    <div class="wide actions"><button class="btn primary" data-act="watch-save">${icon('check')} ${L('Save watch', 'Enregistrer')}</button>${e.kind !== 'brief' && e.kind !== 'military_flight' ? `<span class="muted" style="font-size:12px">${L('New matches alert you from now on; past matches are under Results.', 'Les nouvelles correspondances déclenchent une alerte ; les anciennes sont dans Résultats.')}</span>` : ''}</div>
+  </div></section>`;
+}
+function alertOpenArgs(a) { return `${a.id}|${a.kind}|${a.ref}` }
+function alertRow(a) {
+  const d = a.detail || {}, k = a.kind;
+  const ic = { article: 'layers', post: 'radio', flight: 'globe', brief: 'book' }[k] || 'bell';
+  const deliv = Object.entries(a.delivery || {}).filter(([c]) => c !== 'at').map(([c, v]) => `<span class="badge ${String(v).startsWith('failed') ? 'high' : ''}" data-tip="${esc(String(v))}">${c === 'email' ? L('email', 'e-mail') : c} ${String(v).startsWith('failed') ? '✕' : '✓'}</span>`).join('');
+  return `<button class="alert-row ${a.read ? '' : 'unread'}" data-act="alert-open" data-arg="${esc(alertOpenArgs(a))}"><span class="alert-icon">${icon(ic)}</span><div><strong>${esc(a.title)}</strong><small>${esc(a.watch_name || '')}${(d.matched || []).length ? ` · ${esc(d.matched.join(', '))}` : ''}${d.source ? ` · ${esc(d.source)}` : ''} · ${age(a.created_at)}</small>${d.snippet ? `<p>${esc(d.snippet)}</p>` : d.summary ? `<p>${esc(d.summary)}</p>` : d.basis ? `<p>${esc(d.basis)}</p>` : ''}</div><span class="alert-meta">${deliv}</span></button>`;
+}
+function alertsView() {
+  const ws = state.watches?.items || [], al = state.alerts?.items || [], unread = state.alerts?.unread || 0;
+  const list = state.alertsUnread ? al.filter(a => !a.read) : al;
+  const r = state.watchResults;
+  return pageHead(`${L('MONITOR', 'VEILLE')} · ${L('WATCHLISTS', 'LISTES DE SUIVI')}`, L('Watchlists & alerts', 'Veilles et alertes'), L('Save a search, a place, a key figure, any sanctioned name, military flights or aircraft, and get an alert when they appear. Briefs can be delivered daily or weekly.', 'Enregistrez une recherche, un lieu, une personnalité, tout nom sanctionné, les vols militaires ou un aéronef, et recevez une alerte dès qu’ils apparaissent. Les synthèses peuvent être envoyées chaque jour ou chaque semaine.'),
+    `<button class="btn primary" data-act="watch-new">${icon('bell')} ${L('New watch', 'Nouvelle veille')}</button>`)
+    + `<div class="watch-layout"><div class="stack">${watchForm()}
+      <section class="panel"><div class="panel-head"><h2>${L('Your watches', 'Vos veilles')}</h2><small>${ws.length}</small></div>
+        ${ws.map(w => `<div class="watch-row ${w.active ? '' : 'paused'}"><span class="watch-icon">${icon(WATCH_KINDS[w.kind]?.[2] || 'bell')}</span><div><strong>${esc(w.name)}</strong><small>${esc(watchKind(w.kind))}${w.kind === 'sanctioned' ? (w.options?.include_organisations ? L(' · people and organisations', ' · personnes et organisations') : L(' · people', ' · personnes')) : ''}${w.terms.length ? ' · ' + esc((w.kind === 'actor' ? w.terms.map(id => state.actors?.items?.find(a => a.id === id)?.name || id) : w.terms).join(', ')) : ''}${w.kind === 'brief' ? ` · ${w.options.period === 'weekly' ? L('weekly', 'hebdomadaire') : L('daily', 'quotidienne')} ${String(w.options.hour_utc).padStart(2, '0')}:00 UTC` : ''}</small>
+          <small class="watch-stats">${nf(w.hits)} ${L('alerts', 'alertes')}${w.unread ? ` · <b>${w.unread} ${L('unread', 'non lues')}</b>` : ''}${w.notify?.email ? ` · ${icon('mail')}${esc(w.notify.email)}` : ''}${w.notify?.telegram ? ` · Telegram` : ''}${w.active ? '' : ` · ${L('paused', 'en pause')}`}</small></div>
+          <div class="actions">${['search', 'place', 'actor', 'sanctioned', 'military_flight', 'aircraft'].includes(w.kind) ? `<button class="btn sm" data-act="watch-results" data-arg="${esc(w.id)}">${L('Results', 'Résultats')}</button>` : ''}<button class="btn sm ghost" data-act="watch-edit" data-arg="${esc(w.id)}">${L('Edit', 'Modifier')}</button><button class="btn sm ghost" data-act="watch-toggle" data-arg="${esc(w.id)}">${w.active ? L('Pause', 'Pause') : L('Resume', 'Reprendre')}</button><button class="iconbtn" data-act="watch-delete" data-arg="${esc(w.id)}" aria-label="${L('Delete watch', 'Supprimer la veille')}">${icon('close')}</button></div></div>`).join('') || `<div class="panel-body">${emptyState(L('No watches yet', 'Aucune veille'), L('Try Goma, M23, a key figure, or every sanctioned name.', 'Essayez Goma, M23, une personnalité ou tous les noms sanctionnés.'), `<div class="actions" style="justify-content:center">${[['search', 'Goma, M23'], ['sanctioned', ''], ['military_flight', ''], ['brief', '']].map(([k, t]) => `<button class="btn sm" data-act="watch-template" data-arg="${k}|${esc(t)}">${esc(watchKind(k))}${t ? `: ${esc(t)}` : ''}</button>`).join('')}</div>`)}</div>`}</section></div>
+      <div class="stack">${r ? `<section class="panel"><div class="panel-head"><h2>${L('Results', 'Résultats')} · ${esc(r.name)}</h2><small>${r.data ? `${r.data.items.length} · ${esc(r.data.scope)}` : '…'}</small><button class="iconbtn" data-act="watch-results-close" aria-label="${L('Close results', 'Fermer les résultats')}">${icon('close')}</button></div>${r.data ? r.data.items.map(x => `<button class="alert-row" data-act="${x.kind === 'article' ? 'report' : x.kind === 'flight' ? 'nav' : 'open-url'}" data-arg="${esc(x.kind === 'article' ? x.ref : x.kind === 'flight' ? 'flights' : x.url || '')}"><span class="alert-icon">${icon(x.kind === 'post' ? 'radio' : x.kind === 'flight' ? 'globe' : 'layers')}</span><div><strong>${esc(x.title)}</strong><small>${esc((x.matched || []).join(', '))}${x.source ? ' · ' + esc(x.source) : ''}${x.at && typeof x.at === 'string' ? ' · ' + age(x.at) : ''}</small>${x.snippet ? `<p>${esc(x.snippet)}</p>` : ''}</div></button>`).join('') || `<div class="panel-body muted">${L('No past matches.', 'Aucune correspondance passée.')}</div>` : '<div class="loading-line"></div>'}</section>` : ''}
+      <section class="panel"><div class="panel-head"><h2>${icon('bell')} ${L('Alert inbox', 'Boîte d’alertes')}</h2><div class="seg"><button class="${state.alertsUnread ? '' : 'active'}" data-act="alerts-filter" data-arg="all" aria-pressed="${!state.alertsUnread}">${L('All', 'Toutes')}</button><button class="${state.alertsUnread ? 'active' : ''}" data-act="alerts-filter" data-arg="unread" aria-pressed="${state.alertsUnread}">${L('Unread', 'Non lues')} ${unread}</button></div>${unread ? `<button class="linkbtn" data-act="alerts-read-all">${L('Mark all read', 'Tout marquer comme lu')}</button>` : ''}</div>
+        ${list.map(alertRow).join('') || `<div class="panel-body muted">${ws.length ? L('No alerts yet. Matches appear here as new reports, posts and flights arrive.', 'Aucune alerte. Les correspondances apparaissent ici à l’arrivée de nouveaux articles, publications et vols.') : L('Create a watch to start receiving alerts.', 'Créez une veille pour recevoir des alertes.')}</div>`}</section></div></div>`;
+}
+async function quickWatch(arg) {
+  const [kind, term, name] = arg.split('|');
+  const label = name || term;
+  await api('/v1/watches', { name: label, kind, terms: term ? [term] : [], options: {}, notify: {} });
+  toast(L(`Watching ${label}. Manage alerts in Watchlists.`, `Suivi de ${label} activé. Gérez les alertes dans Veilles.`));
+  refreshWatches();
+}
+
+// --- Brief export ------------------------------------------------------------------------------
+function authHeaders() { const t = sessionStorage.getItem('congo-token'); return t ? { Authorization: `Bearer ${t}` } : {} }
+async function downloadBrief(format) {
+  const period = state.briefPeriod, lang = state.lang;
+  // Open the window inside the click so popup blockers allow it, then fill it.
+  const win = format === 'pdf' ? window.open('', '_blank') : null;
+  const r = await fetch(`/v1/brief?period=${period}&lang=${lang}&format=${format === 'pdf' ? 'html' : 'docx'}${format === 'pdf' ? '&print=true' : ''}`, { headers: authHeaders() });
+  if (!r.ok) { win?.close(); throw Error(L('The brief could not be generated.', 'La synthèse n’a pas pu être générée.') + ` (${r.status})`) }
+  if (win) { const html = await r.text(); win.document.open(); win.document.write(html); win.document.close(); return }
+  const blob = await r.blob(), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = (r.headers.get('content-disposition') || '').match(/filename="([^"]+)"/)?.[1] || `congo-signal-${period}-brief.docx`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const btnBrief = () => `<div class="brief-export" role="group" aria-label="${L('Export brief', 'Exporter la synthèse')}"><select class="select" data-model="briefPeriod" aria-label="${L('Brief period', 'Période de la synthèse')}"><option value="daily" ${state.briefPeriod === 'daily' ? 'selected' : ''}>${L('Daily brief', 'Synthèse du jour')}</option><option value="weekly" ${state.briefPeriod === 'weekly' ? 'selected' : ''}>${L('Weekly brief', 'Synthèse de la semaine')}</option></select><button class="btn" data-act="brief-dl" data-arg="docx">${icon('download')}Word</button><button class="btn" data-act="brief-dl" data-arg="pdf">${icon('download')}PDF</button></div>`;
 
 // ---------------------------------------------------------------------------------------------
 // AI command center: a live holographic DRC rendered from the collection itself (report
@@ -2024,7 +2203,7 @@ function renderActor() {
       <p class="notice">${L('Matching uses names, aliases and listed terms; a mention can refer to a namesake. Sanctions are reproduced from official sources with attribution.', 'La recherche utilise noms, alias et termes associés ; une mention peut concerner un homonyme. Les sanctions sont reproduites depuis les sources officielles.')}</p>`;
   }
   const top = $('#overlay .drawer')?.scrollTop || 0, had = !!$('#overlay .drawer');
-  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(a?.name || L('Profile', 'Profil'))}"><div class="drawer-top"><span class="eyebrow">${icon('user')}${L('PROFILE', 'PROFIL')}</span><div class="actions">${a ? `<button class="btn sm" data-act="export-actor">${icon('download')}JSON</button>` : ''}<button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div><div class="drawer-body">${body}</div></section></div>`;
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-label="${esc(a?.name || L('Profile', 'Profil'))}"><div class="drawer-top"><span class="eyebrow">${icon('user')}${L('PROFILE', 'PROFIL')}</span><div class="actions">${a ? `<button class="btn sm" data-act="watch-quick" data-arg="${esc(`actor|${a.id}|${a.name}`)}">${icon('bell')}${L('Watch', 'Suivre')}</button><button class="btn sm" data-act="export-actor">${icon('download')}JSON</button>` : ''}<button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div><div class="drawer-body">${body}</div></section></div>`;
   if (had) $('#overlay .drawer').scrollTop = top; else $('#overlay [data-act="close"]')?.focus();
 }
 
@@ -2200,6 +2379,37 @@ const ACTIONS = {
   'map-focus': () => {state.mapFocus=!state.mapFocus;render()},
   'flight-select': id => selectFlight(id),
   'flight-cat': k => { state.flightCategory = k; render() },
+  'ev-days': async n => { state.evDays = Number(n); state.evDay = ''; state.events = await api(`/v1/events?days=${state.evDays}`); render() },
+  'ev-day': d => { state.evDay = state.evDay === d ? '' : d; render() },
+  'ev-type': k => { state.evType = k; render() },
+  'ev-play': () => toggleEvPlay(),
+  'ev-open': id => { state.evOpen = state.evOpen === id ? '' : id; render(); if (state.evOpen) $(`#ev-${CSS.escape(id)}`)?.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }) },
+  'watch-new': () => { state.watchEdit = blankWatch(); state.telegramChats = null; render(); $('#watch-name')?.focus() },
+  'watch-template': arg => { const [kind, terms] = arg.split('|'); state.watchEdit = { ...blankWatch(kind), termsText: terms || '' }; render(); $('#watch-name')?.focus() },
+  'watch-edit': id => { const w = state.watches?.items?.find(x => x.id === id); if (w) { state.watchEdit = watchToEdit(w); state.telegramChats = null; render() } },
+  'watch-cancel': () => { state.watchEdit = null; render() },
+  'watch-save': async () => { await saveWatch(state.watchEdit); state.watchEdit = null; toast(L('Watch saved', 'Veille enregistrée')); await refreshWatches() },
+  'watch-toggle': async id => { const w = state.watches?.items?.find(x => x.id === id); if (!w) return; await saveWatch({ ...watchToEdit(w), active: !w.active }); await refreshWatches() },
+  'watch-delete': async id => { if (!confirm(L('Delete this watch and its alerts?', 'Supprimer cette veille et ses alertes ?'))) return; await fetch(`/v1/watches/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { ...authHeaders(), ...(state.auth?.csrf ? { 'X-CSRF-Token': state.auth.csrf } : {}) } }); if (state.watchResults?.id === id) state.watchResults = null; await refreshWatches() },
+  'watch-results': async id => { const w = state.watches?.items?.find(x => x.id === id); state.watchResults = { id, name: w?.name || '', data: null }; render(); state.watchResults.data = await api(`/v1/watches/${encodeURIComponent(id)}/results`); render() },
+  'watch-results-close': () => { state.watchResults = null; render() },
+  'watch-test': async channel => { const e = state.watchEdit, target = channel === 'email' ? (e.email || (/@/.test(state.watches?.email_default || '') ? state.watches.email_default : '')) : e.telegram; if (!target) throw Error(channel === 'email' ? L('Enter an email address first.', 'Saisissez d’abord une adresse e-mail.') : L('Enter a Telegram chat id first.', 'Saisissez d’abord un identifiant Telegram.')); await api('/v1/watches/test', { channel, target }); toast(L('Test sent. Check your inbox or Telegram.', 'Test envoyé. Vérifiez votre messagerie ou Telegram.')) },
+  'telegram-chats': async () => { state.telegramChats = await api('/v1/watches/telegram-chats'); render() },
+  'telegram-pick': id => { state.watchEdit.telegram = id; state.telegramChats = null; render() },
+  'watch-quick': arg => quickWatch(arg),
+  'alerts-filter': f => { state.alertsUnread = f === 'unread'; render() },
+  'alerts-read-all': async () => { await api('/v1/alerts/read', { all: true }); await refreshWatches() },
+  'alert-open': async arg => {
+    const [id, kind, ref] = arg.split('|'), a = state.alerts?.items?.find(x => String(x.id) === id);
+    if (a && !a.read) { api('/v1/alerts/read', { ids: [Number(id)] }).catch(() => {}); a.read = true; state.alerts.unread = Math.max(0, state.alerts.unread - 1) }
+    if (kind === 'article') return openDetail(ref);
+    if (kind === 'post') { const url = a?.detail?.url; if (url) window.open(url, '_blank', 'noopener'); return render() }
+    if (kind === 'flight') { state.flightSelected = a?.detail?.icao24 || ''; state.flightMode = true; state.radioMode = false; state.mineralMode = false; history.replaceState(null, '', '#flights'); return go('situation') }
+    if (kind === 'brief') { state.briefPeriod = a?.detail?.period || 'daily'; return downloadBrief('docx') }
+    render();
+  },
+  'open-url': url => { if (/^https?:/.test(url)) window.open(url, '_blank', 'noopener') },
+  'brief-dl': format => downloadBrief(format),
   'map-mode': m => { state.flightMode = m === 'flights'; state.radioMode = m === 'radio'; if (state.radioMode && !state.radioSel) state.radioSel = state.radioNow || (stationById('radio-okapi') ? 'radio-okapi' : ''); state.mineralMode = m === 'minerals'; if (!state.mineralMode) { focusTour++; state.focus = null; state.mineralFocusLabels = [] } state.geoUnit = null; history.replaceState(null, '', state.mineralMode ? '#minerals' : state.radioMode ? '#radio' : state.flightMode ? '#flights' : '#situation'); if (state.view !== 'situation') go('situation'); else render() },
   market: id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
   'market-open': id => { state.marketCommodity = id; state.mineralSelected = ''; render() },
@@ -2296,7 +2506,7 @@ document.addEventListener('click', async e => {
   if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
   if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
   const fn = ACTIONS[el.dataset.act]; if (!fn) return;
-  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview', 'radio-select', 'radio-play', 'radio-toggle', 'radio-stop', 'radio-open', 'radio-place'].includes(el.dataset.act);
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview', 'radio-select', 'radio-play', 'radio-toggle', 'radio-stop', 'radio-open', 'radio-place', 'ev-day', 'ev-type', 'ev-play', 'ev-open', 'watch-new', 'watch-template', 'watch-edit', 'watch-cancel', 'watch-results-close', 'alerts-filter', 'alert-open', 'open-url', 'telegram-pick', 'brief-dl'].includes(el.dataset.act);
   if (busy) el.disabled = true;
   try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
 });

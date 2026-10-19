@@ -79,7 +79,9 @@ pub struct Rule {
     terms: Vec<(String, Term)>,
     places: Vec<String>,
 }
-pub type ActorTerms = Vec<(String, String, bool, Vec<Term>)>;
+/// (id, name, sanctioned, person, terms)
+pub type ActorEntry = (String, String, bool, bool, Vec<Term>);
+pub type ActorTerms = Vec<ActorEntry>;
 pub fn rule(w: &Watch, actors: &ActorTerms) -> Option<Rule> {
     let mut terms = Vec::new();
     let mut places = Vec::new();
@@ -105,15 +107,17 @@ pub fn rule(w: &Watch, actors: &ActorTerms) -> Option<Rule> {
             }
         }
         "actor" => {
-            for (id, name, _, ts) in actors {
+            for (id, name, _, _, ts) in actors {
                 if w.terms.iter().any(|t| t == id) {
                     terms.extend(ts.iter().map(|t| (name.clone(), t.clone())));
                 }
             }
         }
         "sanctioned" => {
-            for (_, name, sanctioned, ts) in actors {
-                if *sanctioned {
+            // People only unless the watch opts in: sanctioned groups (M23, RDF…) are in most posts.
+            let organisations = w.options["include_organisations"] == true;
+            for (_, name, sanctioned, person, ts) in actors {
+                if *sanctioned && (*person || organisations) {
                     terms.extend(ts.iter().map(|t| (name.clone(), t.clone())));
                 }
             }
@@ -617,6 +621,7 @@ pub async fn save(State(app): State<App>, Json(input): Json<WatchInput>) -> ApiR
         "region": if input.options["region"] == "any" { "any" } else { "drc" },
         "period": if input.options["period"] == "weekly" { "weekly" } else { "daily" },
         "hour_utc": input.options["hour_utc"].as_u64().unwrap_or(6).min(23),
+        "include_organisations": input.options["include_organisations"] == true,
     });
     let notify_v = json!({"inbox":true,"email":email,"telegram":telegram});
     let now = Utc::now().to_rfc3339();
@@ -829,12 +834,14 @@ mod tests {
                 "nangaa".into(),
                 "Corneille Nangaa".into(),
                 true,
+                true,
                 vec![text::term("Corneille Nangaa")],
             ),
             (
                 "other".into(),
                 "Other Person".into(),
                 false,
+                true,
                 vec![text::term("Other Person")],
             ),
         ];
@@ -849,6 +856,29 @@ mod tests {
             vec!["Corneille Nangaa"]
         );
         assert!(rule(&w("actor", &["missing"]), &actors).is_none());
+        let mut with_org = actors.clone();
+        with_org.push((
+            "m23".into(),
+            "M23".into(),
+            true,
+            false,
+            vec![text::term("M23")],
+        ));
+        let people = rule(&w("sanctioned", &[]), &with_org).unwrap();
+        assert!(
+            matches(&people, &Doc::new("Le M23 avance"), &[]).is_none(),
+            "organisations excluded by default"
+        );
+        let mut all = w("sanctioned", &[]);
+        all.options = json!({"include_organisations":true});
+        assert!(
+            matches(
+                &rule(&all, &with_org).unwrap(),
+                &Doc::new("Le M23 avance"),
+                &[]
+            )
+            .is_some()
+        );
     }
     #[test]
     fn flight_watches() {
