@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import sqlite3
 import socket
 import subprocess
 import tempfile
@@ -68,6 +69,7 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-social-') as directory:
     env = dict(os.environ, LOAD_DOTENV='0',REFERENCE_SYNC='0',FEED_POLL_SECONDS='0', DATABASE_URL=f'sqlite://{Path(directory)/"test.db"}', BIND_ADDR=f'127.0.0.1:{port}', API_TOKEN='integration-test-secret-long',
                EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'), EVIDENCE_POLL_SECONDS='0', AI_ENABLED='0',
                X_ENABLED='1', X_BEARER_TOKEN=TOKEN, X_API_URL=f'http://127.0.0.1:{mock.server_port}', X_ACCOUNT_REQUEST_LIMIT='4', X_DAILY_REQUEST_LIMIT='0', X_POST_REQUEST_LIMIT='0')
+    env.update(AI_SETTINGS_PATH=str(Path(directory)/'ai-settings.json'), AI_AUTO_PREVIEWS='false', AUTH_MODE='local', AGREEMENTS_POLL_SECONDS='0')
     env.pop('POLL_SECONDS', None)
     p = subprocess.Popen([str(ROOT/'target/debug/drc-osint-worker')], env=env, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -75,6 +77,8 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-social-') as directory:
             try:
                 if api('/health', auth=False)[0] == 200: break
             except OSError: time.sleep(.1)
+        with sqlite3.connect(Path(directory)/'test.db') as c:
+            c.execute("UPDATE cost_limits SET paused=0,daily_requests=100,daily_micros=1000000,monthly_micros=1000000,request_micros=1 WHERE provider='x'")
         assert api('/v1/social/accounts/obs_kivu/history', {}, auth=False)[0] == 401
         assert api('/v1/social/accounts/bad%2Fhandle/history', {})[0] == 400
         assert api('/v1/social/accounts/obs_kivu')[0] == 404

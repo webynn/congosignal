@@ -2,6 +2,18 @@
   "notes": "Publisher sources collected as news. Items are kept when they explicitly concern the DRC, or flagged as regional context when they concern the Great Lakes neighbours. 'site' restricts item links to the publisher's own domain. 'mode': 'feed' (default) stores the feed's title and lede only (coverage 'feed_summary'); 'feed_full_text' reads the feed, then fetches each new article page (robots.txt checked, paced at max(page_delay_seconds, Crawl-delay)) for the full body; 'listing' discovers dated article links on the homepage and 'listing_paths' when no feed exists; 'reliefweb_api' queries the ReliefWeb API and needs RELIEFWEB_APPNAME. 'max_pages' bounds article-page fetches per poll; 'poll_seconds' overrides FEED_POLL_SECONDS for one source.",
   "feeds": [
     {
+      "id": "newsdata",
+      "name": "NewsData.io",
+      "mode": "newsdata_api",
+      "url": "https://newsdata.io/api/1/latest",
+      "site": "newsdata.io",
+      "language": "fr,en",
+      "coverage": "api_summary",
+      "poll_seconds": 21600,
+      "max_pages": 5,
+      "access_note": "Latest news from DRC publishers in French and English, screened for DRC relevance. Original publisher credited. API summaries only; coverage may be delayed by the subscription. At most 5 API pages per six-hour poll; no publisher pages scraped."
+    },
+    {
       "id": "jeuneafrique",
       "name": "Jeune Afrique",
       "url": "https://feeds.feedburner.com/jeuneafrique",
@@ -30,7 +42,12 @@
       "site": "7sur7.cd",
       "language": "fr",
       "coverage": "full_text",
-      "listing_paths": ["/category/une", "/category/politique", "/category/securite", "/category/economie"],
+      "listing_paths": [
+        "/category/une",
+        "/category/politique",
+        "/category/securite",
+        "/category/economie"
+      ],
       "page_delay_seconds": 5,
       "max_pages": 25,
       "access_note": "Private Kinshasa news site without a feed. New dated articles (/YYYY/MM/DD/slug) are discovered on the homepage and four section pages and fetched for the full text; robots.txt is checked before every request and requests are spaced at least 5 s apart."

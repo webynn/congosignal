@@ -20,7 +20,7 @@ use sqlx::{Row, SqlitePool};
 use std::sync::LazyLock;
 
 /// Bump to re-extract every article after changing the rules.
-const VERSION: i64 = 3;
+const VERSION: i64 = 4;
 
 /// (type, cues). A cue of one word matches as a prefix ("tué" → tués, tuée); phrases match exactly.
 const TYPES: [(&str, &[&str]); 11] = [
@@ -446,24 +446,24 @@ const ANCHORS: [&str; 30] = [
 /// The place is where something happened ("à Goma", "territoire de Masisi", "Walikale :"), not a
 /// metonym such as "Kinshasa et Kigali" for the two governments.
 fn anchored(sentence: &str, toks: &[String], place: &str) -> bool {
-    let p = text::tokens(place);
-    if p.is_empty() {
-        return false;
-    }
-    // Headline form "Walikale : …".
-    let folded = text::fold(sentence);
-    if folded
+    headline_place(sentence, place) || located(toks, place)
+}
+/// Headline form "Walikale : …" (often the territory, with the incident site later in the line).
+fn headline_place(sentence: &str, place: &str) -> bool {
+    text::fold(sentence)
         .trim_start()
         .strip_prefix(&text::fold(place))
         .is_some_and(|rest| rest.trim_start().starts_with(':'))
-    {
-        return true;
-    }
-    ANCHORS.iter().any(|a| {
-        let mut needle = text::tokens(a);
-        needle.extend(p.iter().cloned());
-        toks.windows(needle.len()).any(|w| w == needle.as_slice())
-    })
+}
+/// Place introduced by a locative ("à Kibati", "territoire de Masisi", "near Goma").
+pub fn located(toks: &[String], place: &str) -> bool {
+    let p = text::tokens(place);
+    !p.is_empty()
+        && ANCHORS.iter().any(|a| {
+            let mut needle = text::tokens(a);
+            needle.extend(p.iter().cloned());
+            toks.windows(needle.len()).any(|w| w == needle.as_slice())
+        })
 }
 /// Incidents in one report. At most one event per (type, place) per report.
 pub fn extract(title: &str, content: &str, published: NaiveDate) -> Vec<Found> {
@@ -486,9 +486,12 @@ pub fn extract(title: &str, content: &str, published: NaiveDate) -> Vec<Found> {
             continue;
         }
         let places = crate::intelligence::place_tuples(&s);
+        // "Walikale : combats à Kibati" happened at Kibati: a located place beats the headline prefix.
         let Some((place, province, lat, lon)) = places
-            .into_iter()
-            .find(|(name, ..)| anchored(&s, &toks, name))
+            .iter()
+            .find(|(name, ..)| located(&toks, name))
+            .or_else(|| places.iter().find(|(name, ..)| anchored(&s, &toks, name)))
+            .cloned()
         else {
             continue;
         };
@@ -749,7 +752,10 @@ mod tests {
         );
         assert_eq!(e.len(), 1);
         assert_eq!(e[0].kind, "attack_on_civilians");
-        assert_eq!(e[0].place, "Djugu");
+        assert_eq!(
+            e[0].place, "Bunia",
+            "the located place beats the headline prefix"
+        );
         assert_eq!(e[0].fatalities, Some(11));
         assert_eq!(e[0].actors, vec!["CODECO"]);
         let c = extract(
@@ -839,6 +845,15 @@ mod tests {
             d("2026-10-14"),
         );
         assert_eq!(a[0].actors, vec!["AFC/M23", "FARDC"]);
+    }
+    #[test]
+    fn located_place_beats_headline_prefix() {
+        let e = extract(
+            "Walikale : de nouveaux combats éclatent à Kibati entre l'armée et le FRN",
+            "",
+            d("2026-10-16"),
+        );
+        assert_eq!(e[0].place, "Kibati");
     }
     #[test]
     fn same_incident_merges_into_one_event_id() {

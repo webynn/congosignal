@@ -82,3 +82,22 @@ Live check (2026-10-19, one bounded run on a database copy)
   (535-7,017); 1 page screened out, 3 failures (old tenders linked from a sidebar, since excluded
   by the 14-day window).
   ReliefWeb: not configured (no approved appname).
+
+NewsData.io (mode newsdata_api)
+  NEWSDATA_API_KEY in the server environment / Git-ignored .env enables this source. Rotate it there
+  and restart the worker. Never put it in config/news-feeds.json or client-side JavaScript.
+  GET https://newsdata.io/api/1/latest with country=cd, language=fr,en; authentication uses the
+  documented X-ACCESS-KEY header, marked sensitive. Redirects disabled; errors never include the
+  key or provider response text. Docs: https://newsdata.io/documentation
+  Every 6 hours, up to 5 pages (max 20 scheduled requests/day, plus manual refresh). Pagination uses
+  nextPage; more_available reports when the bound leaves older results uncollected. Each poll starts
+  at the newest page; this is a bounded latest feed, not a complete historical backfill. Quota or HTTP
+  errors stop requests until the next poll; partial_error exposes failures after successful pages.
+  Country filters select publisher coverage and can include unrelated stories; the worker also
+  screens titles/descriptions for DRC relevance and marks Great Lakes context as regional.
+  Saves headline, description, original publisher URL, language, author, timestamp and raw API
+  record. Coverage is api_summary, never full_text; paid-plan placeholders are not article content.
+  Existing URLs are skipped so this source does not overwrite the independently scraped articles.
+  Source labels are NewsData.io · <publisher>; source status is in GET /v1/feeds and the dashboard.
+  Subscription-dependent delays and summary availability still apply. Credit the publisher and link
+  to the original; this adapter does not scrape publisher pages or bypass paid full-text access.

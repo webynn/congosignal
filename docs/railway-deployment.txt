@@ -1,0 +1,96 @@
+CONGO SIGNAL — RAILWAY
+
+Prepared 2026-10-19 in the existing Webynn workspace, separate from Haflad.
+Project: 2b413e2e-dde4-445a-9f33-8b631f87ebf4
+Service: 40c99cbd-73ad-4cb7-bdf8-194a19a520eb
+Environment: production / 61d0d1a8-cbc2-43be-aee0-7b61ff0cfd66
+Volume: 5d2e2b97-c00a-433d-bf93-63f88a73956b, mounted at /data
+Reserved URL: https://congo-signal-production.up.railway.app
+OIDC configured for the user-provided instance/client and owner on 2026-10-19.
+Initial deployment 85fcfa50-b550-4256-adf6-f6d5775e9459 succeeded.
+Updated Docker deployment: 594f8993-d9a0-4569-8d1e-b543aa8ee611. No Haflad settings were changed.
+No provider keys, local SQLite data, PDF archives or private notes uploaded yet.
+
+Login prerequisite
+Create a ZITADEL application using Authorization Code + PKCE, authentication
+method none, RS256 signing and verified email (see authentication.txt).
+Exact callback:
+  https://congo-signal-production.up.railway.app/auth/callback
+Configured OIDC_ISSUER: https://congo-signal-fj0dyp.us1.zitadel.cloud
+Configured OIDC_CLIENT_ID: 395830288174854362
+AUTH_OWNER_EMAIL has been configured from the user-provided verified login email.
+APP_ORIGIN is already set to the reserved Railway URL. No custom domain needed.
+Do not switch AUTH_MODE to local to bypass setup; public binding rejects it.
+
+Deployment
+railway.json builds Dockerfile, checks /ready, requires /data, keeps one replica
+awake, allows no overlap and gives 30 seconds for graceful shutdown.
+PORT is 8080 and the generated domain targets 8080. The entrypoint also honors
+Railway PORT when no explicit BIND_ADDR is set.
+Railway mounts volumes as root. RAILWAY_RUN_UID=0 allows the entrypoint to assign
+/data and archive directory ownership, then gosu drops to the worker UID10001.
+Don't override the entrypoint with a custom start command.
+After configuring login:
+  railway up --service congo-signal --environment production --detach
+  railway deployment list --json
+  railway logs --service congo-signal --lines 100
+Check /ready, unauthenticated /v1/quality returns 401, and real owner login.
+Docker release build verified successfully on Railway on 2026-10-19.
+
+Data migration
+Use scripts/backup.py to create a NEW consistent local snapshot. Export only
+needed database/archive files; AI settings contain keys and require deliberate
+secret migration. Upload into the new service's volume only, while the application
+is stopped. Revoke old auth_sessions/auth_states in the restored database and
+set uploaded file ownership to UID10001 before startup. Never upload .env or
+backups in the build context. .railwayignore excludes local secrets/data/toolchain.
+Do not operate two independent collectors as if they share the same database.
+Once the remote copy is verified, choose which worker remains authoritative.
+
+Operations
+Enable daily volume backups in Railway, then perform a restore drill. Set source
+and AI budgets before enabling paid integrations. This preparation leaves AI/X
+initially disabled; no live local budgets were changed. Imported AI settings may
+override environment flags: verify settings and cost limits after import.
+Configure API keys through Railway secrets or the authenticated AI settings page.
+Keep local raw database/backups out of Git. Source repository autodeploy is not
+connected yet because local changes are not committed/pushed.
+
+Relevant official docs
+https://docs.railway.com/volumes
+https://docs.railway.com/volumes/backups
+https://docs.railway.com/config-as-code/reference
+https://docs.railway.com/deployments/healthchecks
+
+Configuration format note
+The installed Railway CLI reports railway.json remains supported until 2026-12-01.
+Use it for the initial deployment, then migrate before that date. The automatic
+IaC translation currently omits the no-sleep/mount/drain/restart settings, so do
+not cut over without checking those settings and preserving the existing volume.
+
+Railway build compatibility: Docker VOLUME instructions are unsupported by its
+builder. Persistence is configured using the attached Railway volume, not VOLUME.
+
+Production smoke check, 2026-10-19
+/ready returned 200 with status ready. /auth/config confirms configured OIDC.
+/v1/quality returns 401 without a session. The browser Sign in button reaches
+the instance login form successfully. Owner credential entry and completed login
+remain for the user to perform; no claim of authenticated owner-session verification.
+The service has a NEW database: local archive and provider keys have not been
+migrated. Existing local collector remains running; plan migration/cutover separately.
+
+Effective Railway configuration
+Railway rejected assigning a new Config-as-Code file path. The healthcheck,
+no-sleep, single replica, zero overlap, 30-second draining and retry settings
+were therefore applied directly to this service through Railway's API and
+confirmed in the latest deployment manifest. RAILWAY_DOCKERFILE_PATH=Dockerfile
+is explicitly set. Do not rely on railway.json being applied automatically.
+A redeploy attempt using the old captured Railpack manifest failed; the previous
+healthy deployment remained live. Uploading the source again used Docker and
+the updated service settings successfully. Use railway up for source updates.
+
+2026-10-19: Replaced live OIDC with built-in password authentication.
+Deployment: 257850d7-63b3-44dc-9576-de8ed52037b1. AUTH_MODE=password.
+Verified readiness, password-mode auth config, anonymous API rejection and
+cross-origin login rejection. Owner setup link issued privately (not stored here).
+See docs/password-authentication.md for invitation and recovery procedures.

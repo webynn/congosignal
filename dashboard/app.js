@@ -59,7 +59,7 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 // ---------------------------------------------------------------------------------------------
 // State
 
-const VIEWS = ['briefing', 'situation', 'events', 'alerts', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team', 'ai-settings', 'ai-command'];
+const VIEWS = ['quality', 'research-briefs', 'armed-groups', 'history-control', 'compare', 'briefing', 'situation', 'events', 'alerts', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team', 'ai-settings', 'ai-command'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
 const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('report/')) return 'reports'; if (h === 'flights' || h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
@@ -159,8 +159,9 @@ function srv(t) {
   for (const [re, f] of SERVER_FR_PATTERNS) { const m = t.match(re); if (m) return f(m) }
   return t;
 }
-const title = a => state.lang === 'en' && brief(a)?.title_en ? brief(a).title_en : a.title;
-const summary = a => brief(a)?.[`summary_${state.lang}`] || a.description || '';
+const preview = a => a.preview?.status === 'completed' ? a.preview.data : null;
+const title = a => state.lang === 'en' ? (brief(a)?.title_en || preview(a)?.title_en || a.title) : a.title;
+const summary = a => brief(a)?.[`summary_${state.lang}`] || (state.lang === 'en' ? preview(a)?.summary_en : null) || a.description || '';
 const bandLabel = b => ({ high: L('High', 'Élevée'), medium: L('Medium', 'Moyenne'), low: L('Low', 'Faible') })[b] || b;
 
 const topicsList = () => state.social?.items?.map(i => i.topic) || [];
@@ -185,7 +186,7 @@ function placesList(items = state.items) {
   return [...m.values()].sort((a, b) => b.count - a.count);
 }
 function matchesQuery(a, q) {
-  return !q || norm([a.title, a.description, a.search_text, JSON.stringify(brief(a)), ...a.places.map(p => p.name + ' ' + p.province)].join(' ')).includes(norm(q));
+  return !q || norm([a.title, a.description, a.search_text, JSON.stringify(brief(a)), JSON.stringify(preview(a)), ...a.places.map(p => p.name + ' ' + p.province)].join(' ')).includes(norm(q));
 }
 const bySort = (a, b) => state.sort === 'latest' ? String(b.published_at).localeCompare(String(a.published_at)) : b.rank.score - a.rank.score;
 function libraryItems() {
@@ -230,9 +231,9 @@ async function load() {
   try {
     state.authConfig=await fetch('/auth/config').then(r=>r.json());
     state.auth=await api('/v1/auth/me');state.loginRequired=false;
-  } catch(e) {if(state.authConfig?.mode==='oidc'){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
+  } catch(e) {if(['oidc','password'].includes(state.authConfig?.mode)){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
   try {
-    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events] = await Promise.all([
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, control] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -254,10 +255,15 @@ async function load() {
       api('/v1/watches').catch(() => null),
       api('/v1/alerts?limit=200').catch(() => null),
       api(`/v1/events?days=${state.evDays}`).catch(() => null),
+      api('/v1/control').catch(() => null),
     ]);
     if (state.agDetail?.assessment?.status === 'running') state.agDetail = await api('/v1/agreements/'+state.agDetail.id);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, error: '' });
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, control, error: '' });
   } catch (e) { state.error = e.message }
+  if(state.view==='history-control') { try {state.controlHistory=await api('/v1/history-control');if(!state.controlAsOf)state.controlAsOf=state.controlHistory.cutoff;} catch(e){state.error=e.message;} }
+  if(['quality','research-briefs'].includes(state.view)){try{await loadPilotView(state.view,false)}catch(e){state.error=e.message}}
+  if(state.view==='armed-groups'&&!state.groupReviewOpen){try{state.groupData=await api('/v1/armed-groups')}catch(e){state.error=e.message}}
+  if(state.view==='compare') { try { state.compareData=await api('/v1/comparisons'); } catch(e) { state.error=e.message; } }
   state.loaded = true;
   render();
 }
@@ -294,15 +300,196 @@ function topicMix(counts) {
 // ---------------------------------------------------------------------------------------------
 // Shell
 
+// Cross-source comparisons: candidate discovery is free; AI runs only on explicit request.
+state.compareData = null; state.compareIds = []; state.compareResult = null;
+state.compareQuery = ''; state.compareAuthor = ''; state.compareBusy = false; state.compareError = '';
+async function loadComparisons() {
+  state.compareData = await api('/v1/comparisons');
+  if (state.view === 'compare') render();
+}
+function comparisonView() {
+  const d = state.compareData;
+  const head = pageHead(L('EDITORIAL RESEARCH', 'RECHERCHE ÉDITORIALE'), L('Compare coverage', 'Comparer la couverture'), L('Same story, different sources. Examine claims, angles and editorial choices with source evidence.', 'Même actualité, sources différentes. Examinez les affirmations, angles et choix éditoriaux avec leurs preuves.'), `<button class="btn" data-act="compare-refresh">${L('Refresh', 'Actualiser')}</button>`);
+  if (!d) return head + `<div class="notice">${L('Loading articles and bylines…', 'Chargement des articles et signatures…')}</div>`;
+  const lookup = id => d.articles.find(a => a.id === id);
+  const comparisonTitle = a => {
+    const current = lookup(a.id);
+    const cached = !a.fingerprint || a.fingerprint === current?.fingerprint ? current : null;
+    return state.lang === 'en' ? (a.title_en || cached?.title_en || a.title) : (a.title_fr || a.title);
+  };
+  const link = a => `<a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.source)} ↗</a>`;
+  const sourceCard = a => `<div class="compare-source"><small>${link(a)} · ${date(a.published_at)}</small><h3>${esc(comparisonTitle(a))}</h3><p class="muted">${esc(a.author || L('No byline extracted', 'Signature non extraite'))}</p><span class="badge">${a.coverage === 'api_summary' || a.coverage === 'feed_summary' ? L('Summary only', 'Résumé uniquement') : L('Stored article text', 'Texte archivé')}</span><p>${esc(a.description || '')}</p><button class="btn sm" data-act="report" data-arg="${esc(a.id)}">${L('Read article', 'Lire l’article')}</button></div>`;
+  const selected = state.compareIds.map(lookup).filter(Boolean);
+  const result = state.compareResult;
+  const analysis = result?.analysis;
+  const textField = k => esc(analysis?.[k+'_'+state.lang] || analysis?.[k+'_en'] || '');
+  const authors = d.journalists.filter(j => !state.compareQuery || norm(j.name+' '+j.publisher).includes(norm(state.compareQuery)));
+  const author = d.journalists.find(j => j.id === state.compareAuthor);
+  const options = d.articles.filter(a => !state.compareQuery || norm(a.title+' '+comparisonTitle(a)+' '+a.source+' '+(a.author||'')).includes(norm(state.compareQuery))).slice(0,40);
+  return head + `<div class="notice">${L('Candidate matches use headline overlap within 72 hours. They can miss paraphrases and translations or group different events. Select 2–4 reports and review the match before interpreting differences. Agreement is not proof of independent corroboration.', 'Les rapprochements utilisent les titres sur 72 heures. Ils peuvent manquer des reformulations ou réunir des événements distincts. Sélectionnez 2 à 4 articles et vérifiez le rapprochement. Un accord ne prouve pas une corroboration indépendante.')}</div>
+  <div class="toolbar"><input class="input" type="search" data-model="compareQuery" value="${esc(state.compareQuery)}" aria-label="${L('Search comparison articles or journalists', 'Rechercher articles ou journalistes')}" placeholder="${L('Search articles, publishers or bylines…', 'Rechercher articles, sources, signatures…')}"><button class="btn primary" data-act="compare-run" ${selected.length<2 || state.compareBusy ? 'disabled' : ''}>${state.compareBusy ? L('Comparing…', 'Comparaison…') : L('Compare with AI', 'Comparer avec IA')} (${selected.length}/4)</button><button class="btn" data-act="compare-clear">${L('Clear selection', 'Effacer')}</button></div>
+  ${state.compareError ? `<div class="notice" role="alert">${esc(state.compareError)}</div>` : ''}
+  <div class="compare-grid">${(result?.sources || selected).map(a=>sourceCard(a)).join('')}</div>
+  ${analysis ? `<section class="panel"><div class="panel-head"><h2>${L('Saved comparison', 'Comparaison enregistrée')}</h2><span>${esc(result.provider)} · ${esc(result.model)}</span><button class="btn sm" data-act="compare-export">JSON</button></div><div class="panel-body"><p><b>${L('Same event assessment', 'Même événement')}:</b> ${esc(analysis.same_event)} · ${date(result.created_at)}</p><p>${textField('summary')}</p>${analysis.unverified_findings_omitted ? `<div class="notice">${analysis.unverified_findings_omitted} ${L('AI observations omitted because their quotations could not be verified. Review the original sources.', 'observations IA omises car leurs citations n’ont pas pu être vérifiées. Consultez les sources originales.')}</div>` : ''}<div class="compare-grid">${[['agreements',L('Shared claims','Affirmations communes')],['differences',L('Different claims and angles','Différences et angles')],['limitations',L('Limits of the evidence','Limites des preuves')]].map(([k,t])=>`<div><h3>${t}</h3><p>${textField(k)}</p></div>`).join('')}</div><h3>${L('Evidence behind editorial observations','Preuves des observations éditoriales')}</h3>${analysis.findings.map(f=>{const a=result.sources.find(a=>a.id===f.article_id);return `<div class="compare-finding"><span class="badge">${esc(f.kind)}</span> ${a?link(a):''}<blockquote>${esc(f.quote)}</blockquote><p>${esc(f['observation_'+state.lang])}</p></div>`}).join('')}</div></section>` : ''}
+  <div class="split"><section class="panel"><div class="panel-head"><h2>${L('Suggested story matches','Rapprochements proposés')}</h2><small>${d.candidates.length}</small></div><div class="panel-body">${d.candidates.filter(c=>!state.compareQuery || c.articles.some(id=>{const a=lookup(id);return a&&norm(a.title+' '+comparisonTitle(a)+' '+a.source).includes(norm(state.compareQuery))})).slice(0,15).map(c=>`<div class="compare-finding">${c.articles.map(id=>{const a=lookup(id);return `<p><b>${esc(a.source)}</b> · ${esc(comparisonTitle(a))}</p>`}).join('')}<small>${L('Shared title terms','Termes communs')}: ${esc(c.shared_terms.join(', '))}</small><p><button class="btn sm" data-act="compare-pair" data-arg="${esc(c.articles.join(','))}">${L('Select pair','Sélectionner')}</button></p></div>`).join('') || `<p>${L('No suggested matches. Select reports manually below.','Aucun rapprochement. Sélectionnez les articles ci-dessous.')}</p>`}</div></section>
+  <section class="panel"><div class="panel-head"><h2>${L('Journalists / bylines','Journalistes / signatures')}</h2></div><div class="panel-body"><p class="muted">${L('Counts reflect this collection, not a journalist’s entire output. Names are grouped by publisher; shared or heuristic bylines can be ambiguous. Patterns describe published text, not personal beliefs.', 'Les comptes concernent cette collection, pas toute la production. Les signatures sont regroupées par source et peuvent être collectives ou ambiguës. Les observations portent sur les textes, pas les convictions personnelles.')}</p><p>${d.missing_byline} ${L('articles without extracted bylines','articles sans signature extraite')}</p>${authors.slice(0,30).map(j=>`<button class="btn compare-author" data-act="compare-author" data-arg="${esc(j.id)}">${esc(j.name)} · ${esc(j.publisher)} <b>${j.articles.length} ${L('articles','articles')}</b></button>`).join('')}
+  ${author ? `<h3>${esc(author.name)} · ${esc(author.publisher)}</h3><p>${Object.entries(author.categories).map(([k,n])=>`${esc(k)}: ${n}`).join(' · ')}</p><h4>${L('Published articles','Articles publiés')}</h4>${author.articles.map(id=>{const a=lookup(id);return `<p><button class="linkbtn" data-act="report" data-arg="${esc(id)}">${esc(a ? comparisonTitle(a) : id)}</button> · ${date(a?.published_at)}</p>`}).join('')}<h4>${L('Observed framing in compared articles','Cadrages observés dans les articles comparés')}</h4>${author.findings.length?author.findings.map(x=>`<div class="compare-finding"><blockquote>${esc(x.finding.quote)}</blockquote><p>${esc(x.finding['observation_'+state.lang])}</p><button class="btn sm" data-act="compare-history" data-arg="${esc(x.comparison_id)}">${L('Open comparison','Voir la comparaison')}</button></div>`).join(''):`<p>${L('Not enough reviewed evidence yet. Compare this byline’s articles to build an evidence record.','Pas encore assez de preuves. Comparez ses articles pour constituer un dossier.')}</p>`}`:''}</div></section></div>
+  <section class="panel"><div class="panel-head"><h2>${L('Choose articles manually','Sélection manuelle')}</h2><small>${L('First 40 matching articles','40 premiers résultats')}</small></div><div class="panel-body">${options.map(a=>`<div class="compare-choice"><button class="btn sm" data-act="compare-toggle" data-arg="${esc(a.id)}" aria-pressed="${state.compareIds.includes(a.id)}">${state.compareIds.includes(a.id)?'✓': '+'}</button><span><b>${esc(a.source)}</b> · ${esc(comparisonTitle(a))}<small> ${esc(a.author||'')} · ${date(a.published_at)}</small></span></div>`).join('')}</div></section>
+  <section class="panel"><div class="panel-head"><h2>${L('Comparison archive','Archives des comparaisons')}</h2></div><div class="panel-body">${d.history.map(h=>`<p><button class="linkbtn" data-act="compare-history" data-arg="${esc(h.id)}">${esc(h.analysis['summary_'+state.lang]?.slice(0,160))}</button> · ${date(h.created_at)}</p>`).join('')||L('No comparisons yet.','Aucune comparaison.')}</div></section>`;
+}
+
+state.groupData=null;state.groupSelected='';state.groupSearch='';state.groupStatus='';state.groupReviewOpen=false;
+const groupStatusLabel=k=>({insufficient_evidence:L('Insufficient reviewed evidence','Preuves relues insuffisantes'),activity_reported_30d:L('Activity reported · last 30 days','Activité rapportée · 30 derniers jours'),activity_reported_90d:L('Activity reported · 31–90 days','Activité rapportée · 31–90 jours'),historical_evidence:L('Historical evidence only','Preuves historiques uniquement'),disputed:L('Attribution disputed','Attribution contestée'),organizational_change_reported:L('Organizational change reported','Changement d’organisation rapporté')})[k]||k;
+const groupActivityLabel=k=>({violence:L('Violence','Violence'),recruitment:L('Recruitment','Recrutement'),statement:L('Public statement','Déclaration publique'),negotiation:L('Negotiations','Négociations'),demobilisation:L('Demobilisation','Démobilisation'),dissolution:L('Dissolution','Dissolution'),merger:L('Merger','Fusion'),other:L('Other','Autre'),reported:L('Reported activity','Activité rapportée'),corroborated:L('Corroborated reporting','Rapports corroborés'),disputed:L('Disputed attribution','Attribution contestée'),rejected:L('Rejected attribution','Attribution rejetée')})[k]||k;
+async function loadGroups(){state.groupData=await api('/v1/armed-groups');if(state.view==='armed-groups')render();}
+function groupsView(){
+ const d=state.groupData;const canReview=['owner','administrator','reviewer'].includes(state.auth?.user?.role);
+ const head=pageHead(L('PUBLIC REPORTING DIRECTORY','RÉPERTOIRE DES RAPPORTS PUBLICS'),L('Armed groups','Groupes armés'),L('Evidence-backed activity assessments; a mention does not establish activity.','Évaluations sourcées de l’activité ; une mention ne prouve pas l’activité.'),`<button class="btn" data-act="groups-refresh">${L('Refresh evidence','Actualiser les preuves')}</button>`);
+ if(!d)return head+`<p>${L('Loading archived reporting…','Chargement des rapports archivés…')}</p>`;
+ const items=d.items.filter(g=>(!state.groupSearch||norm([g.name,...g.terms].join(' ')).includes(norm(state.groupSearch)))&&(!state.groupStatus||g.status.code===state.groupStatus)).sort((a,b)=>b.source_count-a.source_count||a.name.localeCompare(b.name));
+ const selected=d.items.find(g=>g.id===state.groupSelected);
+ const source=e=>`<a href="${esc(e.source.url)}" target="_blank" rel="noopener noreferrer">${esc(e.source.publisher||'Source')} · ${esc(e.source.title)} ↗</a><p class="muted">${L('Publication','Publication')} : ${esc(e.source.published_at||L('Unknown','Inconnue'))}${e.source.page?' · p. '+esc(e.source.page):''}</p>`;
+ return head+`<div class="notice">${L('Partial coverage. Historical source labels may overlap or describe factions, coalitions or generic actors. No recent evidence does not mean inactive. Names and group attribution require review; no affiliations are inferred. Sanctions remain in Key figures & sanctions.','Couverture partielle. Les noms historiques peuvent se chevaucher ou désigner des factions, coalitions ou acteurs génériques. Absence de preuve récente ne signifie pas inactivité. Noms et attributions nécessitent un examen ; aucune affiliation n’est déduite. Les sanctions restent dans Acteurs et sanctions.')}</div><div class="toolbar"><input class="input" data-model="groupSearch" aria-label="${L('Search groups','Chercher un groupe')}" placeholder="${L('Name or alias…','Nom ou variante…')}" value="${esc(state.groupSearch)}"><select class="select" data-model="groupStatus" aria-label="${L('Activity status','État de l’activité')}"><option value="">${L('All statuses','Tous les états')}</option>${['insufficient_evidence','activity_reported_30d','activity_reported_90d','historical_evidence','disputed','organizational_change_reported'].map(k=>`<option value="${k}" ${state.groupStatus===k?'selected':''}>${groupStatusLabel(k)}</option>`).join('')}</select><span>${items.length} / ${d.items.length} ${L('catalogue entries','entrées du répertoire')}</span></div>
+ ${selected?`<section class="panel"><div class="panel-head"><h2>${esc(selected.name)}</h2><button class="btn sm" data-act="group-select" data-arg="">${L('Close profile','Fermer la fiche')}</button></div><div class="panel-body"><span class="badge">${groupStatusLabel(selected.status.code)}</span><p>${L('Name variants used for matching','Variantes utilisées pour la recherche')} : ${esc(selected.terms.join(' · '))}</p><p>${esc(selected.provenance)} · <a href="${esc(selected.source_url)}" target="_blank" rel="noopener noreferrer">${L('Reference collection','Collection de référence')} ↗</a></p><p>${L('Last reviewed event','Dernier événement relu')} : ${esc(selected.status.last_event_date||'—')} · ${L('Latest publication mentioning this name','Dernière publication mentionnant ce nom')} : ${esc(selected.last_publication_date||'—')}</p><h3>${L('Reviewed event timeline','Chronologie des événements relus')}</h3>${selected.events.slice().sort((a,b)=>b.event_date.localeCompare(a.event_date)).map(e=>`<article class="compare-finding"><strong>${esc(e.event_date)} · ${groupActivityLabel(e.activity)} · ${groupActivityLabel(e.decision)}</strong><p>${esc(e.note)}</p>${e.evidence.map(source).join('')}<small>${L('Reviewed by','Relu par')} ${esc(e.reviewer)} · ${esc(e.reviewed_at)}</small></article>`).join('')||`<p>${L('No reviewed events. Matching passages below are not activity assessments.','Aucun événement relu. Les passages ci-dessous ne sont pas des évaluations d’activité.')}</p>`}
+ ${canReview?`<button class="btn" data-act="group-review-toggle">${state.groupReviewOpen?L('Cancel review','Annuler la relecture'):L('Review selected evidence','Examiner les preuves sélectionnées')}</button>`:''}
+ <div id="group-evidence-form" data-group="${esc(selected.id)}">
+ ${canReview&&state.groupReviewOpen?`<div class="panel-body"><p>${L('Select up to five passages below. First selected passage identifies the event; saving again with that passage revises it and retains the audit history.','Sélectionnez jusqu’à cinq passages ci-dessous. Le premier identifie l’événement ; un nouvel enregistrement avec ce passage le révise et conserve l’historique.')}</p><label>${L('Confirmed event date','Date confirmée de l’événement')}<input class="input" name="event_date" type="date" max="${new Date().toISOString().slice(0,10)}"></label><label>${L('Activity type','Type d’activité')}<select class="select" name="activity">${['violence','recruitment','statement','negotiation','demobilisation','dissolution','merger','other'].map(k=>`<option value="${k}">${groupActivityLabel(k)}</option>`).join('')}</select></label><label>${L('Decision','Décision')}<select class="select" name="decision">${['reported','corroborated','disputed','rejected'].map(k=>`<option value="${k}">${groupActivityLabel(k)}</option>`).join('')}</select></label><label><input type="checkbox" name="independent_sources">${L('I checked that the corroborating reports are independent, not copies.','J’ai vérifié que les rapports corroborants sont indépendants et non des copies.')}</label><label>${L('Explain event date, attribution and uncertainty','Justifier la date, l’attribution et l’incertitude')}<textarea class="input" name="note" rows="4"></textarea></label><button class="btn primary" data-act="group-review-save">${L('Save reviewed event','Enregistrer l’événement relu')}</button></div>`:''}
+ <h3>${L('Candidate passages','Passages candidats')} · ${selected.evidence.length}</h3><p>${L('Showing the latest 100 passages. Publication dates are not event dates.','Affichage des 100 derniers passages. Les dates de publication ne sont pas les dates des événements.')}</p>${selected.evidence.slice(0,100).map(e=>`<article class="compare-finding">${state.groupReviewOpen&&canReview?`<label><input type="checkbox" name="evidence" value="${esc(e.id)}">${L('Use this passage','Utiliser ce passage')}</label>`:''}${source(e)}<blockquote>${esc(e.quote)}</blockquote></article>`).join('')||`<p>${L('No matching archived passages collected.','Aucun passage correspondant dans les archives collectées.')}</p>`}</div>
+ <details><summary>${L('Review audit trail','Historique des révisions')}</summary>${d.history.filter(r=>r.group_id===selected.id).map(r=>`<p>${esc(r.reviewed_at)} · ${esc(r.reviewer)} · ${groupActivityLabel(r.decision)} · ${esc(r.note)}</p>`).join('')||'—'}</details></div></section>`:''}
+ <div class="compare-grid">${items.map(g=>`<section class="panel"><div class="panel-body"><h3>${esc(g.name)}</h3><span class="badge">${groupStatusLabel(g.status.code)}</span><p>${esc(({group:L('Named group','Groupe nommé'),coalition:L('Coalition','Coalition'),umbrella:L('Umbrella label','Appellation collective'),source_label:L('Historical source label · identity unresolved','Nom historique de source · identité non résolue')})[g.kind])}</p><p>${g.source_count} ${L('archived source URLs mentioning this name','URL sources archivées mentionnant ce nom')}</p><p>${L('Last reviewed event','Dernier événement relu')} : ${esc(g.status.last_event_date||'—')}</p><button class="btn" data-act="group-select" data-arg="${esc(g.id)}">${L('Open evidence & timeline','Ouvrir les preuves et la chronologie')}</button></div></section>`).join('')}</div>`;
+}
+
+state.controlLayer='ipis';state.controlYear='2023';state.controlHistory=null; state.controlProvince='';state.controlAsOf='';state.controlEdit='';
+let historyMap=null, historyMapHost=null, historyMarkers=[], historyPopup=null;
+async function loadControlHistory(){state.controlHistory=await api('/v1/history-control');if(!state.controlAsOf)state.controlAsOf=state.controlHistory.cutoff;if(state.view==='history-control')render();}
+const historicalLabel = k => ({fardc:'FARDC / gouvernement',afc_m23:'AFC/M23',both:L('Both mentioned','Les deux mentionnés'),unknown:L('Unknown','Inconnu'),presence:L('Reported presence','Présence rapportée'),reported_control:L('Local control reported','Contrôle local rapporté'),contested:L('Contested','Contesté'),reviewed:L('Reviewed source claim','Affirmation relue'),disputed:L('Disputed claim','Affirmation contestée'),rejected:L('Rejected','Rejetée')})[k]||k;
+function historicalVisible(){return (state.controlHistory?.items||[]).filter(c=>['reviewed','disputed'].includes(c.review?.status)&&c.review.event_date<=state.controlAsOf&&(!state.controlProvince||c.province===state.controlProvince));}
+function historicalIpisRows(){return (state.controlHistory?.observations?.rows||[]).filter(r=>String(r.year)===String(state.controlYear)&&(!state.controlProvince||r.province===state.controlProvince));}
+function historicalIpisView(){
+ const d=state.controlHistory.observations;
+ const rows=historicalIpisRows();
+ const years=[...new Set(d.rows.map(r=>r.year))].sort((a,b)=>b-a);
+ const metric=(r,k)=>`${r[k].yes} / ${r[k].yes+r[k].no} ${L('known responses','réponses connues')} · ${r[k].unknown} ${L('unknown','inconnues')}`;
+ return `<div class="toolbar"><label>${L('Observation year','Année d’observation')} <select class="select" data-model="controlYear">${years.map(y=>`<option ${String(y)===String(state.controlYear)?'selected':''}>${y}</option>`).join('')}</select></label><select class="select" data-model="controlProvince" aria-label="${L('Historical province','Province historique')}"><option value="">${L('All provinces','Toutes les provinces')}</option>${state.controlHistory.provinces.map(p=>`<option ${state.controlProvince===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button class="btn" data-act="control-export">JSON</button></div>
+ <div class="notice">${L('Colours summarise historical interference at surveyed mining sites within each province. Town labels are geographic context, not control assessments.','Les couleurs résument l’ingérence historique sur les sites miniers étudiés dans chaque province. Les noms des villes servent de repères, pas d’évaluation du contrôle.')}</div>
+ <div id="history-map-slot" style="height:560px;border:1px solid var(--line)"></div>
+ <div class="toolbar" aria-label="${L('Map legend','Légende de la carte')}">${[['#45b6aa','<25%'],['#e4c15c','25–<50%'],['#e79345','50–<75%'],['#d66060','75–100%'],['#68747b',L('No observations','Aucune observation')]].map(([c,t])=>`<span><i style="display:inline-block;width:14px;height:14px;background:${c};margin-right:6px"></i>${t}</span>`).join('')}</div>
+ <p class="muted">${L('Percentage of surveyed sites reporting interference (unknown responses remain in the denominator). Click an area for counts. Zoom to see towns. Boundaries: geoBoundaries / OpenStreetMap, ODbL; 2017 administrative geography.','Pourcentage des sites étudiés avec ingérence rapportée (réponses inconnues incluses au dénominateur). Cliquez sur une zone pour les nombres. Zoomez pour voir les villes. Limites : geoBoundaries / OpenStreetMap, ODbL ; géographie administrative de 2017.')}</p>
+
+ <div class="compare-grid">${rows.map(r=>`<section class="panel"><div class="panel-body"><h2>${esc(r.province)} · ${r.year}</h2><strong>${r.sites}</strong> ${L('sites surveyed','sites étudiés')} · ${r.visits} ${L('visits','visites')}<h3>${L('Armed presence reported','Présence armée rapportée')}</h3><p>${metric(r,'presence')}</p><h3>${L('Interference reported','Ingérence rapportée')}</h3><p>${metric(r,'interference')}</p><progress style="width:100%;accent-color:#d38b44" value="${r.interference.yes}" max="${r.sites}"></progress><p class="muted">${L('Share of surveyed sites, including unknown responses in the denominator.','Part des sites étudiés, réponses inconnues incluses au dénominateur.')}</p><details><summary>${L('Actors mentioned in observations','Acteurs mentionnés dans les observations')}</summary><p>${L('Mentions can overlap. A mention alone does not establish interference or control. Names are preserved from IPIS.','Les mentions peuvent se chevaucher. Une mention seule n’établit ni ingérence ni contrôle. Noms conservés tels que fournis par IPIS.')}</p>${r.actor_mentions.map(a=>`<p>${esc(a.name)} <strong>${a.sites}</strong></p>`).join('')||L('No actor names recorded.','Aucun nom d’acteur enregistré.')}</details></div></section>`).join('')||`<p>${L('No observations for this selection.','Aucune observation pour cette sélection.')}</p>`}</div>
+ <section class="panel"><div class="panel-body"><h2>${L('Sources & interpretation','Sources et interprétation')}</h2><p><a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">IPIS Open Data ↗</a> · ${esc(d.license)}</p><p>${L('The survey sample changes each year. Do not interpret changes in counts as military advances or withdrawals. Missing observations are not evidence of absence. This pinned historical import uses no AI calls.','L’échantillon change chaque année. Les variations des nombres n’indiquent pas une avancée ou un retrait militaire. L’absence d’observation ne prouve pas l’absence d’un acteur. Cet import historique figé ne consomme aucun appel IA.')}</p><p><a href="https://ipisresearch.be/publication/analysis-of-the-interactive-map-of-artisanal-mining-areas-in-eastern-democratic-republic-of-congo-2023-update/" target="_blank" rel="noopener noreferrer">${L('IPIS 2023 report and methodology','Rapport IPIS 2023 et méthodologie')} ↗</a></p><p><a href="https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports" target="_blank" rel="noopener noreferrer">${L('UN Group of Experts report archive','Archives des rapports du Groupe d’experts de l’ONU')} ↗</a> · ${L('Reference library; territorial claims have not been imported from these PDFs.','Bibliothèque de référence ; aucune affirmation territoriale importée de ces PDF.')}</p><details><summary>${L('Dataset fingerprint','Empreinte du jeu de données')}</summary><code style="overflow-wrap:anywhere">SHA-256 ${esc(d.source_sha256)}</code></details></div></section>`;
+}
+
+function historicalControlView(){
+ const d=state.controlHistory;
+ let head=pageHead(L('HISTORICAL RESEARCH','RECHERCHE HISTORIQUE'),L('Historical situation','Situation historique'),L('Province-level reporting archive · no live boundaries or territorial estimates.','Archives des rapports par province · sans frontières en direct ni estimations territoriales.'),`<button class="btn" data-act="control-load">${L('Refresh','Actualiser')}</button>`);
+ if(!d)return head+`<p>${L('Loading historical archive…','Chargement des archives…')}</p>`;
+ head+=`<div class="toolbar"><label>${L('Historical layer','Couche historique')} <select class="select" data-model="controlLayer"><option value="ipis" ${state.controlLayer==='ipis'?'selected':''}>${L('IPIS mining observations · 2009–2023','Observations minières IPIS · 2009–2023')}</option><option value="reports" ${state.controlLayer==='reports'?'selected':''}>${L('Reviewed reporting archive','Archives des rapports relus')}</option></select></label></div>`;
+ if(state.controlLayer==='ipis'&&d.observations)return head+historicalIpisView();
+ const visible=historicalVisible().sort((a,b)=>b.review.event_date.localeCompare(a.review.event_date));
+ const canReview=['owner','administrator','reviewer'].includes(state.auth?.user?.role);
+ const queue=d.items.filter(c=>!c.review&&(!state.controlProvince||c.province===state.controlProvince));
+ const edited=d.items.find(c=>c.id===state.controlEdit);
+ const source=c=>`<a href="${esc(c.source.url)}" target="_blank" rel="noopener noreferrer">${esc(c.source.publisher)} · ${esc(c.source.title)} ↗</a><small> · ${esc(c.source.published_at||'')} ${c.source.page?` · p. ${c.source.page}`:''}</small>`;
+ return head+`<div class="notice">${L('Only sources and events at least 30 days old are eligible. A marker means reviewed reporting within a province, not control of the province. Reports can be contested or outdated; unknown is not government control. Review does not independently verify a claim.','Seuls les événements et sources de plus de 30 jours sont éligibles. Un repère indique des rapports relus dans une province, pas son contrôle. Les rapports peuvent être contestés ou anciens ; inconnu ne signifie pas contrôle gouvernemental. La relecture ne vérifie pas indépendamment une affirmation.')}</div>
+ <div class="toolbar"><label>${L('Historical cutoff','Date historique')} <input class="input" type="date" data-model="controlAsOf" value="${esc(state.controlAsOf)}" max="${esc(d.cutoff)}"></label><select class="select" data-model="controlProvince" aria-label="${L('Historical province','Province historique')}"><option value="">${L('All provinces','Toutes les provinces')}</option>${d.provinces.map(p=>`<option ${state.controlProvince===p.name?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button class="btn" data-act="control-export">JSON</button></div>
+ <div id="history-map-slot" style="height:560px;border:1px solid var(--line)"></div><p class="muted">${L('Province shading summarises reviewed reporting, not territorial control. Blue: reviewed reports; orange: disputed reports; grey: no reviewed evidence.','Les couleurs résument les rapports provinciaux, pas le contrôle territorial. Bleu : rapports relus ; orange : contestés ; gris : aucune preuve relue.')}</p>
+ <div class="compare-grid">${d.provinces.map(p=>{const n=visible.filter(c=>c.province===p.name);return `<section class="panel"><div class="panel-body"><h3>${esc(p.name)}</h3><strong>${n.length}</strong> ${L('reviewed historical claims','affirmations historiques relues')}<p>${n.length?L('Consult dated claims below. Province-wide control is not assessed.','Consultez les affirmations datées ci-dessous. Le contrôle provincial n’est pas évalué.'):L('Unknown · no reviewed evidence for this date.','Inconnu · aucune preuve relue à cette date.')}</p><button class="btn sm" data-act="control-province" data-arg="${esc(p.name)}">${L('Explore','Explorer')}</button></div></section>`}).join('')}</div>
+ <section class="panel"><div class="panel-head"><h2>${L('Dated reporting timeline','Chronologie des rapports')}</h2></div><div class="panel-body">${visible.map(c=>`<article class="compare-finding"><b>${esc(c.review.event_date)} · ${esc(c.province)}</b><p>${esc(historicalLabel(c.review.actor))} · ${esc(historicalLabel(c.review.assessment))} · ${esc(historicalLabel(c.review.status))}</p><p>${esc(c.review.note)}</p>${source(c)}<details><summary>${L('Source passage','Passage source')}</summary><blockquote>${esc(c.quote)}</blockquote></details><p class="muted">${L('Historical observation; current status not established.','Observation historique ; situation actuelle non établie.')}</p>${canReview?`<button class="btn sm" data-act="control-edit" data-arg="${esc(c.id)}">${L('Revise assessment','Réviser')}</button>`:''}</article>`).join('')||`<p>${L('No reviewed claims yet. The map remains unknown until evidence has been reviewed.','Aucune affirmation relue. La carte reste inconnue avant examen des preuves.')}</p>`}</div></section>
+ ${edited&&canReview?`<section class="panel"><div class="panel-head"><h2>${L('Review evidence','Examiner les preuves')} · ${esc(edited.province)}</h2></div><div class="panel-body" id="control-review-form" data-claim="${esc(edited.id)}">${source(edited)}<blockquote>${esc(edited.quote)}</blockquote><div class="fields"><label>${L('Confirmed event date (not collection date)','Date confirmée de l’événement (pas de collecte)')}<input class="input" name="event_date" type="date" max="${esc(d.cutoff)}" value="${esc(edited.review?.event_date||'')}"></label><label>${L('Actor discussed','Acteur mentionné')}<select class="select" name="actor">${['unknown','fardc','afc_m23','both'].map(k=>`<option value="${k}">${esc(historicalLabel(k))}</option>`).join('')}</select></label><label>${L('What the evidence supports','Ce que les preuves indiquent')}<select class="select" name="assessment">${['unknown','presence','reported_control','contested'].map(k=>`<option value="${k}">${esc(historicalLabel(k))}</option>`).join('')}</select></label><label>${L('Decision','Décision')}<select class="select" name="status">${['reviewed','disputed','rejected'].map(k=>`<option value="${k}">${esc(historicalLabel(k))}</option>`).join('')}</select></label><label>${L('Evidence, date basis and uncertainty (required)','Preuves, justification de la date et incertitude (obligatoire)')}<textarea class="input" name="note" rows="4">${esc(edited.review?.note||'')}</textarea></label></div><button class="btn primary" data-act="control-save" data-arg="${esc(edited.id)}">${L('Save review revision','Enregistrer la révision')}</button><button class="btn" data-act="control-edit" data-arg="">${L('Cancel','Annuler')}</button></div></section>`:''}
+ <section class="panel"><div class="panel-head"><h2>${L('Unreviewed historical candidates','Candidats historiques non relus')} · ${queue.length}</h2></div><div class="panel-body">${queue.slice(0,30).map(c=>`<article class="compare-finding"><b>${esc(c.province)}</b> · ${source(c)}<blockquote>${esc(c.quote)}</blockquote><p>${L('Publication date is not an event date. Not plotted.','La date de publication n’est pas la date de l’événement. Non cartographié.')}</p>${canReview?`<button class="btn sm" data-act="control-edit" data-arg="${esc(c.id)}">${L('Review','Examiner')}</button>`:''}</article>`).join('')||L('No eligible unreviewed candidates yet. The worker checks archived sources hourly.','Aucun candidat éligible. Le collecteur examine les archives chaque heure.')}</div></section>
+ <details class="panel"><summary>${L('Review audit trail','Historique des révisions')} · ${d.history.length}</summary><div class="panel-body">${d.history.slice().reverse().map(r=>`<p>#${r.revision} · ${esc(r.created_at)} · ${esc(r.province)} · ${esc(historicalLabel(r.status))} · ${esc(r.note)}</p>`).join('')}</div></details>`;
+}
+function historyAreaData(){
+ const rows=historicalIpisRows(), reports=historicalVisible();
+ return {type:'FeatureCollection',features:(state.historyBoundaries?.features||[]).map(f=>{
+  const name=({'North Kivu':'Nord-Kivu','South Kivu':'Sud-Kivu'})[f.properties.shapeName]||f.properties.shapeName;
+  const selected=['Nord-Kivu','Sud-Kivu','Ituri'].includes(name)&&(!state.controlProvince||name===state.controlProvince);
+  const r=rows.find(r=>r.province===name);const claims=reports.filter(c=>c.province===name);
+  const pct=r?100*r.interference.yes/r.sites:null;
+  const color=state.controlLayer==='ipis'?(pct===null?'#68747b':pct<25?'#45b6aa':pct<50?'#e4c15c':pct<75?'#e79345':'#d66060'):(claims.length?(claims.some(c=>c.review.status==='disputed')?'#e79345':'#4c9cc7'):'#68747b');
+  return {...f,properties:{name,selected: selected?1:0,color,sites:r?.sites||0,yes:r?.interference.yes||0,unknown:r?.interference.unknown||0,pct:pct===null?-1:pct,claims:claims.length}};
+ })};
+}
+function updateHistoryAreas(){
+ if(!historyMap?.isStyleLoaded()||!state.historyBoundaries)return;
+ historyPopup?.remove();historyPopup=null;
+ const data=historyAreaData();
+ if(historyMap.getSource('historical-provinces'))historyMap.getSource('historical-provinces').setData(data);
+ else {
+  historyMap.addSource('historical-provinces',{type:'geojson',data,attribution:'<a href="https://www.geoboundaries.org/">geoBoundaries</a> / © OpenStreetMap · ODbL'});
+  const before=historyMap.getStyle().layers.find(l=>l.type==='symbol')?.id;
+  historyMap.addLayer({id:'historical-area-fill',type:'fill',source:'historical-provinces',paint:{'fill-color':['get','color'],'fill-opacity':['case',['==',['get','selected'],1],0.48,0]}},before);
+  historyMap.addLayer({id:'historical-area-outline',type:'line',source:'historical-provinces',paint:{'line-color':['case',['==',['get','selected'],1],['get','color'],'#73818a'],'line-width':['case',['==',['get','selected'],1],2.5,0.5],'line-opacity':0.8}},before);
+  historyMap.on('mouseenter','historical-area-fill',()=>{historyMap.getCanvas().style.cursor='pointer'});
+  historyMap.on('mouseleave','historical-area-fill',()=>{historyMap.getCanvas().style.cursor=''});
+  historyMap.on('click','historical-area-fill',e=>{
+   const p=e.features?.[0]?.properties;if(!p||!Number(p.selected))return;
+   const summary=state.controlLayer==='ipis'?(Number(p.sites)?`${p.yes} / ${p.sites} ${L('surveyed sites reported interference','sites étudiés avec ingérence rapportée')} (${Number(p.pct).toFixed(1)}%). ${p.unknown} ${L('unknown responses','réponses inconnues')}.`:L('No observations in this year.','Aucune observation cette année.')):`${p.claims} ${L('reviewed historical claims','affirmations historiques relues')}`;
+   historyPopup?.remove();historyPopup=new mapboxgl.Popup({maxWidth:'340px'}).setLngLat(e.lngLat).setHTML(`<strong>${esc(p.name)} · ${esc(state.controlLayer==='ipis'?state.controlYear:state.controlAsOf)}</strong><p>${esc(summary)}</p><small>${L('Province summary, not town control. Town labels are geographic context only.','Résumé provincial, pas le contrôle des villes. Les noms des villes sont des repères géographiques.')}</small>`).addTo(historyMap);
+  });
+ }
+}
+function mountHistoryMap(){
+ const slot=document.getElementById('history-map-slot');
+ if(!slot){if(historyMapHost)historyMapHost.remove();return;}
+ if(!window.mapboxgl||!state.config?.mapbox_public_token){slot.textContent=L('Map unavailable; use the province cards below.','Carte indisponible ; utilisez les fiches provinciales.');return;}
+ if(!state.historyBoundaries&&!state.historyBoundariesLoading){
+  state.historyBoundariesLoading=true;
+  fetch('/geology/provinces.geo.json').then(r=>{if(!r.ok)throw Error('Province boundaries unavailable');return r.json()}).then(d=>{state.historyBoundaries=d;updateHistoryAreas()}).catch(e=>toast(e.message)).finally(()=>{state.historyBoundariesLoading=false});
+ }
+ if(!historyMap){
+  historyMapHost=document.createElement('div');historyMapHost.style.cssText='height:100%;width:100%';slot.append(historyMapHost);
+  historyMap=new mapboxgl.Map({container:historyMapHost,accessToken:state.config.mapbox_public_token,style:mapStyle(),center:[28.7,-1],zoom:5.8,minZoom:3,maxZoom:10,attributionControl:true});
+  historyMap.addControl(new mapboxgl.NavigationControl(),'top-right');
+  historyMap.on('load',updateHistoryAreas);
+ }else{slot.append(historyMapHost);historyMap.resize();}
+ historyMarkers.forEach(m=>m.remove());historyMarkers=[];
+ updateHistoryAreas();
+}
+
+async function loadPilotView(view, redraw=true) {
+  state[view==='quality'?'qualityData':'researchBriefs']=await api('/v1/'+view);
+  if(redraw && state.view===view)render();
+}
+function researchBriefsView(){
+  const items=state.researchBriefs?.items;
+  return `<section class="pilot-panel"><h1>${L('My research briefs','Mes dossiers de recherche')}</h1><p>${L('Save articles with the bookmark, then create a private snapshot with source links. Cached summaries are reused without new AI charges. Missing translations stay in the original language.','Sauvegardez des articles, puis créez un dossier privé avec ses sources. Les résumés en cache sont réutilisés sans nouvel appel IA. Les textes non traduits restent dans leur langue d’origine.')}</p>
+  <div class="toolbar"><input class="input" data-model="researchTitle" maxlength="160" value="${esc(state.researchTitle||'')}" placeholder="${L('Brief title','Titre du dossier')}" aria-label="${L('Brief title','Titre du dossier')}"><button class="btn primary" data-act="research-create">${L('Snapshot saved articles (max 50)','Créer depuis les articles sauvegardés (50 max)')}</button>${state.compareIds?.length?`<button class="btn" data-act="research-selected">${L('Use comparison selection','Utiliser la sélection comparative')} (${state.compareIds.length})</button>`:''}</div>
+  <p>${L('Only you can access these snapshots in the app. Downloaded files can be shared by you. Private notes are excluded.','Vous seul avez accès à ces dossiers dans l’application. Vous pouvez partager les fichiers téléchargés. Les notes privées sont exclues.')}</p>
+  ${!items?`<p>${L('Loading…','Chargement…')}</p>`:items.length?items.map(b=>`<article class="pilot-record"><h2>${esc(b.title)}</h2><p>${esc(b.created_at)} · ${b.articles} ${L('sources','sources')} · ${esc(b.lang)}</p><button class="btn" data-act="research-html" data-arg="${esc(b.id)}">${L('Download printable brief','Télécharger le dossier imprimable')}</button> <button class="btn" data-act="research-json" data-arg="${esc(b.id)}">JSON</button></article>`).join(''):`<p>${L('No snapshots yet. Bookmark a report to get started.','Aucun dossier. Sauvegardez un article pour commencer.')}</p>`}</section>`;
+}
+function qualityView(){
+ const q=state.qualityData;
+ if(!q)return `<section class="pilot-panel"><h1>${L('Data quality','Qualité des données')}</h1><p>${L('Loading…','Chargement…')}</p></section>`;
+ const metrics=[[L('Articles','Articles'),q.articles],[L('Publishers','Éditeurs'),Object.keys(q.publishers).length],[L('Missing publication date','Date de publication absente'),q.missing_date],[L('Future publication date','Date de publication future'),q.future_date],[L('Missing byline','Signature absente'),q.missing_author],[L('Summary-only records','Résumés seuls'),q.summary_only],[L('Duplicate text groups','Groupes de textes identiques'),q.duplicate_groups.length],[L('Unavailable documents','Documents indisponibles'),q.failed_documents],[L('Invalid records','Enregistrements invalides'),q.malformed_records]];
+ return `<section class="pilot-panel"><h1>${L('Data quality','Qualité des données')}</h1><p>${L('Completeness checks, not an accuracy score. Identical text can be syndication; it is not independent corroboration. Review translations and source attribution before publication.','Contrôles de complétude, pas un score de véracité. Un texte identique peut être repris d’une autre source ; ce n’est pas une corroboration indépendante. Vérifiez traductions et attributions avant publication.')}</p><button class="btn" data-act="quality-refresh">${L('Refresh checks','Actualiser les contrôles')}</button><p>${esc(q.generated_at)} · ${esc(q.auth_mode)}</p><div class="pilot-metrics">${metrics.map(([k,v])=>`<article class="pilot-record"><strong>${v}</strong><p>${k}</p></article>`).join('')}</div><h2>${L('Collection health','État des collecteurs')}</h2>${q.feeds.map(f=>`<p><strong>${esc(f.name)}</strong> · ${esc(({checked:L('Checked','Vérifié'),failed:L('Failed','Échec'),overdue:L('Overdue','En retard'),paused:L('Paused','En pause'),not_configured:L('Not configured','Non configuré')})[f.status]||f.status)} · ${esc(f.checked_at||'—')}</p>`).join('')}<h2>${L('English previews','Aperçus anglais')}</h2>${Object.entries(q.english_previews).map(([k,v])=>`<p>${esc(({cached:L('Cached','En cache'),source_english:L('Originally English','Original en anglais'),not_requested:L('Not requested','Non demandé'),failed:L('Failed','Échec')})[k]||k)}: ${v}</p>`).join('')}<h2>${L('Review queue (first 50)','À examiner (50 premiers)')}</h2>${q.issues.map(a=>`<article class="pilot-record"><a href="#report/${encodeURIComponent(a.id)}">${esc(a.title)}</a><p>${esc(a.source)} · ${esc(a.reasons.join(', '))}</p></article>`).join('')||L('No flagged records.','Aucun enregistrement signalé.')}<h2>${L('Identical text','Textes identiques')}</h2>${q.duplicate_groups.slice(0,30).map(g=>`<article class="pilot-record">${g.articles.map(a=>`<p><a href="#report/${encodeURIComponent(a.id)}">${esc(a.title)}</a> · ${esc(a.source)}</p>`).join('')}</article>`).join('')||'—'}</section>`;
+}
+async function createResearchBrief(selected=false){
+ const title=(document.querySelector('[data-model=researchTitle]')?.value||state.researchTitle||'').trim();if(!title){toast(L('Enter a brief title.','Saisissez un titre.'));return;}
+ await api('/v1/research-briefs',{title,lang:state.lang,article_ids:selected?state.compareIds:[]});
+ state.researchTitle='';await loadPilotView('research-briefs');toast(L('Private snapshot saved.','Dossier privé sauvegardé.'));
+}
+async function downloadResearchBrief(id,format){
+ const r=await fetch(`/v1/research-briefs/${encodeURIComponent(id)}?format=${format}`,{headers:authHeaders()});
+ if(!r.ok)throw Error(L('Unable to download brief.','Téléchargement impossible.'));
+ const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=`congo-research-${id}.${format}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
 const NAV = () => [
+  ['research-briefs','book',L('My research briefs','Mes dossiers de recherche')],
+  ['quality','shield',L('Data quality','Qualité des données')],
   ...(state.aiMode ? [['ai-command','spark',L('OKAPI / AI','OKAPI / IA')]] : []),
   ['briefing', 'grid', L('Briefing', 'Synthèse'), state.items.filter(a => a.rank.band === 'high').length, true],
   ['situation', 'map', L('Situation room', 'Vue de situation')],
   ['events', 'history', L('Event log', 'Journal des événements'), (state.events?.items || []).filter(e => Date.now() - Date.parse(e.date) < 7 * 864e5).length],
   ['alerts', 'bell', L('Watchlists & alerts', 'Veilles et alertes'), state.alerts?.unread, true],
   ['reports', 'layers', L('Reports', 'Articles'), state.total],
+  ['history-control', 'map', L('Historical situation','Situation historique')],
+  ['compare', 'layers', L('Compare coverage', 'Comparer les sources')],
   ['social', 'radio', L('Social intelligence', 'Veille sociale'), state.social?.archive?.posts],
   ['sources', 'book', L('Primary sources', 'Sources primaires'), state.ev?.items?.length],
+  ['armed-groups','users',L('Armed groups','Groupes armés')],
   ['actors', 'flag', L('Key figures & sanctions', 'Acteurs et sanctions'), state.actors?.items?.filter(a => a.sanctioned).length],
   ['arms', 'target', L('Arms & equipment', 'Armes et équipements'), state.arms?.items?.filter(i => i.mentions?.total).length],
   ['saved', 'bookmark', L('Saved', 'Sauvegardés'), state.items.filter(a => a.analyst.saved).length],
@@ -342,10 +529,11 @@ function shell(content) {
   return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
     <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC situational awareness', 'Veille de situation · RDC')}</small></div></a>
     <nav>${nav.map(([id, ic, label, count, hot], i) => `${id === 'social' ? `<div class="nav-label">${L('Research', 'Recherche')}</div>` : i === 0 ? `<div class="nav-label">${L('Monitor', 'Veille')}</div>` : ''}<button class="nav-item ${state.view === id ? 'active' : ''}" data-act="nav" data-arg="${id}" ${state.view === id ? 'aria-current="page"' : ''} title="${esc(label)} · ${i + 1}">${icon(ic)}<span>${esc(label)}</span>${count ? `<b class="count ${hot ? 'hot' : ''}">${compact(count)}</b>` : `<kbd class="nav-key">${i + 1}</kbd>`}</button>`).join('')}</nav>
-    <div class="rail-bottom"><p>${esc(state.auth?.user?.email||'')} · ${esc(state.auth?.user?.role||'')}</p>${state.auth?.mode==='oidc'?`<button class="btn" data-act="logout">${L('Sign out','Déconnexion')}</button>`:''}<div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
+    <div class="rail-bottom"><p>${esc(state.auth?.user?.email||'')} · ${esc(state.auth?.user?.role||'')}</p>${['oidc','password'].includes(state.auth?.mode)?`<button class="btn" data-act="logout">${L('Sign out','Déconnexion')}</button>`:''}<div class="nav-label" style="padding:4px 4px 2px">${L('Collection', 'Collecte')}</div>${feedStatuses().map(([c, label, v]) => `<div class="feed-status"><i class="dot ${c}"></i>${esc(label)}<small>${esc(v)}</small></div>`).join('')}</div>
   </aside><div class="workspace"><div class="chrome">
     <div class="classbar"><span>${L('UNCLASSIFIED // OPEN SOURCE', 'NON CLASSIFIÉ // SOURCES OUVERTES')}</span><span class="classbar-mid">CONGO SIGNAL · ${L('DRC SITUATIONAL AWARENESS', 'VEILLE DE SITUATION RDC')}</span><span>${L('ATTRIBUTED · UNVERIFIED UNLESS STATED', 'ATTRIBUÉ · NON VÉRIFIÉ SAUF MENTION')}</span></div>
     <header class="topbar">
+      <button class="btn mobile-menu-button" data-act="mobile-menu" aria-haspopup="dialog">☰ ${L('Menu','Menu')}</button>
       <div class="crumb"><span class="crumb-code">${VIEW_CODES[state.view] || 'OPS'}</span><strong>${esc(viewLabel(state.view))}</strong></div>
       <button class="omni" data-act="palette" aria-label="${L('Search everything', 'Tout rechercher')}">${icon('search')}<span>${L('Search reports, places, actors, weapons…', 'Rechercher articles, lieux, acteurs, armes…')}</span><kbd>⌘K</kbd></button>
       <div class="clocks" aria-label="${L('Current time', 'Heure actuelle')}"><span><small>UTC</small><b id="clock-utc">${clockText(0)}</b></span><span><small>KIN</small><b id="clock-kin">${clockText(1)}</b></span></div>
@@ -356,7 +544,7 @@ function shell(content) {
       <button class="iconbtn" data-act="theme" aria-label="${L('Toggle theme', 'Changer de thème')}" title="${L('Toggle theme', 'Changer de thème')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button>
       <button class="iconbtn" data-act="settings" aria-label="${L('Connection settings', 'Paramètres de connexion')}">${icon('settings')}</button>
     </header>${['situation','ai-command'].includes(state.view) ? '' : wire()}</div>
-    <main class="view view-${state.view} ${state.enter ? 'enter' : ''}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div></div>`;
+    <main class="view view-${state.view} ${state.enter ? 'enter' : ''}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div><nav class="mobile-tabs" aria-label="${L('Quick navigation','Navigation rapide')}">${[['briefing','pulse',L('Briefing','Briefing')],['situation','map',L('Map','Carte')],['reports','layers',L('Reports','Articles')],['ai-command','spark','Okapi']].map(([id,ic,label])=>`<button data-act="nav" data-arg="${id}" ${state.view===id?'aria-current="page"':''}>${icon(ic)}<span>${label}</span></button>`).join('')}</nav></div>`;
 }
 /// HH:MM:SS at UTC + offset hours (Kinshasa is UTC+1 year-round).
 function clockText(offset) { return new Date(Date.now() + offset * 3600000).toISOString().slice(11, 19) }
@@ -378,6 +566,10 @@ let overlayReturn = '';
 function render() {
   if (!state.loaded) return;
   if(state.loginRequired){mapHost?.remove();$('#app').innerHTML=`<main class="panel" style="max-width:560px;margin:12vh auto;padding:32px"><h1>Congo Signal</h1><p>${L('Sign in with your invited email to access your workspace.','Connectez-vous avec votre adresse invitée pour accéder à votre espace.')}</p><a class="btn primary" href="/auth/login">${L('Sign in','Se connecter')}</a></main>`;return}
+  const oldReview=document.getElementById("control-review-form");
+  const reviewDraft=oldReview?.dataset.claim===state.controlEdit?Object.fromEntries([...oldReview.querySelectorAll("[name]")].map(el=>[el.name,el.value])):null;
+  const oldGroup=document.getElementById('group-evidence-form');
+  const groupDraft=state.groupReviewOpen&&oldGroup?.dataset.group===state.groupSelected?[...oldGroup.querySelectorAll('[name]')].map(e=>({name:e.name,value:e.value,checked:e.checked})):null;
   const active = document.activeElement;
   const keep = active && active !== document.body && !active.closest('#overlay') && active.closest('#app') ? { key: focusKey(active), start: active.selectionStart, end: active.selectionEnd } : null;
   const scrolls = $$('#app [data-scroll]').map(el => [el.dataset.scroll, el.scrollTop]);
@@ -386,19 +578,28 @@ function render() {
   document.documentElement.dataset.aiMotion=state.aiMotion?'on':'off';
   document.documentElement.dataset.theme=state.aiMode?'dark':state.theme;
   mapHost?.remove();
-  const views = { briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView, "ai-settings": aiSettingsView, "ai-command": aiCommandView, events: eventsView, alerts: alertsView };
+  const views = { quality: qualityView, 'research-briefs': researchBriefsView, 'armed-groups':groupsView, 'history-control': historicalControlView, compare: comparisonView, briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView, "ai-settings": aiSettingsView, "ai-command": aiCommandView, events: eventsView, alerts: alertsView };
   $('#app').innerHTML = shell(views[state.view]());
+  if(reviewDraft)for(const [name,value] of Object.entries(reviewDraft)){const el=document.querySelector(`#control-review-form [name="${name}"]`);if(el)el.value=value;}
+  if(groupDraft)for(const d of groupDraft){const el=[...document.querySelectorAll('#group-evidence-form [name]')].find(e=>e.name===d.name&&(d.name!=='evidence'||e.value===d.value));if(el){el.value=d.value;el.checked=d.checked;}}
   if(state.view==='ai-settings') loadAiModels();
   for (const [k, top] of scrolls) { const el = $(`#app [data-scroll="${k}"]`); if (el) el.scrollTop = top }
   if (keep?.key) { const el = $(`#app ${keep.key}`); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.start, keep.end) } catch {} } }
   mountMap();
   mountHolo();
+  mountWar();
+  mountHistoryMap();
   state.enter = false;
 }
 function go(view) {
   if (!VIEWS.includes(view)) return;
+  if (state.modal === 'mobile-menu') closeOverlay();
   if(view==='ai-command'){state.aiMode=true;store.set('congo-ai-mode','1')}
   if(view!=='situation'){flightMarkers.forEach(m=>m.remove());flightMarkers=[];if(mapInstance)mapInstance.__flightSignature='';}
+  if(['quality','research-briefs'].includes(view))loadPilotView(view).catch(e=>toast(e.message));
+  if(view==='armed-groups')loadGroups().catch(e=>toast(e.message));
+  if(view==='history-control')loadControlHistory().catch(e=>toast(e.message));
+  if(view==='compare')loadComparisons().catch(e=>toast(e.message));
   state.view = view; state.visible = 20; state.enter = true;
   if (location.hash !== '#' + view) history.pushState(null, '', '#' + view);
   render(); window.scrollTo(0, 0);
@@ -410,10 +611,11 @@ function go(view) {
 function reportRow(a, compactRow = false) {
   const places = a.places.map(p => p.name);
   const tags = [
+    preview(a) && !brief(a) ? `<span class="badge">${L('English preview', 'Aperçu anglais')}</span>` : '',
     brief(a) ? `<span class="badge accent">${icon('spark')}${L('AI brief', 'Synthèse IA')}</span>` : ['pending', 'running'].includes(a.brief?.status) ? `<span class="badge">${L('AI working', 'IA en cours')}</span>` : '',
     a.analyst?.review === 'follow_up' ? `<span class="badge medium">${L('Follow-up', 'À approfondir')}</span>` : a.analyst?.review === 'reviewed' ? `<span class="badge good">${L('Reviewed', 'Examiné')}</span>` : '',
     a.record_type === 'evidence' ? `<span class="badge">${L('Primary document', 'Document primaire')}</span>` : '',
-    a.coverage === 'feed_summary' ? `<span class="badge" data-tip="${esc(L('Headline and lede from the publisher’s official feed; full article on the publisher’s site.', 'Titre et chapeau issus du flux officiel ; article complet sur le site de l’éditeur.'))}">${L('Feed summary', 'Résumé du flux')}</span>` : '',
+    ['feed_summary', 'api_summary'].includes(a.coverage) ? `<span class="badge" data-tip="${esc(L('Headline and lede from the publisher feed or news API; full article on the publisher’s site.', 'Titre et chapeau issus du flux ou de l’API ; article complet sur le site de l’éditeur.'))}">${L('Feed summary', 'Résumé du flux')}</span>` : '',
     a.relevance?.scope === 'regional' ? `<span class="badge">${L('Regional context', 'Contexte régional')}</span>` : '',
     actorChips(namedActors('report', a.id).sort((x, y) => y.sanctioned - x.sanctioned), 3),
   ].join('');
@@ -1246,6 +1448,247 @@ function focusPanel() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// War room: territorial control (cited baseline + analyst updates), territory shading, incidents
+// and timeline playback on a dedicated Mapbox map.
+
+state.control = null; state.territories = null; state.warSel = null; state.warLayers = { control: true, incidents: true, activity: true, claims: true }; state.controlEdit = null; state.warSatellite = false;
+const CONTROL_COLORS = { 'AFC/M23 (FRN)': '#ff3355', 'Government (FARDC)': '#3fbf6f', 'FARDC with Wazalendo': '#5fd08a', 'Wazalendo': '#9bd35a', 'Twirwaneho': '#c99bff', 'Contested': '#ffb020', 'Other': '#a4acb5' };
+const controllerLabel = c => ({ 'AFC/M23 (FRN)': L('AFC/M23 (FRN)', 'AFC/M23 (FRN)'), 'Government (FARDC)': L('Government (FARDC)', 'Gouvernement (FARDC)'), 'FARDC with Wazalendo': L('FARDC with Wazalendo', 'FARDC et Wazalendo'), 'Contested': L('Contested', 'Disputé'), 'Other': L('Other', 'Autre') })[c] || c;
+const statusLabel = s => ({ held: L('held', 'tenu'), contested: L('contested', 'disputé'), recaptured: L('recaptured', 'repris'), withdrawn: L('withdrawn', 'retrait'), unclear: L('unclear', 'incertain') })[s] || s;
+const TERR_STATUS = {
+  held: [L('Held by AFC/M23 (FRN)', 'Tenu par l’AFC/M23 (FRN)'), '#ff3355'], partly: [L('Partly held', 'Partiellement tenu'), '#ff7a45'],
+  contested: [L('Contested', 'Disputé'), '#ffb020'], other: [L('Other armed group', 'Autre groupe armé'), '#c99bff'], government: [L('Government (reported)', 'Gouvernement (signalé)'), '#3fbf6f'],
+};
+const PROVINCE_FR = { 'North Kivu': 'Nord-Kivu', 'South Kivu': 'Sud-Kivu', 'Ituri': 'Ituri', 'Tanganyika': 'Tanganyika', 'Maniema': 'Maniema', 'Haut-Uele': 'Haut-Uele', 'Tshopo': 'Tshopo' };
+const provName = p => PROVINCE_FR[p] || p;
+/// Control at a day: the last history entry dated on or before it (as_of may be YYYY-MM).
+function controlAt(p, day) {
+  if (!day) return p;
+  const h = (p.history || []).filter(x => String(x.as_of || '').slice(0, 10) <= day).at(-1);
+  return h ? { ...p, ...h } : null;
+}
+const isRebel = c => c === 'AFC/M23 (FRN)';
+const isGov = c => c === 'Government (FARDC)' || c === 'FARDC with Wazalendo' || c === 'Wazalendo';
+function controlPlaces(day = state.evDay) {
+  return (state.control?.places || []).map(p => controlAt(p, day)).filter(p => p && Number.isFinite(p.lat));
+}
+function ringContains(ring, x, y) { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c } return c }
+function territoryOf(lon, lat) {
+  for (const f of state.territories?.features || []) {
+    const b = f.bbox ??= f.geometry.coordinates.flat(2).reduce((b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [180, 90, -180, -90]);
+    if (lon < b[0] || lon > b[2] || lat < b[1] || lat > b[3]) continue;
+    if (f.geometry.coordinates.some(poly => ringContains(poly[0], lon, lat) && !poly.slice(1).some(h => ringContains(h, lon, lat)))) return f;
+  }
+  return null;
+}
+/// Territory status from the places inside it (only where sources report something).
+function territoryStatus(day = state.evDay) {
+  const by = new Map();
+  for (const p of controlPlaces(day)) {
+    const t = p._terr ??= territoryOf(p.lon, p.lat); if (!t) continue;
+    if (!by.has(t.id)) by.set(t.id, { feature: t, places: [] });
+    by.get(t.id).places.push(p);
+  }
+  const out = new Map();
+  for (const [id, { feature, places }] of by) {
+    const rebel = places.filter(p => isRebel(p.controller) && ['held', 'contested'].includes(p.status)).length;
+    const gov = places.filter(p => isGov(p.controller) || ['recaptured', 'withdrawn'].includes(p.status)).length;
+    const contested = places.some(p => p.status === 'contested' || p.controller === 'Contested');
+    const other = places.some(p => p.controller === 'Twirwaneho' || p.controller === 'Other');
+    const status = contested ? 'contested' : rebel && !gov ? 'held' : rebel && gov ? 'partly' : other ? 'other' : gov ? 'government' : null;
+    if (status) out.set(id, { status, feature, places });
+  }
+  return out;
+}
+function provinceBoard(terr) {
+  const m = new Map();
+  for (const t of terr.values()) {
+    const p = provName(t.feature.properties.province);
+    const v = m.get(p) || { held: 0, partly: 0, contested: 0, other: 0, government: 0, total: (state.territories?.features || []).filter(f => provName(f.properties.province) === p).length };
+    v[t.status]++; m.set(p, v);
+  }
+  return [...m].sort((a, b) => (b[1].held + b[1].partly + b[1].contested) - (a[1].held + a[1].partly + a[1].contested));
+}
+const STALE_DAYS = 21;
+const isStale = p => { const d = Date.parse(String(p.as_of || '').length === 7 ? `${p.as_of}-01` : p.as_of); return !Number.isFinite(d) || Date.now() - d > STALE_DAYS * 864e5 };
+function reviewQueue() {
+  const q = state.control?.suggestions || []; if (!q.length) return '';
+  return `<div class="war-review"><div class="eyebrow">${L('REVIEW QUEUE', 'À VÉRIFIER')}<span>${q.length} ${L('new reports', 'nouveaux rapports')}</span></div>${q.slice(0, state.reviewAll ? 60 : 4).map(x => `<div class="war-sug" style="--c:${CONTROL_COLORS[x.suggested.controller] || '#a4acb5'}">
+    <div class="war-sug-head"><button class="linkbtn" data-act="war-place" data-arg="${esc(x.place)}">${esc(x.place)}</button><small>${esc(x.date)}${x.reports > 1 ? ` · ${x.reports} ${L('reports', 'articles')}` : ''}</small></div>
+    <div class="war-sug-change">${x.current ? `<span>${esc(controllerLabel(x.current.controller))} · ${esc(statusLabel(x.current.status))}</span> → ` : ''}<b>${esc(controllerLabel(x.suggested.controller))} · ${esc(statusLabel(x.suggested.status))}</b></div>
+    <p>“${esc(String(x.excerpt).slice(0, 220))}”</p><small>${esc(x.source.publisher || '')} · <a href="${esc(x.source.url || '#')}" target="_blank" rel="noopener noreferrer">${L('source', 'source')} ↗</a></small>
+    <div class="actions"><button class="btn sm primary" data-act="sug-confirm" data-arg="${esc(x.id)}">${icon('check')} ${L('Confirm', 'Confirmer')}</button><button class="btn sm" data-act="sug-edit" data-arg="${esc(x.id)}">${L('Edit', 'Modifier')}</button><button class="btn sm ghost" data-act="sug-dismiss" data-arg="${esc(x.id)}">${L('Dismiss', 'Ignorer')}</button></div></div>`).join('')}
+    ${q.length > 4 ? `<button class="linkbtn" data-act="sug-all">${state.reviewAll ? L('Show fewer', 'Afficher moins') : L(`Show all ${q.length}`, `Tout afficher (${q.length})`)}</button>` : ''}
+    <p class="war-review-note">${L('Suggestions are read automatically from new reports. Nothing changes on the map until you confirm.', 'Suggestions lues automatiquement dans les nouveaux articles. Rien ne change sur la carte avant votre confirmation.')}</p></div>`;
+}
+function warPanel() {
+  const c = state.control, terr = state.territories ? territoryStatus() : new Map(), board = provinceBoard(terr);
+  const places = controlPlaces();
+  const counts = Object.keys(CONTROL_COLORS).map(k => [k, places.filter(p => p.controller === k && p.status !== 'withdrawn').length]).filter(([, n]) => n);
+  const affected = new Set(board.filter(([, v]) => v.held + v.partly + v.contested).map(([p]) => p));
+  const sel = state.warSel;
+  const selPlace = sel?.type === 'place' ? (c?.places || []).find(p => p.name === sel.name) : null;
+  const selTerr = sel?.type === 'territory' ? terr.get(sel.id) || { feature: state.territories?.features?.find(f => f.id === sel.id), places: [] } : null;
+  const selEvent = sel?.type === 'event' ? (state.events?.items || []).find(e => e.id === sel.id) : null;
+  const dossier = selPlace ? `<div class="war-dossier" style="--c:${CONTROL_COLORS[selPlace.controller] || '#a4acb5'}"><div class="eyebrow">${esc(selPlace.province || '')}${selPlace.territory ? ' · ' + esc(selPlace.territory) : ''}</div><h3>${esc(selPlace.name)}</h3>
+      <p class="war-ctl"><i></i><b>${esc(controllerLabel(selPlace.controller))}</b> · ${esc(statusLabel(selPlace.status))}${selPlace.since ? ` ${L('since', 'depuis')} ${esc(selPlace.since)}` : ''}</p>
+      <small>${L('As of', 'Au')} ${esc(selPlace.as_of || '—')} · ${L('confidence', 'confiance')} ${esc(selPlace.confidence || '—')}${selPlace.origin === 'analyst' ? ` · ${L('analyst update', 'mise à jour analyste')}` : ''}</small>
+      ${selPlace.note ? `<p>${esc(selPlace.note)}</p>` : ''}
+      <ol class="war-history">${(selPlace.history || []).slice().reverse().map(h => `<li><b>${esc(String(h.as_of || '').slice(0, 10))}</b> ${esc(controllerLabel(h.controller))} · ${esc(statusLabel(h.status))}${(h.sources || []).map(s => ` <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.publisher || s.title || L('source', 'source'))} ↗</a>`).join('')}</li>`).join('')}</ol>
+      <div class="actions"><button class="btn sm" data-act="control-edit" data-arg="${esc(selPlace.name)}">${L('Update status', 'Mettre à jour')}</button><button class="btn sm ghost" data-act="watch-quick" data-arg="${esc(`place|${selPlace.name}|${selPlace.name}`)}">${icon('bell')} ${L('Watch', 'Suivre')}</button><button class="iconbtn" data-act="war-clear" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>`
+    : selTerr?.feature ? `<div class="war-dossier" style="--c:${TERR_STATUS[selTerr.status]?.[1] || '#a4acb5'}"><div class="eyebrow">${L('TERRITORY', 'TERRITOIRE')} · ${esc(provName(selTerr.feature.properties.province))}</div><h3>${esc(selTerr.feature.properties.name)}</h3><p class="war-ctl"><i></i><b>${esc(TERR_STATUS[selTerr.status]?.[0] || L('No reported change', 'Aucun changement signalé'))}</b></p>${selTerr.places.map(p => `<button class="war-place" data-act="war-place" data-arg="${esc(p.name)}" style="--c:${CONTROL_COLORS[p.controller] || '#a4acb5'}"><i></i>${esc(p.name)}<small>${esc(controllerLabel(p.controller))} · ${esc(statusLabel(p.status))}</small></button>`).join('') || `<p class="muted">${L('No cited control report for this territory: government administration assumed.', 'Aucun rapport de contrôle cité pour ce territoire : administration gouvernementale présumée.')}</p>`}<div class="actions"><button class="iconbtn" data-act="war-clear" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>`
+    : selEvent ? `<div class="war-dossier" style="--c:${evColor(selEvent.kind)}"><div class="eyebrow">${esc(selEvent.date)} · ${esc(selEvent.province)}</div><h3>${esc(selEvent.place)}</h3><p class="war-ctl"><i></i><b>${esc(evLabel(selEvent.kind))}</b>${selEvent.fatalities ? ` · ${selEvent.fatalities} ${L('deaths reported', 'morts rapportés')}` : ''}</p>${selEvent.actors?.length ? `<div class="chips">${selEvent.actors.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div>` : ''}<p>“${esc(selEvent.sources[0]?.excerpt || '')}”</p><div class="actions"><button class="btn sm" data-act="report" data-arg="${esc(selEvent.sources[0]?.article_id || '')}">${L('Open report', 'Ouvrir')}</button><button class="iconbtn" data-act="war-clear" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>` : '';
+  return `<aside class="war-board glass" aria-label="${L('Control board', 'Tableau de contrôle')}">
+    <div class="eyebrow">${L('CONTROL BOARD', 'TABLEAU DE CONTRÔLE')}<span>${c?.latest_as_of ? `${L('as of', 'au')} ${esc(c.latest_as_of)}` : ''}</span></div>
+    ${reviewQueue()}
+    ${(() => { const n = places.filter(isStale).length; return n ? `<p class="war-stale">${icon('history')} ${n} ${L(`places with no source in the last ${STALE_DAYS} days`, `lieux sans source depuis ${STALE_DAYS} jours`)}</p>` : '' })()}
+    <div class="war-counts">${counts.map(([k, n]) => `<span style="--c:${CONTROL_COLORS[k]}"><i></i>${esc(controllerLabel(k))}<b>${n}</b></span>`).join('') || `<span class="muted">${L('No control data loaded', 'Aucune donnée de contrôle')}</span>`}</div>
+    <div class="war-provinces">${board.map(([p, v]) => `<div class="war-prov"><strong>${esc(p)}</strong><span class="war-bar">${['held', 'partly', 'contested', 'other', 'government'].map(k => v[k] ? `<i style="flex:${v[k]};background:${TERR_STATUS[k][1]}" data-tip="${esc(`${TERR_STATUS[k][0]}: ${v[k]}`)}"></i>` : '').join('')}<i style="flex:${Math.max(0, v.total - v.held - v.partly - v.contested - v.other - v.government)};background:var(--line)"></i></span><small>${v.held + v.partly} ${L('of', 'sur')} ${v.total} ${L('territories with rebel-held towns', 'territoires avec des villes tenues par les rebelles')}${v.contested ? ` · ${v.contested} ${L('contested', 'disputés')}` : ''}</small></div>`).join('')}
+      <p class="war-gov">${icon('shield')} ${26 - affected.size} ${L('other provinces: government administration, no reported change', 'autres provinces : administration gouvernementale, aucun changement signalé')}</p></div>
+    <div class="war-places">${['contested', 'held', 'recaptured', 'withdrawn'].map(st => { const list = places.filter(p => p.status === st); return list.length ? `<div class="war-group"><h4>${esc(statusLabel(st))}<small>${list.length}</small></h4>${list.map(p => `<button class="war-place ${state.warSel?.name === p.name ? 'active' : ''}" data-act="war-place" data-arg="${esc(p.name)}" style="--c:${CONTROL_COLORS[p.controller] || '#a4acb5'}"><i></i>${esc(p.name)}<small>${isStale(p) ? `<em class="war-stale-tag" title="${esc(L(`Last source ${p.as_of}`, `Dernière source ${p.as_of}`))}">${L('refresh', 'à revoir')}</em> ` : ''}${esc(controllerLabel(p.controller))}</small></button>`).join('')}</div>` : '' }).join('')}</div>
+    <button class="btn sm" data-act="control-edit" data-arg="">${icon('flag')} ${L('Record a control change', 'Enregistrer un changement')}</button>
+  </aside>${dossier ? `<aside class="war-detail glass">${dossier}</aside>` : ''}`;
+}
+function controlForm() {
+  const e = state.controlEdit; if (!e) return '';
+  const names = [...new Set((state.control?.places || []).map(p => p.name))].sort();
+  return `<div class="shade" data-close><section class="panel control-form" role="dialog" aria-modal="true" aria-label="${L('Record a control change', 'Enregistrer un changement de contrôle')}"><div class="panel-head"><h2>${icon('flag')} ${L('Record a control change', 'Enregistrer un changement de contrôle')}</h2><button class="iconbtn" data-act="control-cancel" aria-label="${L('Cancel', 'Annuler')}">${icon('close')}</button></div>
+    <form class="panel-body form-grid" data-form="control"><label>${L('Place', 'Lieu')}<input class="input" name="place" required maxlength="80" list="control-places" value="${esc(e.place)}"></label><datalist id="control-places">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <label>${L('Province', 'Province')}<input class="input" name="province" value="${esc(e.province || '')}" placeholder="Nord-Kivu"></label>
+      <label>${L('Controlled by', 'Contrôlé par')}<select class="select" name="controller">${(state.control?.controllers || Object.keys(CONTROL_COLORS)).map(c => `<option value="${esc(c)}" ${e.controller === c ? 'selected' : ''}>${esc(controllerLabel(c))}</option>`).join('')}</select></label>
+      <label>${L('Status', 'Statut')}<select class="select" name="status">${(state.control?.statuses || ['held', 'contested', 'recaptured', 'withdrawn', 'unclear']).map(s => `<option value="${s}" ${e.status === s ? 'selected' : ''}>${esc(statusLabel(s))}</option>`).join('')}</select></label>
+      <label>${L('As of (date of the source)', 'À la date de (source)')}<input class="input" type="date" name="as_of" required value="${esc(e.as_of || new Date().toISOString().slice(0, 10))}"></label>
+      <label>${L('Source title', 'Titre de la source')}<input class="input" name="source_title" maxlength="200" value="${esc(e.source_title || '')}"></label>
+      <label class="wide">${L('Source link (required)', 'Lien vers la source (obligatoire)')}<input class="input" type="url" name="source_url" required placeholder="https://" value="${esc(e.source_url || '')}"></label>
+      <label class="wide">${L('Note', 'Note')}<input class="input" name="note" maxlength="400" placeholder="${L('e.g. FRN installed a parallel administration', 'ex. le FRN a installé une administration parallèle')}"></label>
+      <p class="wide notice">${L('Every change needs a source. It is added to the place’s history; nothing is overwritten.', 'Chaque changement exige une source. Il s’ajoute à l’historique du lieu ; rien n’est écrasé.')}</p>
+      <div class="wide actions"><button class="btn primary" type="submit">${icon('check')} ${L('Save change', 'Enregistrer')}</button></div></form></section></div>`;
+}
+function warRoom() {
+  const mapbox = state.config?.mapbox_public_token && window.mapboxgl && !mapFailed;
+  const L2 = (k, en, fr, col) => `<button class="war-layer ${state.warLayers[k] ? 'on' : ''}" data-act="war-layer" data-arg="${k}" aria-pressed="${state.warLayers[k]}" style="--c:${col}"><i></i>${L(en, fr)}</button>`;
+  return `<section class="warroom ${mapbox ? '' : 'static'}">${mapbox ? '<div id="war-slot"></div>' : eventMap(eventRows())}
+    <div class="war-hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i><div class="war-scan"></div></div>
+    <div class="war-title"><span class="war-live"><i></i>${L('WAR ROOM', 'SALLE DE CRISE')}</span><strong>${L('Eastern DRC · control & incidents', 'Est de la RDC · contrôle et incidents')}</strong><small id="war-readout">${state.evDay ? esc(dayLabel(state.evDay)) : L('Current picture', 'Situation actuelle')}</small></div>
+    ${warPanel()}
+    <div class="war-legend glass">${Object.entries(TERR_STATUS).map(([k, [l, col]]) => `<span><i style="background:${col}"></i>${esc(l)}</span>`).join('')}<span><i class="ring"></i>${L('Armed-group activity (not control)', 'Activité de groupes armés (pas de contrôle)')}</span></div>
+    <div class="war-layers glass" role="group" aria-label="${L('Layers', 'Couches')}">${L2('control', 'Control', 'Contrôle', '#ff3355')}${L2('incidents', 'Incidents', 'Incidents', '#ffc65c')}${L2('activity', 'Activity zones', 'Zones d’activité', '#c99bff')}${L2('claims', 'Unconfirmed seizures', 'Prises non confirmées', '#ffffff')}<button class="war-layer" data-act="war-basemap" aria-pressed="${state.warSatellite}">${state.warSatellite ? L('Dark map', 'Carte sombre') : L('Satellite', 'Satellite')}</button><button class="war-layer" data-act="war-reset">${icon('globe')} ${L('Reset view', 'Recentrer')}</button></div>
+  </section>${controlForm()}`;
+}
+
+let warMap = null, warHost = null, warFrame = 0, warMarkers = [], warSig = '', warIntro = false;
+function warStyle() { return state.warSatellite ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/dark-v11' }
+async function mountWar() {
+  const slot = $('#war-slot');
+  if (!slot) { cancelAnimationFrame(warFrame); warFrame = 0; return }
+  if (!state.territories) { try { state.territories = await fetch('/geo/territories.geo.json').then(r => r.json()); render(); return } catch { state.territories = { features: [] } } }
+  if (!warHost) { warHost = document.createElement('div'); warHost.className = 'war-map' }
+  slot.append(warHost);
+  if (!warMap) {
+    warMap = new mapboxgl.Map({ container: warHost, accessToken: state.config.mapbox_public_token, style: warStyle(), center: [23.6, -3.2], zoom: 4.3, pitch: 0, bearing: 0, attributionControl: true, cooperativeGestures: false });
+    warMap.__style = warStyle();
+    warMap.addControl(new mapboxgl.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
+    warMap.on('style.load', () => { warSig = ''; warLayers(); });
+    // Declutter: only major towns are labelled until the analyst zooms in.
+    const zoomClass = () => warHost?.classList.toggle('war-close', warMap.getZoom() >= 7.6);
+    warMap.on('zoom', zoomClass); zoomClass();
+    warMap.on('mousemove', 'war-terr-fill', e => { const f = e.features?.[0]; warMap.getCanvas().style.cursor = 'pointer'; if (warMap.__hover !== f?.id) { if (warMap.__hover != null) warMap.setFeatureState({ source: 'war-terr', id: warMap.__hover }, { hover: false }); warMap.__hover = f?.id; if (f) warMap.setFeatureState({ source: 'war-terr', id: f.id }, { hover: true }) } });
+    warMap.on('mouseleave', 'war-terr-fill', () => { warMap.getCanvas().style.cursor = ''; if (warMap.__hover != null) warMap.setFeatureState({ source: 'war-terr', id: warMap.__hover }, { hover: false }); warMap.__hover = null });
+    warMap.on('click', 'war-terr-fill', e => { if (e.defaultPrevented) return; const f = e.features?.[0]; if (f) { state.warSel = { type: 'territory', id: f.id }; render() } });
+    warMap.on('click', 'war-events', e => { e.preventDefault(); const f = e.features?.[0]; if (f) { state.warSel = { type: 'event', id: f.properties.id }; render() } });
+    warMap.on('mouseenter', 'war-events', () => { warMap.getCanvas().style.cursor = 'pointer' });
+    warMap.on('load', () => {
+      if (warIntro || reducedMotion()) { warMap.jumpTo({ center: [28.4, -1.6], zoom: 6.4, pitch: 38, bearing: -12 }); return }
+      warIntro = true; // Cinematic approach: national view, then down onto the Kivus.
+      setTimeout(() => warMap?.flyTo({ center: [28.4, -1.6], zoom: 6.4, pitch: 38, bearing: -12, duration: 4200, curve: 1.6, essential: true }), 600);
+    });
+  }
+  if (warMap.__style !== warStyle()) { warMap.__style = warStyle(); warMap.setStyle(warStyle()) }
+  requestAnimationFrame(() => warMap?.resize());
+  warLayers();
+}
+function warData() {
+  const terr = territoryStatus();
+  const tfc = { type: 'FeatureCollection', features: (state.territories?.features || []).map(f => ({ ...f, properties: { ...f.properties, status: terr.get(f.id)?.status || 'none' } })) };
+  const day = state.evDay, rows = eventRows(false).filter(e => !day || e.date <= day);
+  const efc = { type: 'FeatureCollection', features: rows.map(e => ({ type: 'Feature', properties: { id: e.id, kind: e.kind, color: evColor(e.kind), r: 4 + Math.sqrt(e.fatalities || 0) * 1.8 + (e.reports - 1) * 1.5, age: day ? Math.max(0, (Date.parse(day) - Date.parse(e.date)) / 864e5) : Math.max(0, (Date.now() - Date.parse(e.date)) / 864e5), today: day ? e.date === day : false }, geometry: { type: 'Point', coordinates: [e.lon, e.lat] } })) };
+  const afc = { type: 'FeatureCollection', features: (state.control?.activity || []).filter(a => Number.isFinite(a.lon)).map(a => ({ type: 'Feature', properties: { name: a.name, group: a.group }, geometry: { type: 'Point', coordinates: [a.lon, a.lat] } })) };
+  return { tfc, efc, afc, terr };
+}
+function warLayers() {
+  const map = warMap; if (!map) return;
+  try {
+    if (!map.isStyleLoaded() && !map.getSource('war-terr')) { map.once('idle', warLayers); return }
+    const { tfc, efc, afc } = warData();
+    const set = (id, data) => map.getSource(id) ? map.getSource(id).setData(data) : map.addSource(id, { type: 'geojson', data });
+    set('war-terr', tfc); set('war-events', efc); set('war-activity', afc);
+    if (!map.getSource('war-provinces')) map.addSource('war-provinces', { type: 'geojson', data: '/geology/provinces.geo.json' });
+    const color = ['match', ['get', 'status'], 'held', '#ff3355', 'partly', '#ff7a45', 'contested', '#ffb020', 'other', '#c99bff', 'government', '#3fbf6f', 'rgba(0,0,0,0)'];
+    if (!map.getLayer('war-terr-fill')) {
+      map.addLayer({ id: 'war-terr-fill', type: 'fill', source: 'war-terr', paint: { 'fill-color': color, 'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.55, ['match', ['get', 'status'], 'none', 0.02, 'government', 0.12, 0.34]] } });
+      map.addLayer({ id: 'war-terr-line', type: 'line', source: 'war-terr', paint: { 'line-color': 'rgba(200,255,230,.16)', 'line-width': 0.6 } });
+      map.addLayer({ id: 'war-front', type: 'line', source: 'war-terr', filter: ['in', ['get', 'status'], ['literal', ['held', 'partly', 'contested']]], paint: { 'line-color': color, 'line-width': 2.2, 'line-opacity': 0.9, 'line-dasharray': [0, 4, 3] } });
+      map.addLayer({ id: 'war-prov-line', type: 'line', source: 'war-provinces', paint: { 'line-color': 'rgba(150,255,205,.55)', 'line-width': 1.4, 'line-blur': 0.6 } });
+      map.addLayer({ id: 'war-terr-label', type: 'symbol', source: 'war-terr', filter: ['!=', ['get', 'status'], 'none'], layout: { 'text-field': ['upcase', ['get', 'name']], 'text-size': 10.5, 'text-letter-spacing': 0.18, 'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'] }, paint: { 'text-color': '#ffd9df', 'text-halo-color': '#000', 'text-halo-width': 1.4, 'text-opacity': 0.85 } });
+      map.addLayer({ id: 'war-activity', type: 'circle', source: 'war-activity', paint: { 'circle-radius': ['interpolate', ['exponential', 2], ['zoom'], 4, 6, 8, 60, 10, 240], 'circle-color': 'rgba(201,155,255,.08)', 'circle-stroke-color': '#c99bff', 'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.7 } });
+      map.addLayer({ id: 'war-events-glow', type: 'circle', source: 'war-events', paint: { 'circle-radius': ['*', ['get', 'r'], 2.4], 'circle-color': ['get', 'color'], 'circle-blur': 1, 'circle-opacity': ['interpolate', ['linear'], ['get', 'age'], 0, 0.45, 14, 0.05] } });
+      map.addLayer({ id: 'war-events', type: 'circle', source: 'war-events', paint: { 'circle-radius': ['get', 'r'], 'circle-color': ['get', 'color'], 'circle-opacity': ['interpolate', ['linear'], ['get', 'age'], 0, 0.95, 30, 0.35], 'circle-stroke-color': '#000', 'circle-stroke-width': 0.8 } });
+      map.addLayer({ id: 'war-events-today', type: 'circle', source: 'war-events', filter: ['==', ['get', 'today'], true], paint: { 'circle-radius': ['get', 'r'], 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 2 } });
+    }
+    const vis = (ids, on) => ids.forEach(id => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
+    vis(['war-terr-fill', 'war-front', 'war-terr-label'], state.warLayers.control);
+    vis(['war-events', 'war-events-glow', 'war-events-today'], state.warLayers.incidents);
+    vis(['war-activity'], state.warLayers.activity);
+    warPlaceMarkers();
+    if (!warFrame && !reducedMotion()) warFrame = requestAnimationFrame(animateWar);
+  } catch { map.once('idle', warLayers) }
+}
+/// Front lines crawl, today's incidents ripple; ~30 fps.
+let warLast = 0;
+function animateWar(t) {
+  if (!warMap || !warHost?.isConnected) { warFrame = 0; return }
+  warFrame = requestAnimationFrame(animateWar);
+  if (t - warLast < 33) return; warLast = t;
+  try {
+    const step = Math.floor(t / 90) % 7, dashes = [[0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5], [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0]];
+    if (warMap.getLayer('war-front')) warMap.setPaintProperty('war-front', 'line-dasharray', dashes[step]);
+    const ph = (t % 1800) / 1800;
+    if (warMap.getLayer('war-events-today')) { warMap.setPaintProperty('war-events-today', 'circle-radius', ['+', ['get', 'r'], 4 + ph * 22]); warMap.setPaintProperty('war-events-today', 'circle-stroke-opacity', 1 - ph) }
+  } catch {}
+}
+const WAR_MAJOR = new Set(['Goma', 'Bukavu', 'Uvira', 'Beni', 'Butembo', 'Bunia', 'Minova', 'Kamanyola', 'Rutshuru', 'Walikale', 'Kalehe', 'Masisi', 'Sake', 'Kanyabayonga', 'Minembwe', 'Fizi', 'Baraka', 'Mambasa', 'Djugu', 'Shabunda', 'Mwenga', 'Lubero', 'Pinga', 'Bunagana']);
+const shortPlace = n => n.replace(/\s*\(.*?\)\s*/g, ' ').split('/')[0].trim();
+function warPlaceMarkers() {
+  const map = warMap; if (!map) return;
+  const places = state.warLayers.control ? controlPlaces() : [];
+  const claims = state.warLayers.claims ? (state.control?.claims || []) : [];
+  const sig = JSON.stringify([places.map(p => [p.name, p.controller, p.status]), claims.map(c => c.id), state.warSel?.name, state.lang]);
+  if (sig === warSig) return; warSig = sig;
+  warMarkers.forEach(m => m.remove()); warMarkers = [];
+  for (const p of places) {
+    const el = document.createElement('button');
+    el.className = `war-marker ${p.status}${state.warSel?.name === p.name ? ' selected' : ''}${WAR_MAJOR.has(shortPlace(p.name)) ? ' major' : ''}`;
+    el.style.setProperty('--c', CONTROL_COLORS[p.controller] || '#a4acb5');
+    el.innerHTML = `<span class="wm-dot"></span><span class="wm-label">${esc(shortPlace(p.name))}</span>`;
+    el.setAttribute('aria-label', `${p.name}: ${controllerLabel(p.controller)}, ${statusLabel(p.status)}`);
+    el.onclick = ev => { ev.stopPropagation(); selectWarPlace(p.name) };
+    warMarkers.push(new mapboxgl.Marker({ element: el, anchor: 'left', offset: [-7, 0] }).setLngLat([p.lon, p.lat]).addTo(map));
+  }
+  for (const c of claims) {
+    const el = document.createElement('button');
+    el.className = 'war-claim'; el.title = `${L('Unconfirmed report of a seizure', 'Prise de contrôle non confirmée')} · ${c.place} · ${c.date}`;
+    el.textContent = '?'; el.setAttribute('aria-label', el.title);
+    el.onclick = ev => { ev.stopPropagation(); state.warSel = { type: 'event', id: c.id }; render() };
+    warMarkers.push(new mapboxgl.Marker({ element: el }).setLngLat([c.lon, c.lat]).addTo(map));
+  }
+}
+function selectWarPlace(name) {
+  const p = (state.control?.places || []).find(x => x.name === name); if (!p) return;
+  state.warSel = { type: 'place', name }; render();
+  if (Number.isFinite(p.lon)) warMap?.flyTo({ center: [p.lon, p.lat], zoom: Math.max(warMap.getZoom(), 8.2), pitch: 45, duration: reducedMotion() ? 0 : 1600, essential: true });
+}
+
+// ---------------------------------------------------------------------------------------------
 // Event log, watchlists and alerts, exportable briefs.
 
 state.watches = null; state.alerts = null; state.events = null; state.watchEdit = null; state.watchResults = null; state.alertsUnread = false;
@@ -1300,9 +1743,9 @@ function eventsView() {
     <div class="ev-foot"><button class="linkbtn" data-act="watch-quick" data-arg="${esc(`place|${e.place}|${e.place}`)}">${icon('bell')} ${L('Watch', 'Suivre')} ${esc(e.place)}</button></div></article>`;
   return pageHead(`${L('DRC', 'RDC')} · ${L('EVENT LOG', 'JOURNAL DES ÉVÉNEMENTS')}`, L('Incidents over time', 'Incidents dans le temps'), L('Dated incidents extracted from every collected report: what happened, where, when, who was named and the death toll reported. Reports of the same incident are merged so you can see corroboration.', 'Incidents datés extraits de chaque article collecté : quoi, où, quand, qui est cité et le bilan rapporté. Les articles d’un même incident sont regroupés pour montrer la corroboration.'),
     `<div class="seg">${[7, 30, 90].map(n => `<button class="${state.evDays === n ? 'active' : ''}" data-act="ev-days" data-arg="${n}" aria-pressed="${state.evDays === n}">${n} ${L('d', 'j')}</button>`).join('')}</div><button class="btn" data-act="ev-play" aria-pressed="${!!evPlayer}">${evPlayer ? '❚❚ ' + L('Pause', 'Pause') : '▶ ' + L('Play timeline', 'Lire la chronologie')}</button>`)
-    + `<div class="kpis ev-kpis">${[[L('Incidents', 'Incidents'), rows.length], [L('Deaths reported', 'Morts rapportés'), deaths], [L('Places', 'Lieux'), new Set(rows.map(e => e.place)).size], [L('Corroborated', 'Corroborés'), corroborated]].map(([l, v]) => `<div class="panel kpi"><div class="kpi-label">${l}</div><div class="kpi-value">${nf(v)}</div></div>`).join('')}</div>
+    + warRoom() + `<div class="kpis ev-kpis">${[[L('Incidents', 'Incidents'), rows.length], [L('Deaths reported', 'Morts rapportés'), deaths], [L('Places', 'Lieux'), new Set(rows.map(e => e.place)).size], [L('Corroborated', 'Corroborés'), corroborated]].map(([l, v]) => `<div class="panel kpi"><div class="kpi-label">${l}</div><div class="kpi-value">${nf(v)}</div></div>`).join('')}</div>
     <div class="ev-layout">
-      <section class="panel ev-map-panel"><div class="panel-head"><h2>${icon('map')} ${state.evDay ? esc(dayLabel(state.evDay)) : L('All days in range', 'Toute la période')}</h2>${state.evDay ? `<button class="linkbtn" data-act="ev-day" data-arg="">${L('All days', 'Tous les jours')}</button>` : ''}</div>${eventMap(rows)}
+      <section class="panel ev-map-panel"><div class="panel-head"><h2>${icon('history')} ${state.evDay ? esc(dayLabel(state.evDay)) : L('All days in range', 'Toute la période')}</h2>${state.evDay ? `<button class="linkbtn" data-act="ev-day" data-arg="">${L('All days', 'Tous les jours')}</button>` : ''}</div>
         <div class="ev-timeline" role="group" aria-label="${L('Incidents per day', 'Incidents par jour')}">${days.map((day, i) => { const m = per[i], total = Object.values(m).reduce((a, b) => a + b, 0); return `<button class="ev-day ${state.evDay === day ? 'active' : ''}" data-act="ev-day" data-arg="${day}" aria-pressed="${state.evDay === day}" aria-label="${esc(`${dayLabel(day)}: ${total}`)}" data-tip="${esc(`${dayLabel(day)} · ${total} ${L('incidents', 'incidents')}`)}"><span>${Object.keys(EVENT_TYPES).filter(k => m[k]).map(k => `<i style="height:${(m[k] / max * 100).toFixed(1)}%;background:${evColor(k)}"></i>`).join('')}</span></button>` }).join('')}</div>
         <div class="ev-axis"><span>${esc(dayLabel(days[0]))}</span><span>${esc(dayLabel(days.at(-1)))}</span></div>
         <p class="notice">${esc(L(d?.notice || '', 'Incidents extraits automatiquement des textes (mots-indices, lieux du gazetier, dates relatives à la publication). Non vérifiés : consultez les extraits sources. Les articles de même type, lieu et jour sont regroupés ; le bilan est le plus élevé rapporté par une source.'))}</p></section>
@@ -1942,9 +2385,9 @@ function agreementRows() {return (state.agreements?.items||[]).filter(i=>(!state
 const agreementScore=n=>n==null?'—':(n>0?'+':'')+Number(n).toFixed(1);
 function teamView(){
  const roles=['owner','administrator','analyst','reviewer','viewer'];const owner=state.auth?.user?.role==='owner';
- const form=(m={email:'',role:'viewer',active:true,daily_requests:0,daily_usd:0,monthly_usd:0})=>`<form class="panel" style="padding:20px;margin:12px 0" data-form="team"><div class="toolbar"><label>${L('Email','Adresse email')}<input class="input" name="email" value="${esc(m.email)}" ${m.email?'readonly':''} required></label><label>${L('Role','Rôle')}<select class="select" name="role">${(m.email==='worker'?['worker']:roles.filter(r=>owner||r!=='owner')).map(r=>`<option ${m.role===r?'selected':''}>${r}</option>`).join('')}</select></label>${[['daily_requests',L('Daily requests','Requêtes / jour')],['daily_usd',L('Daily USD allowance','Provision USD / jour')],['monthly_usd',L('Monthly USD allowance','Provision USD / mois')]].map(([k,l])=>`<label>${l}<input class="input" name="${k}" type="number" min="0" step="${k==='daily_requests'?1:0.01}" value="${m[k]}" ${owner?'':'readonly'}></label>`).join('')}<label><input name="active" type="checkbox" ${m.active?'checked':''}>${L('Active','Actif')}</label><button class="btn primary" type="submit">${m.email?L('Update member','Modifier le membre'):L('Invite member','Inviter un membre')}</button></div></form>`;
+ const form=(m={email:'',role:'viewer',active:true,daily_requests:0,daily_usd:0,monthly_usd:0})=>`<form class="panel" style="padding:20px;margin:12px 0" data-form="team"><div class="toolbar"><label>${L('Email','Adresse email')}<input class="input" name="email" value="${esc(m.email)}" ${m.email?'readonly':''} required></label><label>${L('Role','Rôle')}<select class="select" name="role">${(m.email==='worker'?['worker']:roles.filter(r=>owner||r!=='owner')).map(r=>`<option ${m.role===r?'selected':''}>${r}</option>`).join('')}</select></label>${[['daily_requests',L('Daily requests','Requêtes / jour')],['daily_usd',L('Daily USD allowance','Provision USD / jour')],['monthly_usd',L('Monthly USD allowance','Provision USD / mois')]].map(([k,l])=>`<label>${l}<input class="input" name="${k}" type="number" min="0" step="${k==='daily_requests'?1:0.01}" value="${m[k]}" ${owner?'':'readonly'}></label>`).join('')}<label><input name="active" type="checkbox" ${m.active?'checked':''}>${L('Active','Actif')}</label><button class="btn primary" type="submit">${m.email?L('Update member','Modifier le membre'):L('Invite member','Inviter un membre')}</button>${state.authConfig?.mode==='password'&&m.email&&m.email.includes('@')&&m.active&&(owner||m.role!=='owner')?`<button class="btn" type="button" data-act="password-link" data-arg="${esc(m.email)}">${L('Setup / reset password','Créer / réinitialiser le mot de passe')}</button>`:''}</div></form>`;
  return pageHead(L('WORKSPACE ACCESS','ACCÈS À L’ESPACE'),L('Team & access','Équipe et accès'),L('Invite-only membership. Notes and bookmarks are private to each user.','Accès sur invitation. Notes et favoris privés pour chaque utilisateur.'))+
- `<p class="panel">${state.authConfig?.mode==='oidc'?L('ZITADEL sign-in enabled. Share the site address with invited members; no invitation email is sent automatically. Role changes revoke existing sessions.','Connexion ZITADEL activée. Partagez l’adresse du site avec les membres invités ; aucun email automatique. Un changement révoque les sessions.'):L('Local mode: ZITADEL is not connected yet. Configure OIDC before inviting real users or publishing the site.','Mode local : ZITADEL n’est pas encore connecté. Configurez OIDC avant d’inviter des utilisateurs ou de publier le site.')}</p>`+
+ `<p class="panel">${state.authConfig?.mode==='password'?L('Built-in email and password login. Invite a member, then generate a one-use setup link. Share it privately; links expire in 30 minutes. Password resets revoke existing sessions. No invitation email is sent automatically.','Connexion intégrée par email et mot de passe. Invitez un membre, puis générez un lien à usage unique. Partagez-le en privé ; il expire après 30 minutes. Une réinitialisation révoque les sessions. Aucun email automatique.'):state.authConfig?.mode==='oidc'?L('ZITADEL sign-in enabled. Share the site address with invited members; no invitation email is sent automatically. Role changes revoke existing sessions.','Connexion ZITADEL activée. Partagez l’adresse du site avec les membres invités ; aucun email automatique. Un changement révoque les sessions.'):L('Local mode: ZITADEL is not connected yet. Configure OIDC before inviting real users or publishing the site.','Mode local : ZITADEL n’est pas encore connecté. Configurez OIDC avant d’inviter des utilisateurs ou de publier le site.')}</p>`+
  (state.team?`<h2>${L('Invite a member','Inviter un membre')}</h2>${form()}<h2>${L('Members and background worker','Membres et worker')}</h2>${state.team.members.map(form).join('')}<h2>${L('Audit log','Journal d’audit')}</h2>${state.team.audit.map(e=>`<p>${esc(e.at)} · ${esc(e.action)} · ${esc(e.target)} · ${esc(e.user_id)}</p>`).join('')}`:`<p>${L('Only owners and administrators can manage members.','Seuls les propriétaires et administrateurs peuvent gérer les membres.')}</p>`);
 }
 
@@ -2066,7 +2509,7 @@ function sourcesView() {
       ${docs.map(d => `<article class="doc"><div class="report-kicker"><span class="badge ${d.relevance.scope === 'drc' ? 'accent' : ''}">${d.relevance.scope === 'drc' ? 'DRC / RDC' : L('Regional', 'Régional')}</span><span>${esc(d.source.publisher)}</span><span class="sep">·</span><span>${L('Source date', 'Date source')} ${esc(d.source.reference_date || '—')}</span><span class="sep">·</span><span>${L('Collected', 'Collecté')} ${date(d.fetched_at, true)}</span></div><h3>${esc(state.lang === 'en' && d.brief.data?.title_en ? d.brief.data.title_en : d.source.title)}</h3><p>${esc(d.brief.data?.['summary_' + state.lang] || d.excerpt)}</p>${d.relevance.matched_terms?.length ? `<div class="muted" style="font-size:11.5px">${L('Matched terms', 'Termes détectés')}: ${esc(d.relevance.matched_terms.join(', '))}</div>` : ''}<div class="actions"><button class="btn sm" data-act="evidence-open" data-arg="${esc(d.id)}">${icon('book')}${d.source.format === 'pdf' ? L('Read PDF here', 'Lire le PDF ici') : L('Read here', 'Lire ici')}</button><a class="btn sm" href="${esc(d.source.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Original', 'Original')}</a>${aiButton(d)}</div>${d.brief.error ? `<p class="ev-error">${esc(d.brief.error)}</p>` : ''}</article>`).join('') || emptyState(L('No documents match', 'Aucun document'), L('Collection may still be running.', 'La collecte peut être en cours.'))}
     </section><div class="stack"><section class="panel"><div class="panel-head"><h2>${icon('layers')}${L('News sources', 'Sources d’actualité')}</h2></div>
       <div class="source-row"><a href="https://actualite.cd/" target="_blank" rel="noopener noreferrer">Actualite.cd</a><span class="feed-status" style="padding:0"><i class="dot ${state.error ? 'bad' : 'ok'}"></i>${L('Full articles · site crawler', 'Articles complets · collecteur')}<small>${nf(state.items.filter(a => a.source === 'Actualite.cd').length)} ${L('loaded', 'chargés')}</small></span></div>
-      ${(state.feeds?.items || []).map(f => `<div class="source-row"><a href="https://${esc(f.site)}/" target="_blank" rel="noopener noreferrer">${esc(f.name)}</a><span class="feed-status" style="padding:0"><i class="dot ${!f.sync || f.configured === false ? 'warn' : f.sync.status === 'ok' ? 'ok' : 'bad'}"></i>${{ feed_full_text: L('Official feed + article pages · full text', 'Flux officiel + pages · texte intégral'), listing: L('Section pages · full text', 'Pages de rubrique · texte intégral'), reliefweb_api: L('ReliefWeb API · full text', 'API ReliefWeb · texte intégral') }[f.mode] || L('Official feed · headline + lede', 'Flux officiel · titre + chapeau')}<small>${nf(f.collected)} ${L('collected', 'collectés')}${f.sync?.checked_at ? ` · ${age(f.sync.checked_at)}` : ''}</small></span>${f.configured === false ? `<small class="muted">${L('Not configured: request a ReliefWeb appname and set RELIEFWEB_APPNAME.', 'Non configuré : demandez un appname ReliefWeb et définissez RELIEFWEB_APPNAME.')} <a href="https://apidoc.reliefweb.int/parameters#appname" target="_blank" rel="noopener noreferrer">apidoc.reliefweb.int ↗</a></small>` : ''}${f.sync?.detail?.items != null ? `<small class="muted">${L('Last poll', 'Dernier relevé')}: ${f.sync.detail.not_modified ? L('no change', 'inchangé') : `${f.sync.detail.items} ${L('items', 'éléments')} · ${f.sync.detail.drc} RDC · ${f.sync.detail.regional} ${L('regional', 'régional')}${f.sync.detail.full_text != null ? ` · ${f.sync.detail.full_text} ${L('full text', 'texte intégral')}` : ''}`}</small>` : ''}${f.sync?.error ? `<span class="ev-error">${esc(f.sync.error)}</span>` : ''}<small class="muted">${esc(srv(f.access_note))}</small></div>`).join('')}
+      ${(state.feeds?.items || []).map(f => `<div class="source-row"><a href="https://${esc(f.site)}/" target="_blank" rel="noopener noreferrer">${esc(f.name)}</a><span class="feed-status" style="padding:0"><i class="dot ${!f.sync || f.configured === false ? 'warn' : f.sync.status === 'ok' ? 'ok' : 'bad'}"></i>${{ feed_full_text: L('Official feed + article pages · full text', 'Flux officiel + pages · texte intégral'), listing: L('Section pages · full text', 'Pages de rubrique · texte intégral'), newsdata_api: L('NewsData.io API · publisher summaries', 'API NewsData.io · résumés des éditeurs'), reliefweb_api: L('ReliefWeb API · full text', 'API ReliefWeb · texte intégral') }[f.mode] || L('Official feed · headline + lede', 'Flux officiel · titre + chapeau')}<small>${nf(f.collected)} ${L('collected', 'collectés')}${f.sync?.checked_at ? ` · ${age(f.sync.checked_at)}` : ''}</small></span>${f.configured === false ? `<small class="muted">${f.mode === 'newsdata_api' ? L('Set NEWSDATA_API_KEY on the server.', 'Définissez NEWSDATA_API_KEY sur le serveur.') : L('Not configured: request a ReliefWeb appname and set RELIEFWEB_APPNAME.', 'Non configuré : demandez un appname ReliefWeb et définissez RELIEFWEB_APPNAME.')} <a href="https://apidoc.reliefweb.int/parameters#appname" target="_blank" rel="noopener noreferrer">apidoc.reliefweb.int ↗</a></small>` : ''}${f.sync?.detail?.items != null ? `<small class="muted">${L('Last poll', 'Dernier relevé')}: ${f.sync.detail.not_modified ? L('no change', 'inchangé') : `${f.sync.detail.items} ${L('items', 'éléments')} · ${f.sync.detail.drc} RDC · ${f.sync.detail.regional} ${L('regional', 'régional')}${f.sync.detail.full_text != null ? ` · ${f.sync.detail.full_text} ${L('full text', 'texte intégral')}` : ''}`}</small>` : ''}${f.sync?.detail?.partial_error ? `<span class="ev-error">${esc(f.sync.detail.partial_error)}</span>` : ''}${f.sync?.error ? `<span class="ev-error">${esc(f.sync.error)}</span>` : ''}<small class="muted">${esc(srv(f.access_note))}</small></div>`).join('')}
     </section><section class="panel"><div class="panel-head"><h2>${icon('shield')}${L('Collection status', 'État de la collecte')}</h2></div>
       ${[...groups].map(([pub, rows]) => `<div class="publisher">${esc(pub)}</div>${rows.map(s => `<div class="source-row"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a><span class="feed-status" style="padding:0"><i class="dot ${dotFor(s.status)}"></i>${esc(statusName(s.status))}<small>${s.checked_at ? date(s.checked_at, true) : '—'}</small></span>${s.error ? `<span class="ev-error">${esc(s.error)}</span>` : ''}<div class="actions">${s.format === 'pdf' ? `<button class="btn sm" data-act="source-doc" data-arg="${esc(s.id)}">${L('Read PDF', 'Lire le PDF')}</button>` : ''}${s.enabled ? `<button class="btn sm ghost" data-act="source-refresh" data-arg="${esc(s.id)}">${icon('refresh')}${L('Check now', 'Vérifier')}</button>` : ''}</div></div>`).join('')}`).join('')}
     </section></div></div>`;
@@ -2126,17 +2569,18 @@ function renderDetail() {
   const d = state.detail, a = d.article, b = d.brief.status === 'completed' ? d.brief.data : null, item = state.items.find(x => x.id === a.id), tab = state.detailTab;
   const notice = L('AI-generated interpretation; verify against the original source. Priority indicates relevance for review, not factual certainty.', 'Interprétation générée par IA ; à vérifier avec la source. La priorité indique l’intérêt pour l’analyse, pas la certitude des faits.');
   let content = '';
-  if (tab === 'brief') content = (a.coverage === 'feed_summary' ? `<div class="notice">${L('Brief based on the feed headline and lede only.', 'Synthèse fondée uniquement sur le titre et le chapeau du flux.')}</div>` : '') + taskBox('brief', d.brief) + (b ? `<div class="analysis"><h3>${icon('spark')}${L('AI brief', 'Synthèse IA')} · ${esc(d.brief.model)}</h3><p>${esc(b['summary_' + state.lang])}</p>${b['rationale_' + state.lang] ? `<p class="muted" style="font-size:13px;margin:0"><b>${L('Impact', 'Impact')} · ${esc(b.impact)}</b> — ${esc(b['rationale_' + state.lang])}</p>` : ''}</div><div class="notice">${notice}${b.input_truncated ? ' ' + L('Analysis limited to the first 14,000 characters.', 'Analyse limitée aux 14 000 premiers caractères.') : ''}</div>${b.actors?.length ? `<h3 style="font-size:12.5px;color:var(--text-2)">${L('Public actors mentioned', 'Acteurs publics mentionnés')}</h3><div class="actor-list">${b.actors.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}` : '')
+  if (tab === 'brief') content = (['feed_summary', 'api_summary'].includes(a.coverage) ? `<div class="notice">${L('Brief based on the feed headline and lede only.', 'Synthèse fondée uniquement sur le titre et le chapeau du flux.')}</div>` : '') + taskBox('brief', d.brief) + (b ? `<div class="analysis"><h3>${icon('spark')}${L('AI brief', 'Synthèse IA')} · ${esc(d.brief.model)}</h3><p>${esc(b['summary_' + state.lang])}</p>${b['rationale_' + state.lang] ? `<p class="muted" style="font-size:13px;margin:0"><b>${L('Impact', 'Impact')} · ${esc(b.impact)}</b> — ${esc(b['rationale_' + state.lang])}</p>` : ''}</div><div class="notice">${notice}${b.input_truncated ? ' ' + L('Analysis limited to the first 14,000 characters.', 'Analyse limitée aux 14 000 premiers caractères.') : ''}</div>${b.actors?.length ? `<h3 style="font-size:12.5px;color:var(--text-2)">${L('Public actors mentioned', 'Acteurs publics mentionnés')}</h3><div class="actor-list">${b.actors.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}` : '')
     + `<h3 style="font-size:13px;margin-top:24px">${L('Why this report ranks here', 'Pourquoi cette priorité ?')} · <span class="mono">${item?.rank.score ?? '—'}/100</span></h3>${(item?.rank.reasons || []).map(r => `<div class="reason"><span>${esc(r[state.lang])}</span><b>+${r.points}</b></div>`).join('')}<div class="notice">${L('Single source · unverified', 'Source unique · non corroboré')}</div>`;
-  const feedNote = a.coverage === 'feed_summary' ? `<div class="notice">${L(`${esc(a.source)} publishes only the headline and lede in its feed. Read the full article on the publisher’s site (it may require a subscription).`, `${esc(a.source)} ne publie que le titre et le chapeau dans son flux. Lisez l’article complet sur le site de l’éditeur (abonnement parfois requis).`)} <a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${L('Open article', 'Ouvrir l’article')} ↗</a></div>` : '';
+  const feedNote = ['feed_summary', 'api_summary'].includes(a.coverage) ? `<div class="notice">${L(`${esc(a.source)} is available here as a headline and summary. Read the full article on the publisher’s site (it may require a subscription).`, `${esc(a.source)} est disponible ici sous forme de titre et résumé. Lisez l’article complet sur le site de l’éditeur (abonnement parfois requis).`)} <a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${L('Open article', 'Ouvrir l’article')} ↗</a></div>` : '';
   if (tab === 'original') content = feedNote + `<div class="article-text" lang="${esc(a.language || 'fr')}">${a.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</div>`;
-  if (tab === 'english') content = taskBox('translation', d.translation) + (d.translation.status === 'completed' ? `<div class="notice">${notice} · ${esc(d.translation.model)}</div><div class="article-text" lang="en">${d.translation.data.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</div>` : '');
+  if (tab === 'english' && ['en', 'eng', 'english', 'en-us', 'en-gb'].includes((a.language || '').toLowerCase())) content = `<div class="notice">${L('Original article is already in English. No translation needed.', 'L’article original est déjà en anglais.')}</div><div class="article-text" lang="en">${a.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</div>`;
+  else if (tab === 'english') content = taskBox('translation', d.translation) + (d.translation.status === 'completed' ? `<div class="notice">${notice} · ${esc(d.translation.model)}</div><div class="article-text" lang="en">${d.translation.data.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</div>` : '');
   if (tab === 'evidence') content = `<div class="notice">${L('Single source · unverified', 'Source unique · non corroboré')}</div><dl class="props"><dt>${L('Source', 'Source')}</dt><dd><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a></dd><dt>${L('Byline', 'Signature')}</dt><dd>${esc(a.author || L('Not extracted', 'Non extraite'))} ${a.author_method ? `(${esc(a.author_method)})` : ''}</dd><dt>${L('Published', 'Publié')}</dt><dd>${esc(a.published_at || '—')}</dd><dt>${L('Collected', 'Collecté')}</dt><dd>${esc(a.fetched_at)}</dd><dt>${L('Content SHA-256', 'Empreinte SHA-256')}</dt><dd><code>${esc(a.content_sha256)}</code></dd><dt>HTML SHA-256</dt><dd><code>${esc(a.html_sha256)}</code></dd><dt>${L('Extractor', 'Extracteur')}</dt><dd>${esc(a.extractor_version)}</dd><dt>${L('AI brief', 'Synthèse IA')}</dt><dd>${esc(d.brief.status)} · ${esc(d.brief.model || '—')} · ${esc(d.brief.completed_at || '—')}</dd></dl>`;
   if (tab === 'notes') content = `<form data-form="notes" class="fields"><label>${L('Review status', 'Statut de lecture')}<select id="review">${[['unreviewed', L('Not reviewed', 'Non examiné')], ['reviewed', L('Reviewed', 'Examiné')], ['follow_up', L('Needs follow-up', 'À approfondir')]].map(([v, l]) => `<option value="${v}" ${d.analyst.review === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label>${L('Your research notes', 'Vos notes de recherche')}<textarea id="note" maxlength="10000" placeholder="${L('Record observations, missing context, or sources to check…', 'Consignez vos observations, le contexte manquant ou les sources à consulter…')}">${esc(d.analyst.note)}</textarea></label><div><button class="btn primary" type="submit">${icon('check')}${L('Save notes', 'Enregistrer les notes')}</button></div></form>`;
   const scroller = $('#overlay .drawer'), top = scroller?.scrollTop || 0;
   const tabs = [['brief', L('AI brief', 'Synthèse IA')], ['original', L('Original · FR', 'Original · FR')], ['english', L('English translation', 'Traduction anglaise')], ['evidence', L('Provenance', 'Traçabilité')], ['notes', L('Analyst notes', 'Notes d’analyse')]];
   $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="drawer-top"><span class="eyebrow">${L('REPORT', 'ARTICLE')} · ${esc(a.source)}</span><div class="actions"><a class="btn sm" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Original', 'Original')}</a><button class="btn sm" data-act="detail-save">${icon('bookmark')}${d.analyst.saved ? L('Saved', 'Sauvegardé') : L('Save', 'Sauvegarder')}</button><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>
-    <div class="drawer-body"><div class="report-kicker">${item ? `<span class="badge ${item.rank.band}">${bandLabel(item.rank.band)} · ${item.rank.score}</span>` : ''}<span class="tag"><i class="swatch" style="background:${layerColor(item ? reportLayer(item) : 'other')}"></i>${esc(categoryName(a.category))}</span>${(item?.places || []).map(p => `<span>${icon('pin')} ${esc(p.name)}</span>`).join('')}</div><h1 id="detail-title">${esc(state.lang === 'en' && b?.title_en ? b.title_en : a.title)}</h1><div class="drawer-meta">${date(a.published_at)} (Kinshasa) · ${L('Single source · unverified', 'Source unique · non corroboré')}</div>${namedActors('report', a.id).length ? `<div class="chips" style="margin-bottom:6px">${actorChips(namedActors('report', a.id), 12)}</div>` : ''}
+    <div class="drawer-body"><div class="report-kicker">${item ? `<span class="badge ${item.rank.band}">${bandLabel(item.rank.band)} · ${item.rank.score}</span>` : ''}<span class="tag"><i class="swatch" style="background:${layerColor(item ? reportLayer(item) : 'other')}"></i>${esc(categoryName(a.category))}</span>${(item?.places || []).map(p => `<span>${icon('pin')} ${esc(p.name)}</span>`).join('')}</div><h1 id="detail-title">${esc(state.lang === 'en' ? (b?.title_en || d.preview?.data?.title_en || a.title) : a.title)}</h1><div class="drawer-meta">${date(a.published_at)} (Kinshasa) · ${L('Single source · unverified', 'Source unique · non corroboré')}</div>${namedActors('report', a.id).length ? `<div class="chips" style="margin-bottom:6px">${actorChips(namedActors('report', a.id), 12)}</div>` : ''}
     <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button data-act="tab" data-arg="${k}" class="${tab === k ? 'active' : ''}" role="tab" aria-selected="${tab === k}">${l}</button>`).join('')}</div><section role="tabpanel">${content}</section></div></section></div>`;
   const drawer = $('#overlay .drawer'); if (drawer) drawer.scrollTop = top;
   if (!document.activeElement?.closest('#overlay')) $('#overlay [data-act="close"]')?.focus();
@@ -2385,6 +2829,7 @@ function closeOverlay() {
   if ((state.dossier && hashAccount()) || (state.actor && hashPart('actor')) || (state.weapon && hashPart('weapon'))) history.replaceState(null, '', '#' + state.view);
   state.modal = null; state.detailId = null; state.detail = null; state.dossier = null; state.palette = null; state.actor = null; state.weapon = null;
   $('#overlay').innerHTML = ''; document.body.style.overflow = '';
+  if (state.controlEdit) { state.controlEdit = null; render() }
   // Return focus to whatever opened the overlay (re-rendered elements are found by key).
   if (overlayReturn) { const back = $(`#app ${overlayReturn}`); overlayReturn = ''; back?.focus({ preventScroll: true }) }
 }
@@ -2414,7 +2859,46 @@ document.addEventListener('mousemove', e => {
 // ---------------------------------------------------------------------------------------------
 // Events (delegated: survive re-renders)
 
+function openMobileMenu() {
+  closeOverlay();
+  overlayReturn = '[data-act="mobile-menu"]';
+  state.modal = 'mobile-menu';
+  const nav = NAV().filter(([v]) => !['costs','ai-settings'].includes(v) || state.auth?.user?.role === 'owner');
+  $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer mobile-menu" role="dialog" aria-modal="true" aria-label="${L('Main navigation','Navigation principale')}"><div class="drawer-top"><strong>CONGO SIGNAL</strong><button class="iconbtn" data-act="close" aria-label="${L('Close','Fermer')}">${icon('close')}</button></div><nav>${nav.map(([id,ic,label])=>`<button class="nav-item ${state.view===id?'active':''}" data-act="nav" data-arg="${id}" ${state.view===id?'aria-current="page"':''}>${icon(ic)}<span>${esc(label)}</span></button>`).join('')}</nav><div class="mobile-menu-tools"><button class="btn" data-act="mobile-settings">${L('Connection settings','Paramètres de connexion')}</button><button class="btn" data-act="theme">${L('Toggle theme','Changer de thème')}</button>${['oidc','password'].includes(state.auth?.mode)?`<button class="btn" data-act="logout">${L('Sign out','Déconnexion')}</button>`:''}</div></section></div>`;
+  document.body.style.overflow = 'hidden';
+  $('#overlay [data-act="close"]').focus();
+}
 const ACTIONS = {
+  'password-link': async email => {
+    const d=await api('/v1/team/access-link',{email});
+    showEvidenceDialog(L('Private password link','Lien privé de mot de passe'),`<p>${L('Share this link privately with','Partagez ce lien en privé avec')} <strong>${esc(email)}</strong>. ${L('It expires in 30 minutes and works once. Creating a new link invalidates older links.','Il expire après 30 minutes et ne fonctionne qu’une fois. Un nouveau lien annule les anciens.')}</p><label>${L('Setup / reset link','Lien de création / réinitialisation')}<textarea readonly rows="5" style="width:100%;overflow-wrap:anywhere">${esc(d.url)}</textarea></label><p>${L('No email has been sent.','Aucun email n’a été envoyé.')}</p>`);
+  },
+  'mobile-menu': openMobileMenu,
+  'mobile-settings': () => { closeOverlay(); settings(); },
+  'quality-refresh':()=>loadPilotView('quality'),
+  'research-create':()=>createResearchBrief(false),
+  'research-selected':()=>createResearchBrief(true),
+  'research-html':id=>downloadResearchBrief(id,'html'),
+  'research-json':id=>downloadResearchBrief(id,'json'),
+  'control-load': () => loadControlHistory(),
+  'groups-refresh': async()=>{await loadGroups()},
+  'group-select': id=>{state.groupSelected=id;state.groupReviewOpen=false;render();window.scrollTo(0,0)},
+  'group-review-toggle':()=>{state.groupReviewOpen=!state.groupReviewOpen;render()},
+  'group-review-save':async()=>{const f=document.getElementById('group-evidence-form');const body={group_id:state.groupSelected,evidence_ids:[...f.querySelectorAll('[name=evidence]:checked')].map(e=>e.value),independent_sources:f.querySelector('[name=independent_sources]').checked};for(const k of ['event_date','activity','decision','note'])body[k]=f.querySelector(`[name=${k}]`).value;await api('/v1/armed-groups/review',body);state.groupReviewOpen=false;await loadGroups()},
+  'control-province': province => {state.controlProvince=province;render()},
+  'control-edit': id => {state.controlEdit=id;render();document.getElementById('control-review-form')?.scrollIntoView({block:'center',behavior:'smooth'})},
+  'control-export': () => download('congo-historical-reporting.json',state.controlLayer==='ipis'?{...state.controlHistory.observations,rows:historicalIpisRows()}:{as_of:state.controlAsOf,items:historicalVisible()}),
+  'control-save': async id => {const root=document.getElementById('control-review-form');const body={claim_id:id};for(const k of ['event_date','actor','assessment','status','note'])body[k]=root.querySelector(`[name="${k}"]`).value;await api('/v1/history-control/review',body);state.controlEdit='';await loadControlHistory()},
+
+  'compare-refresh': () => loadComparisons(),
+  'compare-clear': () => {state.compareIds=[];state.compareResult=null;render()},
+  'compare-toggle': id => {state.compareResult=null;if(state.compareIds.includes(id))state.compareIds=state.compareIds.filter(x=>x!==id);else if(state.compareIds.length<4)state.compareIds.push(id);else toast(L('Select at most four articles.','Sélectionnez quatre articles maximum.'));render()},
+  'compare-pair': ids => {state.compareIds=ids.split(',');state.compareResult=null;render();window.scrollTo(0,0)},
+  'compare-author': id => {state.compareAuthor=id;render()},
+  'compare-history': id => {const h=state.compareData.history.find(h=>h.id===id);if(h){state.compareResult=h;state.compareIds=h.sources.map(a=>a.id);render();window.scrollTo(0,0)}},
+  'compare-export': () => download('congo-signal-comparison.json',state.compareResult),
+  'compare-run': async () => {if(state.compareBusy)return;const ids=[...state.compareIds];state.compareBusy=true;state.compareError='';render();try {state.compareResult=await api('/v1/comparisons/analyze',{ids});state.compareIds=ids;await loadComparisons()} catch(e) {state.compareError=e.message;} finally {state.compareBusy=false;render()}},
+
   'agreement-open': id => openAgreement(id),
   'ai-mode': () => {state.aiMode=!state.aiMode;store.set('congo-ai-mode',state.aiMode?'1':'0');if(state.aiMode)go('ai-command');else if(state.view==='ai-command')go('briefing');else render();},
   'ai-motion': () => {state.aiMotion=!state.aiMotion;store.set('congo-ai-motion',state.aiMotion?'1':'0');render();},
@@ -2451,6 +2935,21 @@ const ACTIONS = {
   'ev-day': d => { state.evDay = state.evDay === d ? '' : d; render() },
   'ev-type': k => { state.evType = k; render() },
   'ev-play': () => toggleEvPlay(),
+  'war-layer': k => { state.warLayers[k] = !state.warLayers[k]; warSig = ''; render() },
+  'war-basemap': () => { state.warSatellite = !state.warSatellite; render() },
+  'war-reset': () => { state.warSel = null; render(); warMap?.flyTo({ center: [28.4, -1.6], zoom: 6.4, pitch: 38, bearing: -12, duration: reducedMotion() ? 0 : 1400 }) },
+  'war-place': name => selectWarPlace(name),
+  'war-clear': () => { state.warSel = null; warSig = ''; render() },
+  'control-edit': name => { const p = (state.control?.places || []).find(x => x.name === name); state.controlEdit = { place: name || '', province: p?.province || '', controller: p?.controller || 'AFC/M23 (FRN)', status: p?.status || 'held' }; render(); $('.control-form input[name=place]')?.focus() },
+  'control-cancel': () => { state.controlEdit = null; render() },
+  'sug-all': () => { state.reviewAll = !state.reviewAll; render() },
+  'sug-confirm': async id => {
+    const x = state.control?.suggestions?.find(s => s.id === id); if (!x) return;
+    await api('/v1/control', { place: x.place, province: x.province || '', controller: x.suggested.controller, status: x.suggested.status, as_of: x.date, source_url: x.source.url, source_title: x.source.title || '', note: `${x.reason} (${L('confirmed from review queue', 'confirmé depuis la file de vérification')})` });
+    state.control = await api('/v1/control'); warSig = ''; toast(L(`${x.place} updated`, `${x.place} mis à jour`)); render();
+  },
+  'sug-edit': id => { const x = state.control?.suggestions?.find(s => s.id === id); if (!x) return; state.controlEdit = { place: x.place, province: x.province || '', controller: x.suggested.controller, status: x.suggested.status, as_of: x.date, source_url: x.source.url, source_title: x.source.title || '' }; render() },
+  'sug-dismiss': async id => { await api('/v1/control/dismiss', { id }); state.control.suggestions = state.control.suggestions.filter(s => s.id !== id); render() },
   'ev-open': id => { state.evOpen = state.evOpen === id ? '' : id; render(); if (state.evOpen) $(`#ev-${CSS.escape(id)}`)?.scrollIntoView({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' }) },
   'watch-new': () => { state.watchEdit = blankWatch(); state.telegramChats = null; render(); $('#watch-name')?.focus() },
   'watch-template': arg => { const [kind, terms] = arg.split('|'); state.watchEdit = { ...blankWatch(kind), termsText: terms || '' }; render(); $('#watch-name')?.focus() },
@@ -2575,7 +3074,7 @@ document.addEventListener('click', async e => {
   if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
   if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
   const fn = ACTIONS[el.dataset.act]; if (!fn) return;
-  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview', 'radio-select', 'radio-play', 'radio-toggle', 'radio-stop', 'radio-open', 'radio-place', 'ev-day', 'ev-type', 'ev-play', 'ev-open', 'watch-new', 'watch-template', 'watch-edit', 'watch-cancel', 'watch-results-close', 'alerts-filter', 'alert-open', 'open-url', 'telegram-pick', 'brief-dl'].includes(el.dataset.act);
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview', 'radio-select', 'radio-play', 'radio-toggle', 'radio-stop', 'radio-open', 'radio-place', 'ev-day', 'ev-type', 'ev-play', 'ev-open', 'watch-new', 'watch-template', 'watch-edit', 'watch-cancel', 'watch-results-close', 'alerts-filter', 'alert-open', 'open-url', 'telegram-pick', 'brief-dl', 'war-layer', 'war-basemap', 'war-reset', 'war-place', 'war-clear', 'control-edit', 'control-cancel', 'sug-all', 'sug-edit'].includes(el.dataset.act);
   if (busy) el.disabled = true;
   try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
 });
@@ -2611,6 +3110,11 @@ document.addEventListener('submit', async e => {
     try{state.aiSettings=await api('/v1/settings/ai',body);if(body.api_key){aiModelLists.delete(body.provider);aiModelErrors.delete(body.provider)}form.querySelector('[name=api_key]')?.value && (form.querySelector('[name=api_key]').value='');render();toast(L('AI settings saved','Paramètres IA enregistrés'))}catch(err){toast(err.message)}finally{button.disabled=false}return;
   }
   if(kind==='team'){const f=new FormData(form),body={email:f.get('email'),role:f.get('role'),active:f.has('active'),daily_requests:Number(f.get('daily_requests')),daily_usd:Number(f.get('daily_usd')),monthly_usd:Number(f.get('monthly_usd'))};try{state.team=await api('/v1/team',body);toast(L('Membership saved','Membre enregistré'));await load()}catch(err){toast(err.message)}return}
+  if (kind === 'control') {
+    const f = new FormData(form), body = Object.fromEntries(f.entries());
+    try { await api('/v1/control', body); state.controlEdit = null; state.control = await api('/v1/control'); warSig = ''; toast(L('Control change recorded', 'Changement de contrôle enregistré')); render() } catch (err) { toast(err.message) }
+    return;
+  }
   if (kind === 'okapi-ask') { const q = form.q.value.trim(); voiceCenter.open(q || undefined); form.q.value = ''; return }
   if (kind === 'lookup') return openDossier($('#lookup-handle').value);
   if (kind === 'settings') { sessionStorage.setItem('congo-token', $('#token').value.trim()); state.config = null; closeOverlay(); return load() }

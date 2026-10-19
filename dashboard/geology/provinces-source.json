@@ -1,0 +1,8 @@
+{
+  "catalogue": "https://www.geoboundaries.org/api/current/gbOpen/COD/ADM1/",
+  "download": "https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/COD/ADM1/geoBoundaries-COD-ADM1_simplified.geojson",
+  "license": "Open Data Commons Open Database License 1.0",
+  "source": "OpenStreetMap, Wambacher",
+  "year": "2017",
+  "sha256": "bf6096f1c16f2632be9c4d4c0305276024fd5b3f3b9b3e635b2e2018d02f0331"
+}

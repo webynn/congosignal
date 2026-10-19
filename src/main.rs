@@ -2,10 +2,13 @@ mod actors;
 mod agreement_discovery;
 mod agreements;
 mod ai_settings;
+mod armed_groups;
 mod arms;
 mod authentication;
 mod brief;
 mod commodities;
+mod control;
+mod comparisons;
 mod costs;
 mod events;
 mod evidence;
@@ -16,10 +19,14 @@ mod flights;
 mod images;
 mod intelligence;
 mod notify;
+mod password_auth;
+mod quality;
 mod radio;
 mod reference;
+mod research_briefs;
 mod social;
 mod store;
+mod territory;
 mod text;
 mod voice;
 mod watch;
@@ -320,14 +327,18 @@ async fn main() -> Result<()> {
     )
     .await?;
     intelligence::init(&db).await?;
+    comparisons::init(&db).await?;
+    research_briefs::init(&db).await?;
     authentication::init(&db).await?;
     evidence::init(&db).await?;
+    territory::init(&db).await?;
     agreements::init(&db).await?;
     costs::init(&db).await?;
     agreement_discovery::init(&db).await?;
     social::init(&db).await?;
     reference::init(&db).await?;
     actors::init(&db).await?;
+    armed_groups::init(&db).await?;
     arms::init(&db).await?;
     images::init(&db).await?;
     commodities::init(&db).await?;
@@ -335,12 +346,14 @@ async fn main() -> Result<()> {
     flights::init(&db).await?;
     watch::init(&db).await?;
     events::init(&db).await?;
+    control::init(&db).await?;
     let app = App {
         db: db.clone(),
         token,
     };
     let router = Router::new()
         .route("/v1/auth/me", get(authentication::me))
+        .route("/v1/team/access-link", post(password_auth::access_link))
         .route("/v1/auth/logout", post(authentication::logout))
         .route(
             "/v1/team",
@@ -354,6 +367,8 @@ async fn main() -> Result<()> {
         .route("/v1/alerts", get(watch::alerts))
         .route("/v1/alerts/read", post(watch::mark_read))
         .route("/v1/events", get(events::list))
+        .route("/v1/control", get(control::get).post(control::update))
+        .route("/v1/control/dismiss", post(control::dismiss))
         .route("/v1/brief", get(brief::get))
         .route("/v1/jobs", post(submit))
         .route("/v1/jobs/{id}", get(job))
@@ -373,6 +388,14 @@ async fn main() -> Result<()> {
         )
         .route("/v1/feeds", get(feeds::list))
         .route("/v1/feeds/refresh", post(feeds::refresh))
+        .route("/v1/armed-groups", get(armed_groups::list))
+        .route("/v1/armed-groups/review", post(armed_groups::review))
+        .route(
+            "/v1/research-briefs",
+            get(research_briefs::list).post(research_briefs::create),
+        )
+        .route("/v1/research-briefs/{id}", get(research_briefs::get))
+        .route("/v1/quality", get(quality::report))
         .route("/v1/actors", get(actors::list))
         .route("/v1/actors/refresh", post(actors::refresh))
         .route("/v1/actors/{id}", get(actors::detail))
@@ -414,6 +437,11 @@ async fn main() -> Result<()> {
         .route("/v1/evidence/{id}/analyze", post(evidence::analyze))
         .route("/v1/evidence/{id}", get(evidence::document))
         .route("/v1/evidence/{id}/pdf", get(evidence::pdf))
+        .route("/v1/history-control", get(territory::list))
+        .route("/v1/history-control/refresh", post(territory::refresh))
+        .route("/v1/history-control/review", post(territory::review))
+        .route("/v1/comparisons", get(comparisons::list))
+        .route("/v1/comparisons/analyze", post(comparisons::analyze))
         .route("/v1/intelligence", get(intelligence::feed))
         .route("/v1/intelligence/status", get(intelligence::status))
         .route("/v1/intelligence/analyze", post(intelligence::analyze))
@@ -426,6 +454,14 @@ async fn main() -> Result<()> {
         .route("/auth/config", get(authentication::config))
         .route("/auth/login", get(authentication::login))
         .route("/auth/callback", get(authentication::callback))
+        .route("/auth/password/login", post(password_auth::login))
+        .route("/auth/password/setup", post(password_auth::setup))
+        .route(
+            "/auth/password/reset-request",
+            post(password_auth::reset_request),
+        )
+        .route("/auth/password.js", get(password_auth::script))
+        .route("/ready", get(quality::ready))
         .with_state(app)
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route(
@@ -486,6 +522,24 @@ async fn main() -> Result<()> {
                 )
             }),
         )
+        .route(
+            "/geo/territories.geo.json",
+            get(|| async {
+                (
+                    [("content-type", "application/json"), ("cache-control", "public, max-age=86400")],
+                    include_str!("../dashboard/geo/territories.geo.json"),
+                )
+            }),
+        )
+        .route(
+            "/geology/provinces.geo.json",
+            get(|| async {
+                (
+                    [("content-type", "application/json")],
+                    include_str!("../dashboard/geology/provinces.geo.json"),
+                )
+            }),
+        )
         // gzip/brotli for JSON and the dashboard: the report list alone is ~1 MB uncompressed.
         .layer(tower_http::compression::CompressionLayer::new());
     let listener = tokio::net::TcpListener::bind(bind).await?;
@@ -494,6 +548,7 @@ async fn main() -> Result<()> {
         result = worker(db.clone()) => result?,
         result = intelligence::worker(db.clone()) => result?,
         result = evidence::worker(db.clone()) => result?,
+        result = territory::worker(db.clone()) => result?,
         result = agreement_discovery::worker(db.clone()) => result?,
         result = social::worker(db.clone()) => result?,
         result = actors::worker(db.clone()) => result?,
@@ -505,7 +560,21 @@ async fn main() -> Result<()> {
         result = watch::worker(db.clone()) => result?,
         result = events::worker(db.clone()) => result?,
         result = radio::worker(db) => result?,
-        result = axum::serve(listener,router).with_graceful_shutdown(async { let _ = tokio::signal::ctrl_c().await; }) => result?,
+        result = axum::serve(listener,router).with_graceful_shutdown(shutdown_signal()) => result?,
     }
     Ok(())
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("SIGTERM handler");
+        tokio::select! { _=tokio::signal::ctrl_c()=>{}, _=term.recv()=>{} }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+    tracing::info!("Graceful shutdown requested");
 }

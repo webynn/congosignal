@@ -96,14 +96,19 @@ pub async fn pdf(
         .await?
         .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, "Unknown agreement".into()))?;
     ensure_doc(&v, &doc).map_err(|_| ApiError(StatusCode::NOT_FOUND, "Unknown PDF".into()))?;
-    let bytes = tokio::fs::read(format!("data/agreements/{doc}.pdf"))
-        .await
-        .map_err(|_| {
-            ApiError(
-                StatusCode::NOT_FOUND,
-                "PDF archive not installed on this server; use source link".into(),
-            )
-        })?;
+    let bytes = tokio::fs::read(
+        std::path::Path::new(
+            &std::env::var("AGREEMENTS_ARCHIVE_DIR").unwrap_or_else(|_| "data/agreements".into()),
+        )
+        .join(format!("{doc}.pdf")),
+    )
+    .await
+    .map_err(|_| {
+        ApiError(
+            StatusCode::NOT_FOUND,
+            "PDF archive not installed on this server; use source link".into(),
+        )
+    })?;
     Ok((
         [
             (axum::http::header::CONTENT_TYPE, "application/pdf"),

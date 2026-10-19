@@ -1,0 +1,695 @@
+{
+  "groups": [
+    {
+      "id": "m23",
+      "name": "M23",
+      "terms": [
+        "M23",
+        "M 23",
+        "Mouvement du 23 mars"
+      ],
+      "kind": "group",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "afc",
+      "name": "Alliance Fleuve Congo",
+      "terms": [
+        "Alliance Fleuve Congo",
+        "AFC/M23"
+      ],
+      "kind": "coalition",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "adf",
+      "name": "ADF",
+      "terms": [
+        "ADF",
+        "Allied Democratic Forces",
+        "Forces démocratiques alliées"
+      ],
+      "kind": "group",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "fdlr",
+      "name": "FDLR",
+      "terms": [
+        "FDLR",
+        "Forces démocratiques de libération du Rwanda"
+      ],
+      "kind": "group",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "codeco",
+      "name": "CODECO",
+      "terms": [
+        "CODECO",
+        "Coopérative pour le développement du Congo"
+      ],
+      "kind": "coalition",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "wazalendo",
+      "name": "Wazalendo",
+      "terms": [
+        "Wazalendo",
+        "Wazalendu"
+      ],
+      "kind": "umbrella",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "mai-mai",
+      "name": "Maï-Maï (umbrella)",
+      "terms": [
+        "Mai-Mai",
+        "Maï-Maï",
+        "Mayi-Mayi"
+      ],
+      "kind": "umbrella",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "twirwaneho",
+      "name": "Twirwaneho",
+      "terms": [
+        "Twirwaneho"
+      ],
+      "kind": "group",
+      "provenance": "Existing Congo Signal actor catalogue and archived reporting",
+      "source_url": "https://main.un.org/securitycouncil/en/sanctions/1533/panel-of-experts/expert-reports"
+    },
+    {
+      "id": "ipis-1499d56a283d",
+      "name": "APASICO/UPLC",
+      "terms": [
+        "APASICO/UPLC"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-2b61513c2e8b",
+      "name": "APCLS",
+      "terms": [
+        "APCLS"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-ab7f83761a18",
+      "name": "Alain à l'aise",
+      "terms": [
+        "Alain à l'aise"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-6ef9600ee90f",
+      "name": "Autodéfense",
+      "terms": [
+        "Autodéfense"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-1f03c638e1eb",
+      "name": "Autodéfense Zaïre",
+      "terms": [
+        "Autodéfense Zaïre"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-3f55d4003443",
+      "name": "Bandits main armée",
+      "terms": [
+        "Bandits main armée"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-3561da99ef16",
+      "name": "FABB (Forces Armées Biloze Bishambuki)",
+      "terms": [
+        "FABB (Forces Armées Biloze Bishambuki)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-239bf370fc55",
+      "name": "FDLR/Rudi",
+      "terms": [
+        "FDLR/Rudi"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-25ee1eefb1a1",
+      "name": "FRF",
+      "terms": [
+        "FRF"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-c4c0399b5e1e",
+      "name": "FRPI",
+      "terms": [
+        "FRPI"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-9ccc2ec7b2ed",
+      "name": "Forces négatives",
+      "terms": [
+        "Forces négatives"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-3bf59e9b3986",
+      "name": "Gardes Parc",
+      "terms": [
+        "Gardes Parc"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-c65be06fb6e0",
+      "name": "Groupe d'autodéfense Zaïre",
+      "terms": [
+        "Groupe d'autodéfense Zaïre"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-6ef761ce225d",
+      "name": "Groupe de bandits armés",
+      "terms": [
+        "Groupe de bandits armés"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-d91958eb8f29",
+      "name": "Groupe de bandits armés non identifiés",
+      "terms": [
+        "Groupe de bandits armés non identifiés"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-6e1507b4154e",
+      "name": "Guidon",
+      "terms": [
+        "Guidon"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-e12fe20b6ef7",
+      "name": "Jeunesse Autodéfense Zaïre",
+      "terms": [
+        "Jeunesse Autodéfense Zaïre"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-e4ddad586c85",
+      "name": "Les coupeurs de route",
+      "terms": [
+        "Les coupeurs de route"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-1f6368e6ecc0",
+      "name": "MAC",
+      "terms": [
+        "MAC"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-15836bb2ebaf",
+      "name": "Matonge milice Chunu & Alexis",
+      "terms": [
+        "Matonge milice Chunu & Alexis"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-ba87c1318f11",
+      "name": "Maï-Maï AFDC-MAC",
+      "terms": [
+        "Maï-Maï AFDC-MAC"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-7ed4022767b6",
+      "name": "Maï-Maï APCLS",
+      "terms": [
+        "Maï-Maï APCLS"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-2ecdbd8d0160",
+      "name": "Maï-Maï Apa Na Pale",
+      "terms": [
+        "Maï-Maï Apa Na Pale"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-19a6bf412fdf",
+      "name": "Maï-Maï Bishambuke",
+      "terms": [
+        "Maï-Maï Bishambuke"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-486147f84e72",
+      "name": "Maï-Maï Ebuela Mutetezi",
+      "terms": [
+        "Maï-Maï Ebuela Mutetezi"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-aeee9f21ca22",
+      "name": "Maï-Maï FPP/AP",
+      "terms": [
+        "Maï-Maï FPP/AP"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-6e4f75417543",
+      "name": "Maï-Maï Force Divine Simba, FDS",
+      "terms": [
+        "Maï-Maï Force Divine Simba, FDS"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-f20b48c8b730",
+      "name": "Maï-Maï Gomino",
+      "terms": [
+        "Maï-Maï Gomino"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-fa6f52b73350",
+      "name": "Maï-Maï Inconnu",
+      "terms": [
+        "Maï-Maï Inconnu"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-40aa3a4d409b",
+      "name": "Maï-Maï Juvenal",
+      "terms": [
+        "Maï-Maï Juvenal"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-ad4f8dcb1b08",
+      "name": "Maï-Maï Kapopo",
+      "terms": [
+        "Maï-Maï Kapopo"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-f05667841a3a",
+      "name": "Maï-Maï Kifuafua",
+      "terms": [
+        "Maï-Maï Kifuafua"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-af9f443d9f40",
+      "name": "Maï-Maï Lwesula",
+      "terms": [
+        "Maï-Maï Lwesula"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-583d769be7f0",
+      "name": "Maï-Maï MRDC",
+      "terms": [
+        "Maï-Maï MRDC"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-e72b07b18ccf",
+      "name": "Maï-Maï Malaika",
+      "terms": [
+        "Maï-Maï Malaika"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-67377b746acb",
+      "name": "Maï-Maï Nyatura",
+      "terms": [
+        "Maï-Maï Nyatura"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-9b5eb5ffbfad",
+      "name": "Maï-Maï PARECO",
+      "terms": [
+        "Maï-Maï PARECO"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-0b9dcd9677ae",
+      "name": "Maï-Maï PARECO et Simba (Morgan)",
+      "terms": [
+        "Maï-Maï PARECO et Simba (Morgan)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-d5c7d83f967d",
+      "name": "Maï-Maï Résistant Maï-Maï (RM)",
+      "terms": [
+        "Maï-Maï Résistant Maï-Maï (RM)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-6618672fb1c4",
+      "name": "Maï-Maï Simba",
+      "terms": [
+        "Maï-Maï Simba"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-ed8f3e69e5a5",
+      "name": "Maï-Maï Simba (Morgan)",
+      "terms": [
+        "Maï-Maï Simba (Morgan)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-cb2b30060a79",
+      "name": "Maï-Maï Simba (Morgan) et MRDC",
+      "terms": [
+        "Maï-Maï Simba (Morgan) et MRDC"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-4d356d6ca1a3",
+      "name": "Maï-Maï Simba (ex-Morgan - Bafwandeke)",
+      "terms": [
+        "Maï-Maï Simba (ex-Morgan - Bafwandeke)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-e1d7bcf21887",
+      "name": "Maï-Maï Simba (ex-Morgan - Mangaribi)",
+      "terms": [
+        "Maï-Maï Simba (ex-Morgan - Mangaribi)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-6e3892194a33",
+      "name": "Maï-Maï Simba (ex-Morgan - Manu)",
+      "terms": [
+        "Maï-Maï Simba (ex-Morgan - Manu)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-bf13e2d5a7eb",
+      "name": "Maï-Maï Simba (ex-Morgan - Werrason)",
+      "terms": [
+        "Maï-Maï Simba (ex-Morgan - Werrason)"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-9a6188359209",
+      "name": "Maï-Maï Simba Rénovée",
+      "terms": [
+        "Maï-Maï Simba Rénovée"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-fbe2326ca76c",
+      "name": "Maï-Maï UPCP",
+      "terms": [
+        "Maï-Maï UPCP"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-fda68b42e096",
+      "name": "Maï-Maï UPLD",
+      "terms": [
+        "Maï-Maï UPLD"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-c615586954d5",
+      "name": "Maï-Maï Wakombozi Kambale Mathina",
+      "terms": [
+        "Maï-Maï Wakombozi Kambale Mathina"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-f3ebf15ec46c",
+      "name": "Maï-Maï Yakutumba",
+      "terms": [
+        "Maï-Maï Yakutumba"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-8b616c6c6a9c",
+      "name": "Maï-Maï Yakutumba, Sikatende, Duniya",
+      "terms": [
+        "Maï-Maï Yakutumba, Sikatende, Duniya"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-b1d6ceb9ea29",
+      "name": "Milice zaïre",
+      "terms": [
+        "Milice zaïre"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-13c7ba03e309",
+      "name": "NDC",
+      "terms": [
+        "NDC"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-d46e9e41d523",
+      "name": "NDC-Rénové",
+      "terms": [
+        "NDC-Rénové"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-97d60524468b",
+      "name": "Ngomino",
+      "terms": [
+        "Ngomino"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-8d8969232f2a",
+      "name": "Nyatura",
+      "terms": [
+        "Nyatura"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-73777128c565",
+      "name": "Raïa Mutomboki",
+      "terms": [
+        "Raïa Mutomboki"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-5901b83710b8",
+      "name": "Shishikara",
+      "terms": [
+        "Shishikara"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    },
+    {
+      "id": "ipis-f4abac16f3b1",
+      "name": "UPLC",
+      "terms": [
+        "UPLC"
+      ],
+      "kind": "source_label",
+      "provenance": "IPIS 2009–2023 historical actor label; distinct organization identity and aliases not independently resolved",
+      "source_url": "https://ipisresearch.be/home/maps-data/open-data/"
+    }
+  ],
+  "notice": "Partial catalogue of documented names; source labels may overlap, include factions or generic actor descriptions. Umbrellas are not single organizations. No inferred affiliations or exhaustive coverage."
+}

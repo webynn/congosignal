@@ -1,0 +1,89 @@
+CONGO SIGNAL — PRIVATE RESEARCH PILOT
+
+Release scope
+Find DRC reporting, compare source passages, bookmark articles, and save a private
+research brief. Source dates, excerpts, AI provenance and original links remain
+visible. My research briefs creates immutable snapshots without additional AI
+requests; missing English/French translations stay in the original language.
+Use Data quality for missing metadata, future dates, processing failures and
+identical text. Completeness is not accuracy. Syndicated articles are not
+independent corroboration. Other research modules remain available, but historical
+mineral observations and reviewed historical activity are not live territorial data.
+
+Launch gates (must be completed on the actual host)
+- Configure a real ZITADEL PKCE app and exact HTTPS callback; see authentication.txt.
+- Test owner, invited analyst and viewer logins in separate browsers. Verify a
+  nonmember is denied, private bookmarks/briefs stay private, and revocation works.
+- Review a sample of at least 20 source articles and their translations manually.
+  Record incorrect dates, missing text, inaccurate translations and wrong places.
+- Have 3–5 intended users find a report, compare sources and download a brief.
+  Record failures before adding more features. These human checks are not automated.
+- Confirm provider budgets/member allowances and delivery destinations. Importing
+  an existing database ALSO imports existing spending settings; review them first.
+- Complete a backup/restore drill and configure off-host encrypted backup storage.
+- Build the container and verify HTTPS, restart persistence and /ready on the host.
+  Docker was unavailable on the development machine; container launch is untested.
+
+Deploy (Linux VPS, one instance, external AI APIs)
+1. Install Docker Engine + Compose and Python 3. Point domain DNS to this host.
+   Allow SSH plus TCP 80/443. Do not expose 8080 or the SQLite directory.
+2. Copy deploy/settings.example to deploy/.env; chmod 600 deploy/.env.
+   Fill domain, OIDC issuer/client ID and verified owner email. No client secret.
+3. mkdir -p deploy/data; sudo chown 10001:10001 deploy/data; chmod 700 deploy/data
+   For existing data, use a verified backup/restore below instead of copying a live
+   SQLite file. Copy .env settings separately; never put secrets into Git/images.
+4. cd deploy; docker compose --env-file .env config --quiet
+   docker compose --env-file .env up -d --build
+5. Check docker compose ps, logs --tail=100 app, and https://DOMAIN/ready.
+   /health checks the process; /ready checks database availability. Neither proves
+   collection or provider health: inspect Data quality and Costs & budgets too.
+6. Sign in, approve members in Team & access, configure API keys in AI settings,
+   then enable selected collectors/AI with deliberate provider/member allowances.
+   Keep one Rust instance per SQLite database. Automated HTTPS is handled by Caddy.
+
+Backup and recovery
+From the repository root (online SQLite backup is WAL-safe):
+  python3 scripts/backup.py create --data deploy/data --output backups/DATE-TIME
+  python3 scripts/backup.py verify backups/DATE-TIME
+  python3 scripts/backup.py restore backups/DATE-TIME --destination backups/restore-test
+Restore refuses existing destinations and revokes old login sessions. It includes
+SQLite, archived evidence/agreements and AI settings if present. It excludes .env
+and raw import scratch files. AI settings may contain keys: snapshots are private
+0600/0700 files, NOT encrypted. Encrypt before transferring off-host; store the
+runtime environment separately in a password manager. Never share snapshots.
+Schedule daily backups using your host scheduler with a fresh timestamped output
+path. Keep 7 daily and 4 weekly verified snapshots; retention is operator-managed.
+Run a restore drill monthly. Alert on backup failures and low disk space.
+To recover production: stop app, restore into a NEW directory, verify it, change
+ownership to UID10001, then switch the bind mount to that directory and start.
+Never overwrite the running database. Recheck source counts and login isolation.
+
+Updates and rollback
+Take a verified backup before upgrading. Stop the app, record the old Git revision,
+build/start the new revision and smoke-test. Database schema changes may not be
+backward compatible: rollback pairs the previous code/image with its backup, in a
+new directory, while app is stopped. Keep the failed snapshot for investigation.
+
+Monitoring
+Use an external uptime check for /ready (5-minute interval), disk alerts at 80%,
+daily backup verification and weekly Data quality review. Feed timestamps indicate
+last checks, not proof every article was collected. Failed sources remain visible.
+No external monitor or scheduled backup has been registered by this development
+pass; configure these on the chosen host. Do not expose logs containing user queries.
+
+Local verification — 2026-10-19
+- Rust: 102 passed, 2 live-network tests intentionally ignored; fmt/clippy clean.
+- All six JavaScript test files passed; JavaScript syntax check passed.
+- Mock Ollama and Claude API workflows passed, including cached bilingual briefs,
+  private snapshot creation, JSON/HTML export and restart persistence.
+- Mock X integration passed; these checks made no paid provider calls.
+- Backup tests: 2 passed; historical import tests: 3 passed.
+- Live backup: 157 files verified and restored to backups/mvp-restore-20261019;
+  original live database was not overwritten, restored sessions were revoked.
+- /ready returned 200; public Host and cross-origin API requests returned 403.
+- Browser: English/French pilot pages and repaired desktop header inspected.
+- Live quality snapshot: 449 articles, 449 cached English previews, 7 identical-text
+  groups, 22 unavailable documents, 224 missing bylines, no invalid/future dates.
+  These counts change with collection. Missing metadata is retained as unknown.
+- Real OIDC tenant login, container startup, off-host backup scheduling, external
+  monitoring and user acceptance review remain launch gates, not completed tests.

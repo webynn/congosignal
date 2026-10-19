@@ -233,14 +233,12 @@ impl Fetcher {
             };
             let mut secs = 2f64;
             for line in text.lines() {
-                if let Some((k, v)) = line.split_once(':') {
-                    if k.trim().eq_ignore_ascii_case("crawl-delay") {
-                        if let Ok(n) = v.trim().parse::<f64>() {
-                            if n.is_finite() {
-                                secs = secs.max(n)
-                            }
-                        }
-                    }
+                if let Some((k, v)) = line.split_once(':')
+                    && k.trim().eq_ignore_ascii_case("crawl-delay")
+                    && let Ok(n) = v.trim().parse::<f64>()
+                    && n.is_finite()
+                {
+                    secs = secs.max(n)
                 }
             }
             ensure!(secs <= 300., "crawl delay too long");
@@ -336,14 +334,11 @@ fn html_data(s: &Source, bytes: &[u8], url: &Url) -> Result<(Vec<Value>, Vec<Val
     );
     let mut links = Vec::new();
     for e in root.select(&scraper::Selector::parse("a[href],iframe[src]").unwrap()) {
-        if let Some(href) = e.value().attr("href").or_else(|| e.value().attr("src")) {
-            if let Ok(u) = url.join(href) {
-                if u.scheme() == "https" {
-                    links.push(
-                        json!({"url":u.as_str(),"label":e.text().collect::<Vec<_>>().join(" ")}),
-                    );
-                }
-            }
+        if let Some(href) = e.value().attr("href").or_else(|| e.value().attr("src"))
+            && let Ok(u) = url.join(href)
+            && u.scheme() == "https"
+        {
+            links.push(json!({"url":u.as_str(),"label":e.text().collect::<Vec<_>>().join(" ")}));
         }
     }
     links.truncate(500);
@@ -474,17 +469,17 @@ pub async fn worker(db: SqlitePool) -> Result<()> {
             .bind(&id)
             .execute(&db)
             .await?;
-        if let Some(s) = registry(&db).await?.into_iter().find(|s| s.id == id) {
-            if let Err(e) = collect(&mut f, &db, &s).await {
-                sqlx::query(
-                    "UPDATE evidence_sources SET status='failed',checked_at=?,error=? WHERE id=?",
-                )
-                .bind(chrono::Utc::now().to_rfc3339())
-                .bind(e.to_string())
-                .bind(id)
-                .execute(&db)
-                .await?;
-            }
+        if let Some(s) = registry(&db).await?.into_iter().find(|s| s.id == id)
+            && let Err(e) = collect(&mut f, &db, &s).await
+        {
+            sqlx::query(
+                "UPDATE evidence_sources SET status='failed',checked_at=?,error=? WHERE id=?",
+            )
+            .bind(chrono::Utc::now().to_rfc3339())
+            .bind(e.to_string())
+            .bind(id)
+            .execute(&db)
+            .await?;
         }
     }
 }

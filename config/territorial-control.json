@@ -1,0 +1,2381 @@
+{
+ "meta": {
+  "compiled": "2026-10-19",
+  "method": "Compiled from dated news, UN and analyst sources (August–October 2026 where available). Every place cites at least one source; confidence reflects sourcing. Locality-level claims after August 2026 rely heavily on Critical Threats' weekly Congo War Security Review, which relays unverified claims from both sides; treat contested entries as fluid.",
+  "caveats": [
+   "Front lines move faster than reporting; check each place's as_of date.",
+   "'Contested' means recent reports of fighting for control, not a confirmed change.",
+   "Activity zones mark armed-group attacks, not territorial control.",
+   "Unshaded areas have no reported change and remain under government administration."
+  ],
+  "reference_maps": [
+   {
+    "name": "Critical Threats · Congo War Security Review (weekly maps; link only, reproduction needs permission)",
+    "url": "https://www.criticalthreats.org/briefs/congo-war-security-review"
+   },
+   {
+    "name": "Kivu Security Tracker (Ebuteli / Congo Research Group)",
+    "url": "https://kivusecurity.org"
+   }
+  ],
+  "geocoding": "Coordinates from GeoNames (CC BY 4.0, https://www.geonames.org) or, where GeoNames lacks the village, OpenStreetMap via Nominatim (ODbL, © OpenStreetMap contributors), matched by name within the stated province; places without a match are listed but not mapped."
+ },
+ "places": [
+  {
+   "name": "Goma",
+   "province": "Nord-Kivu",
+   "territory": "Nyiragongo / Goma city",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-01-27",
+   "as_of": "2026-10-13",
+   "confidence": "high",
+   "note": "Under AFC/M23 since Jan 2025; the FRN was launched at Kabila's residence in Goma on 12 Oct 2026 and AU envoys met the movement there on 5 Oct.",
+   "sources": [
+    {
+     "title": "Former DR Congo President Kabila joins M23 rebels in a new coalition",
+     "publisher": "Al Jazeera",
+     "url": "https://www.aljazeera.com/news/2026/10/13/former-dr-congo-president-kabila-joins-m23-rebels-in-a-new-coalition",
+     "date": "2026-10-13"
+    },
+    {
+     "title": "Former DRC president Kabila to lead new group replacing AFC/M23",
+     "publisher": "Africanews",
+     "url": "https://www.africanews.com/2026/10/13/former-drc-president-kabila-to-lead-new-group-replacing-afcm23/",
+     "date": "2026-10-13"
+    }
+   ],
+   "lat": -1.67409,
+   "lon": 29.22845,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 216281,
+    "matched": "Goma",
+    "feature": "PPLA"
+   }
+  },
+  {
+   "name": "Sake",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-01",
+   "as_of": "2026-05-02",
+   "confidence": "medium",
+   "note": "Radio Okapi (May 2026) describes Sake as a zone under AFC/M23 occupation with rising insecurity; no later source found.",
+   "sources": [
+    {
+     "title": "Regain d'insécurité dans la cité de Sake",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/05/02/actualite/securite/regain-dinsecurite-dans-la-cite-de-sake",
+     "date": "2026-05-02"
+    }
+   ],
+   "lat": -1.57386,
+   "lon": 29.04339,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 205970,
+    "matched": "Sake",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kibumba",
+   "province": "Nord-Kivu",
+   "territory": "Nyiragongo",
+   "controller": "AFC/M23 (FRN)",
+   "status": "unclear",
+   "since": "2022-11",
+   "as_of": "2026-03",
+   "confidence": "low",
+   "note": "Lies between AFC/M23-held Goma and Rutshuru, so continued AFC/M23 control is likely, but no 2026 article confirming its status could be read (only a Wikipedia-FR timeline lead about a Jan 2026 'front' near Kibumba).",
+   "sources": [
+    {
+     "title": "Chronologie du conflit du M23 (lead only)",
+     "publisher": "Wikipédia (FR)",
+     "url": "https://fr.wikipedia.org/wiki/Chronologie_du_conflit_du_M23",
+     "date": "2026-10"
+    },
+    {
+     "title": "DRC: M23 remains in Kibumba, according to local sources (historical)",
+     "publisher": "Africanews",
+     "url": "https://www.africanews.com/2023/01/03/drc-m23-remains-in-kibumba-according-to-local-sources/",
+     "date": "2023-01-03"
+    }
+   ],
+   "lat": -1.4823,
+   "lon": 29.34598,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 8433887,
+    "matched": "Kibumba",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Rutshuru (centre)",
+   "province": "Nord-Kivu",
+   "territory": "Rutshuru",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2022-10",
+   "as_of": "2026-10-13",
+   "confidence": "high",
+   "note": "AFC/M23-held since Oct 2022; Aug 2026 attacks on M23 positions 6-8 miles north of Rutshuru town and Oct 2026 clashes in Binza/Kisigari did not change control.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    },
+    {
+     "title": "Des combats signalés à Rutshuru et des tensions persistantes à Masisi",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/des-combats-signales-rutshuru-et-des-tensions-persistantes-masisi",
+     "date": "2026-10-13"
+    }
+   ],
+   "lat": -1.18666,
+   "lon": 29.44669,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 206047,
+    "matched": "Rutshuru",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kiwanja",
+   "province": "Nord-Kivu",
+   "territory": "Rutshuru",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2022-10-29",
+   "as_of": "2026-09-04",
+   "confidence": "high",
+   "note": "AFC/M23 opened a CADECO bank outlet in Kiwanja on 31 Aug 2026; Kiseguro clashes (13 Oct) were ~20 km north-east.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Des combats signalés à Rutshuru et des tensions persistantes à Masisi",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/des-combats-signales-rutshuru-et-des-tensions-persistantes-masisi",
+     "date": "2026-10-13"
+    }
+   ],
+   "lat": -1.16,
+   "lon": 29.43,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 8485523,
+    "matched": "Kiwanja",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kiseguro",
+   "province": "Nord-Kivu",
+   "territory": "Rutshuru",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-13",
+   "confidence": "medium",
+   "note": "AFC/M23 (FRN) position in Binza groupement attacked by presumed Wazalendo at dawn on 13 Oct 2026; outcome not reported.",
+   "sources": [
+    {
+     "title": "Des combats signalés à Rutshuru et des tensions persistantes à Masisi",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/des-combats-signales-rutshuru-et-des-tensions-persistantes-masisi",
+     "date": "2026-10-13"
+    },
+    {
+     "title": "Rutshuru : affrontements, explosions à Kalengera, tensions Masisi",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/10/13/affrontements-rutshuru-kalengera-masisi/",
+     "date": "2026-10-13"
+    }
+   ]
+  },
+  {
+   "name": "Kalengera",
+   "province": "Nord-Kivu",
+   "territory": "Rutshuru",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-10-13",
+   "confidence": "medium",
+   "note": "Rebel position in Kisigari groupement reportedly hit by a military drone strike on the night of 12 Oct 2026.",
+   "sources": [
+    {
+     "title": "Des combats signalés à Rutshuru et des tensions persistantes à Masisi",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/des-combats-signales-rutshuru-et-des-tensions-persistantes-masisi",
+     "date": "2026-10-13"
+    },
+    {
+     "title": "Rutshuru : affrontements, explosions à Kalengera, tensions Masisi",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/10/13/affrontements-rutshuru-kalengera-masisi/",
+     "date": "2026-10-13"
+    }
+   ],
+   "lat": -1.26667,
+   "lon": 29.38333,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 214942,
+    "matched": "Kalengera",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Bunagana",
+   "province": "Nord-Kivu",
+   "territory": "Rutshuru",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2022-06-13",
+   "as_of": "2026-06",
+   "confidence": "medium",
+   "note": "Border town with Uganda held by M23 since June 2022; crossing reopened by Uganda in July 2025 under M23 control; Reporter.cd piece marks four years of M23 control (article date approximate).",
+   "sources": [
+    {
+     "title": "Quatre ans de contrôle du M23 : Bunagana reste hors de portée de Kinshasa",
+     "publisher": "Reporter.cd",
+     "url": "https://www.reporter.cd/quatre-ans-de-controle-du-m23-bunagana-reste-hors-de-portee-de-kinshasa/",
+     "date": "2026-06"
+    },
+    {
+     "title": "RDC : Réouverture de la frontière de Bunagana entre la RDC et l'Ouganda sous contrôle de l'AFC/M23",
+     "publisher": "Kivu Morning Post",
+     "url": "https://kivumorningpost.com/2025/07/10/rdc-reouverture-de-la-frontiere-de-bunagana-entre-la-rdc-et-louganda-sous-controle-de-lafc-m23/",
+     "date": "2025-07-10"
+    }
+   ],
+   "lat": -1.31303,
+   "lon": 29.59538,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 217715,
+    "matched": "Bunangana",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Masisi (centre)",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "unclear",
+   "since": "2025-01",
+   "as_of": "2025-01-09",
+   "confidence": "low",
+   "note": "Reoccupied by M23 in Jan 2025; no 2026 source found that states the status of Masisi-centre itself, although fighting in 2026 is concentrated elsewhere in the territory.",
+   "sources": [
+    {
+     "title": "Masisi-Centre de nouveau sous occupation du M23",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2025/01/09/actualite/securite/masisi-centre-de-nouveau-sous-occupation-du-m23",
+     "date": "2025-01-09"
+    },
+    {
+     "title": "Masisi, l'épicentre des combats AFC/M23 - FARDC à cause de ses richesses",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/09/30/actualite/securite/masisi-lepicentre-des-combats-afcm23-fardc-cause-de-ses-richesses",
+     "date": "2026-09-30"
+    }
+   ],
+   "lat": -1.39832,
+   "lon": 28.8183,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 209477,
+    "matched": "Masisi",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Rubaya",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2024-04",
+   "as_of": "2026-10-13",
+   "confidence": "high",
+   "note": "Coltan town held by AFC/M23 for ~2 years; Wazalendo attacks on the nearby Kanyaru-Kawele-Nyakigano axis (Kibabi) continued in Oct 2026.",
+   "sources": [
+    {
+     "title": "Masisi, l'épicentre des combats AFC/M23 - FARDC à cause de ses richesses",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/09/30/actualite/securite/masisi-lepicentre-des-combats-afcm23-fardc-cause-de-ses-richesses",
+     "date": "2026-09-30"
+    },
+    {
+     "title": "Des combats signalés à Rutshuru et des tensions persistantes à Masisi",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/des-combats-signales-rutshuru-et-des-tensions-persistantes-masisi",
+     "date": "2026-10-13"
+    }
+   ],
+   "lat": -1.54724,
+   "lon": 28.87433,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1158948305",
+    "matched": "Rubaya",
+    "feature": "town"
+   }
+  },
+  {
+   "name": "Ngungu",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-13",
+   "confidence": "medium",
+   "note": "AFC/M23 still holds Ngungu; pro-government offensive toward it stalled in late Sept, with clashes at nearby Kasake/Shovu through 12 Oct.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 25, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-25-2026",
+     "date": "2026-09-25"
+    },
+    {
+     "title": "Des combats signalés à Rutshuru et des tensions persistantes à Masisi",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/des-combats-signales-rutshuru-et-des-tensions-persistantes-masisi",
+     "date": "2026-10-13"
+    },
+    {
+     "title": "Masisi, l'épicentre des combats AFC/M23 - FARDC à cause de ses richesses",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/09/30/actualite/securite/masisi-lepicentre-des-combats-afcm23-fardc-cause-de-ses-richesses",
+     "date": "2026-09-30"
+    }
+   ],
+   "lat": -1.64416,
+   "lon": 28.86321,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 216183,
+    "matched": "Gungu",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kasake",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "2026-09-16",
+   "as_of": "2026-10-13",
+   "confidence": "medium",
+   "note": "Taken by FARDC/Wazalendo ~16 Sept 2026 (pushing M23 toward Ngungu); renewed exchanges of fire 6-7 Oct and through 12 Oct.",
+   "sources": [
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Des combats signalés à Rutshuru et des tensions persistantes à Masisi",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/des-combats-signales-rutshuru-et-des-tensions-persistantes-masisi",
+     "date": "2026-10-13"
+    }
+   ],
+   "lat": -0.04201,
+   "lon": 29.61581,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 8327947,
+    "matched": "Kasake",
+    "feature": "STM"
+   }
+  },
+  {
+   "name": "Remeka",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "FARDC with Wazalendo",
+   "status": "contested",
+   "since": "2026-10-03",
+   "as_of": "2026-10-07",
+   "confidence": "low",
+   "note": "Changed hands four times since late Aug 2026 (M23 20 Aug, FARDC/Wazalendo ~15 Sept, M23 25 Sept, FARDC/Wazalendo 3 Oct per pro-government claims).",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    },
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    }
+   ],
+   "lat": -1.68333,
+   "lon": 28.78333,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 206101,
+    "matched": "Remeka",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Katoyi",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-07",
+   "confidence": "medium",
+   "note": "M23 reportedly took Katoyi-centre 25 Aug 2026; CTP lists Katoyi as contested with clashes resuming 6-7 Oct.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    }
+   ]
+  },
+  {
+   "name": "Mitimingi",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-05",
+   "confidence": "low",
+   "note": "M23 retook it 29 Aug and held it through Sept; Wazalendo claimed control on 5 Oct 2026 (unverified).",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Congo War Security Review, September 25, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-25-2026",
+     "date": "2026-09-25"
+    }
+   ]
+  },
+  {
+   "name": "Nyabiondo",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-14",
+   "confidence": "medium",
+   "note": "AFC/M23-held town repeatedly attacked: Wazalendo briefly occupied it on 26 May 2026, drone strikes Feb/Jul, and a new Wazalendo attack on ~14 Oct 2026 after which a fragile calm returned.",
+   "sources": [
+    {
+     "title": "RDC : Avec Kabila, l'AFC/M23 change de nom mais pas de front",
+     "publisher": "L'Oeil d'Afrique",
+     "url": "https://oeildafrique.com/2026/10/14/frn-kabila-nyabiondo-masisi/",
+     "date": "2026-10-14"
+    },
+    {
+     "title": "Masisi, l'épicentre des combats AFC/M23 - FARDC à cause de ses richesses",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/09/30/actualite/securite/masisi-lepicentre-des-combats-afcm23-fardc-cause-de-ses-richesses",
+     "date": "2026-09-30"
+    },
+    {
+     "title": "Nyabiondo : une explosion cible une position du M23 et sème la panique",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/07/29/explosion-m23-nyabiondo-masisi/",
+     "date": "2026-07-29"
+    }
+   ],
+   "lat": -1.31237,
+   "lon": 28.73109,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 206895,
+    "matched": "Nyabiondo",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kitshanga",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "unclear",
+   "since": "2023-10-21",
+   "as_of": "2025-12-27",
+   "confidence": "low",
+   "note": "Last firm reports (2023 recapture; Dec 2025 forced rallies in AFC/M23-controlled zones) indicate AFC/M23 control; no 2026 article on the town itself found (CTP notes a 26 Sept 2026 attack at Burungu, ~6 miles south).",
+   "sources": [
+    {
+     "title": "Nord-Kivu : la cité de Kitshanga de nouveau occupée par le M23",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2023/10/22/actualite/securite/nord-kivu-la-cite-de-kitshanga-de-nouveau-occupee-par-le-m23",
+     "date": "2023-10-22"
+    },
+    {
+     "title": "Manifestations publiques dans les zones sous contrôle de l'AFC/M23 ...",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2025/12/27/manifestations-publiques-dans-les-zones-sous-controle-de-lafcm23-la-societe-civile-du",
+     "date": "2025-12-27"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -0.97284,
+   "lon": 28.69821,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 212555,
+    "matched": "Kitshanga",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kalembe",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-18",
+   "confidence": "medium",
+   "note": "AFC/M23 controls the Malemo-Kalembe-Kalonge-Ihula axis; Wazalendo attacks (May 2026) did not dislodge it.",
+   "sources": [
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    },
+    {
+     "title": "Masisi : cinq civils tués et plusieurs blessés lors de l'attaque des Wazalendo contre les positions de l'AFC/M23 à Kalembe",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/05/25/masisi-cinq-civils-tues-et-plusieurs-blesses-lors-de-lattaque-des-wazalendo-contre-les",
+     "date": "2026-05-25"
+    }
+   ],
+   "lat": -1.02524,
+   "lon": 28.9383,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1158948549",
+    "matched": "Kalembe",
+    "feature": "town"
+   }
+  },
+  {
+   "name": "Malemo",
+   "province": "Nord-Kivu",
+   "territory": "Masisi",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-18",
+   "confidence": "medium",
+   "note": "AFC/M23 maintains positions despite FARDC airstrikes (8-9 Sept) and offensives; front line toward Mindjendje/Hembe.",
+   "sources": [
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    },
+    {
+     "title": "FARDC: frappes aériennes sur l'AFC/M23 à Masisi et Walikale",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/09/09/frappes-aeriennes-fardc-masisi-walikale/",
+     "date": "2026-09-09"
+    }
+   ],
+   "lat": -0.98612,
+   "lon": 28.88144,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1158948327",
+    "matched": "Malemo",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Kalonge",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-18",
+   "confidence": "medium",
+   "note": "Part of the AFC/M23-held Malemo-Kalembe-Kalonge-Ihula axis.",
+   "sources": [
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    }
+   ],
+   "lat": -1.38472,
+   "lon": 28.90861,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 214277,
+    "matched": "Kaonge",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Ihula",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-18",
+   "confidence": "medium",
+   "note": "Part of the AFC/M23-held axis; government-Wazalendo forces repelled M23 attacks a few miles north of Kalembe near Ihula (early Sept).",
+   "sources": [
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    },
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    }
+   ],
+   "lat": -0.98333,
+   "lon": 29.01667,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 216047,
+    "matched": "Ihula",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Mindjendje (Minjenje)",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "FARDC with Wazalendo",
+   "status": "contested",
+   "since": "2026-09-15",
+   "as_of": "2026-09-28",
+   "confidence": "medium",
+   "note": "Fell to AFC/M23 ~10 Sept 2026, retaken by FARDC/Wazalendo 12-15 Sept; positions above it recaptured again 27-28 Sept; key approach to Pinga.",
+   "sources": [
+    {
+     "title": "Walikale : Mindjendje tombe aux mains des rebelles de l'AFC/M23",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/09/10/walikale-mindjendje-tombe-afc-m23/",
+     "date": "2026-09-10"
+    },
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -0.98129,
+   "lon": 28.88032,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 8435203,
+    "matched": "Mindjendje",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Buhimba",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "FARDC with Wazalendo",
+   "status": "recaptured",
+   "since": "2026-09-12",
+   "as_of": "2026-09-18",
+   "confidence": "medium",
+   "note": "Briefly taken by M23 on 12 Sept 2026 and retaken by Wazalendo the same day; part of the FARDC/Wazalendo-held Mindjendje-Buhimba-Kalinga belt.",
+   "sources": [
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    }
+   ],
+   "lat": -0.94142,
+   "lon": 28.93115,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 217840,
+    "matched": "Buhimba",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Pinga",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "FARDC with Wazalendo",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-28",
+   "confidence": "medium",
+   "note": "FARDC/Wazalendo-held; AFC/M23 hit the FARDC position at the airfield with drones on 28 Sept 2026 (first air attack on the town) and is pushing on the Pinga axis.",
+   "sources": [
+    {
+     "title": "Pinga ciblée par des drones : l'AFC/M23 frappe pour la première fois Walikale",
+     "publisher": "Journal de Kinshasa",
+     "url": "https://www.journaldekinshasa.com/pinga-ciblee-par-des-drones-lafc-m23-frappe-pour-la-premiere-fois-walikale/",
+     "date": "2026-09-28"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -0.98391,
+   "lon": 28.69835,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 8435079,
+    "matched": "Pinga",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kibati",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "2026-09-18",
+   "as_of": "2026-09-18",
+   "confidence": "medium",
+   "note": "FARDC reportedly retook Kibati centre ~14 Sept 2026, then AFC/M23 retook it after a FARDC/Wazalendo withdrawal (~18 Sept); AFC/M23 reportedly reinforcing Kibati and Kashebere against the Mungazi-Kibua line.",
+   "sources": [
+    {
+     "title": "Walikale : l'armée contrôle à nouveau le centre de Kibati et Milonge après les affrontements contre l'AFC/M23, Muhanga toujours sous tension",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/14/walikale-larmee-controle-nouveau-le-centre-de-kibati-et-milonge-apres-les-affrontements",
+     "date": "2026-09-14"
+    },
+    {
+     "title": "RDC : plusieurs villages sous tensions à Masisi et à Walikale suite à d'intenses combats entre l'armée et l'AFC/M23, des positions changent de contrôle au gré des offensives",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/09/18/rdc-plusieurs-villages-sous-tensions-masisi-et-walikale-suite-dintenses-combats-entre",
+     "date": "2026-09-18"
+    }
+   ],
+   "lat": -1.58309,
+   "lon": 29.26012,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 213316,
+    "matched": "Kibati",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Walikale (centre)",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "Government (FARDC)",
+   "status": "held",
+   "since": "2025-04",
+   "as_of": "2026-09-04",
+   "confidence": "medium",
+   "note": "M23 withdrew from Walikale town in spring 2025; 2026 fighting is east of the town (Kibati/Kashebere, Kisimba, Ikobo); no 2026 report of M23 re-entering the centre.",
+   "sources": [
+    {
+     "title": "Après le retrait de l'AFC-M23 : des villages de Walikale toujours déserts",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/04/10/actualite/securite/apres-le-retrait-de-lafc-m23-des-villages-de-walikale-toujours-deserts",
+     "date": "2026-04-10"
+    },
+    {
+     "title": "Afflux de déplacés fuyant les combats entre les FARDC et l'AFC/M23 à Walikale",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/09/04/actualite/securite/afflux-de-deplaces-fuyant-les-combats-entre-les-fardc-et-lafcm23",
+     "date": "2026-09-04"
+    }
+   ],
+   "lat": -1.43049,
+   "lon": 28.07519,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 204337,
+    "matched": "Walikale",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Mubi",
+   "province": "Nord-Kivu",
+   "territory": "Walikale",
+   "controller": "FARDC with Wazalendo",
+   "status": "held",
+   "since": "2025-04",
+   "as_of": "2026-02-02",
+   "confidence": "low",
+   "note": "FARDC and Wazalendo present in Feb 2026 (a FARDC soldier killed a Wazalendo fighter there); M23 held it briefly from 21 Mar 2025; no later 2026 report found.",
+   "sources": [
+    {
+     "title": "Walikale : un militaire FARDC tue un des wazalendo à Mubi",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/index.php/2026/02/02/walikale-un-militaire-fardc-tue-un-des-wazalendo-mubi",
+     "date": "2026-02-02"
+    }
+   ],
+   "lat": -1.30883,
+   "lon": 27.89323,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 8433570,
+    "matched": "Mubi",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Lubero (centre)",
+   "province": "Nord-Kivu",
+   "territory": "Lubero",
+   "controller": "FARDC with Wazalendo",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-10-07",
+   "confidence": "medium",
+   "note": "Never taken; AFC/M23 withdrew from Katondi (~18 km away), its closest position, in early Apr 2026; Oct 2026 fighting is in south-central Lubero (Batangi).",
+   "sources": [
+    {
+     "title": "L'AFC/M23 se retire de Katondi, sa dernière position avancée vers Lubero-Centre",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/04/02/actualite/securite/lafcm23-se-retire-de-katondi-sa-derniere-position-avancee-vers-lubero",
+     "date": "2026-04-02"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -0.15837,
+   "lon": 29.23859,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 211069,
+    "matched": "Lubero",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kipese",
+   "province": "Nord-Kivu",
+   "territory": "Lubero",
+   "controller": "FARDC with Wazalendo",
+   "status": "held",
+   "since": "2026-03",
+   "as_of": "2026-10-07",
+   "confidence": "medium",
+   "note": "M23 withdrew Mar 2026; Wazalendo reported there in Apr; M23 accused pro-government forces of shelling Mutondi from Kipese on 28 Sept 2026.",
+   "sources": [
+    {
+     "title": "Lubero : la société civile appelle au déploiement urgent des FARDC après le retrait du M23 à Kipese",
+     "publisher": "Depeche.cd",
+     "url": "https://depeche.cd/2026/03/25/lubero-la-societe-civile-appelle-au-deploiement-urgent-des-fardc-apres-le-retrait-du-m23-a-kipese/",
+     "date": "2026-03-25"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -0.23767,
+   "lon": 29.28994,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 212782,
+    "matched": "Kipese",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kandole / Kirivu",
+   "province": "Nord-Kivu",
+   "territory": "Lubero",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "2026-10-05",
+   "as_of": "2026-10-05",
+   "confidence": "low",
+   "note": "Wazalendo reportedly took both villages (Batangi chiefdom) on 5 Oct 2026 after 1-4 Oct clashes; M23 reinforced nearby Vyanze.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ]
+  },
+  {
+   "name": "Alimbongo",
+   "province": "Nord-Kivu",
+   "territory": "Lubero",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-10-08",
+   "confidence": "medium",
+   "note": "AFC/M23 regrouped here after its Mar 2026 partial withdrawal; its administration closed roads around Kanyabayonga over Ebola cases at Kayna and Alimbongo in Oct 2026.",
+   "sources": [
+    {
+     "title": "Retrait des troupes AFC/M23 de quelques villages de Lubero : entre espoir de paix et doutes",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/03/27/actualite/securite/retrait-des-troupes-afcm23-de-quelques-villages-de-lubero-entre-espoir",
+     "date": "2026-03-27"
+    },
+    {
+     "title": "Ebola à Kayna et Alimbongo : l'AFC/M23 ferme 4 axes autour de Kanyabayonga, le trafic paralysé",
+     "publisher": "Radio Moto",
+     "url": "https://www.radiomoto.net/2026/10/08/ebola-a-kayna-et-alimbongo-lafc-m23-ferme-4-axes-autour-de-kanyabayonga-le-trafic-paralyse/",
+     "date": "2026-10-08"
+    }
+   ],
+   "lat": -0.36964,
+   "lon": 29.15527,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 220404,
+    "matched": "Alimbongo",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kirumba",
+   "province": "Nord-Kivu",
+   "territory": "Lubero",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2024-06-30",
+   "as_of": "2026-07-09",
+   "confidence": "medium",
+   "note": "AFC/M23 regrouped here in Mar 2026 and held a meeting imposing school rules in Kirumba in Jul 2026.",
+   "sources": [
+    {
+     "title": "Retrait des troupes AFC/M23 de quelques villages de Lubero : entre espoir de paix et doutes",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/03/27/actualite/securite/retrait-des-troupes-afcm23-de-quelques-villages-de-lubero-entre-espoir",
+     "date": "2026-03-27"
+    },
+    {
+     "title": "L'AFC/M23 impose de nouvelles règles de gestion scolaire au sud de Lubero",
+     "publisher": "allAfrica (FR)",
+     "url": "https://fr.allafrica.com/stories/202607090489.html",
+     "date": "2026-07-09"
+    }
+   ],
+   "lat": -1.09056,
+   "lon": 29.2925,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 212760,
+    "matched": "Kirumba",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kanyabayonga",
+   "province": "Nord-Kivu",
+   "territory": "Lubero",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2024-06-28",
+   "as_of": "2026-10-08",
+   "confidence": "high",
+   "note": "Held since June 2024; AFC/M23 administration closed four roads around it in Oct 2026 (Ebola).",
+   "sources": [
+    {
+     "title": "Ebola à Kayna et Alimbongo : l'AFC/M23 ferme 4 axes autour de Kanyabayonga, le trafic paralysé",
+     "publisher": "Radio Moto",
+     "url": "https://www.radiomoto.net/2026/10/08/ebola-a-kayna-et-alimbongo-lafc-m23-ferme-4-axes-autour-de-kanyabayonga-le-trafic-paralyse/",
+     "date": "2026-10-08"
+    },
+    {
+     "title": "Retrait des troupes AFC/M23 de quelques villages de Lubero : entre espoir de paix et doutes",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/03/27/actualite/securite/retrait-des-troupes-afcm23-de-quelques-villages-de-lubero-entre-espoir",
+     "date": "2026-03-27"
+    }
+   ],
+   "lat": -0.69978,
+   "lon": 29.17181,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 214297,
+    "matched": "Kanyobagonga",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Butembo",
+   "province": "Nord-Kivu",
+   "territory": "Butembo city",
+   "controller": "Government (FARDC)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-04",
+   "confidence": "high",
+   "note": "M23's 2025 push toward Butembo stalled; CTP reported nothing significant on the northern Lubero-Butembo-Beni-Bunia axis; city is affected by the 2026 Ebola outbreak.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Ituri Ebola Outbreak 2026 DRC: Summary overview of context",
+     "publisher": "Social Science in Humanitarian Action Platform",
+     "url": "https://www.socialscienceinaction.org/resources/ituri-ebola-outbreak-2026-drc-summary-overview-of-context/",
+     "date": "2026-06"
+    }
+   ],
+   "lat": 0.14164,
+   "lon": 29.29117,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 217562,
+    "matched": "Butembo",
+    "feature": "PPLA3"
+   }
+  },
+  {
+   "name": "Beni",
+   "province": "Nord-Kivu",
+   "territory": "Beni",
+   "controller": "Government (FARDC)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-04",
+   "confidence": "high",
+   "note": "Government-held, no M23 presence; ADF attacks continue in Beni/Lubero territories (see activity zones).",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Au moins 62 civils tués dans des attaques des ADF depuis janvier 2026 à Beni et Lubero",
+     "publisher": "allAfrica (FR)",
+     "url": "https://fr.allafrica.com/stories/202602060306.html",
+     "date": "2026-02-06"
+    }
+   ],
+   "lat": 0.49113,
+   "lon": 29.47306,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 219057,
+    "matched": "Beni",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Bukavu",
+   "province": "Sud-Kivu",
+   "territory": "Bukavu city",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-02-16",
+   "as_of": "2026-10-13",
+   "confidence": "high",
+   "note": "AFC/M23 HQ in South Kivu with a parallel provincial administration (June 2026 appointments; Oct 2026 extension of Ruzizi I border-post hours denounced by the Uvira-based provincial government).",
+   "sources": [
+    {
+     "title": "Former DR Congo President Kabila joins M23 rebels in a new coalition",
+     "publisher": "Al Jazeera",
+     "url": "https://www.aljazeera.com/news/2026/10/13/former-dr-congo-president-kabila-joins-m23-rebels-in-a-new-coalition",
+     "date": "2026-10-13"
+    },
+    {
+     "title": "Sud-Kivu : l'AFC/M23 remanie l'administration à Bukavu et dans plusieurs territoires",
+     "publisher": "Kivu Morning Post",
+     "url": "https://kivumorningpost.com/2026/06/08/sud-kivu-lafc-m23-remanie-ladministration-a-bukavu-et-dans-plusieurs-territoires/",
+     "date": "2026-06-08"
+    }
+   ],
+   "lat": -2.49077,
+   "lon": 28.84281,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 217831,
+    "matched": "Bukavu",
+    "feature": "PPLA"
+   }
+  },
+  {
+   "name": "Kavumu (airport)",
+   "province": "Sud-Kivu",
+   "territory": "Kabare",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-02-14",
+   "as_of": "2026-09-04",
+   "confidence": "medium",
+   "note": "AFC/M23-held since Feb 2025; recurring Wazalendo clashes around Kavumu (Feb, May-Jun, early Sept 2026) without a reported change of control. NB: the 'Kavumu' CTP says M23 retook on 7 Oct is a separate village in the Kalehe/Ziralo highlands.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Combats sanglants au Sud-Kivu : la psychose règne à Kavumu après des affrontements AFC M23 - Wazalendo",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/02/21/affrontements-afc-m23-wazalendo-sud-kivu-2/",
+     "date": "2026-02-21"
+    }
+   ],
+   "lat": -2.30898,
+   "lon": 28.8088,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 7668273,
+    "matched": "Bukavu Kavumu Airport",
+    "feature": "AIRP"
+   }
+  },
+  {
+   "name": "Katana",
+   "province": "Sud-Kivu",
+   "territory": "Kabare",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "2025-02-14",
+   "as_of": "2026-10-07",
+   "confidence": "medium",
+   "note": "AFC/M23-held; pro-government forces reportedly captured positions overlooking Katana around 30 Sept 2026, with fighting at Kabushwa/Kahungu (Mbinga Sud) on 28 Sept and 6 Oct.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -2.22109,
+   "lon": 28.83077,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 213853,
+    "matched": "Katana",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kabare (territory, north: Kabushwa/Mbinga Sud)",
+   "province": "Sud-Kivu",
+   "territory": "Kabare",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-07",
+   "confidence": "medium",
+   "note": "Most of Kabare territory (incl. Kavumu, Katana) is AFC/M23-held; Wazalendo clashed with M23 in Kabushwa, Kahungu and Mbinga Sud on 6 Oct 2026, and in Luhago/Chulwe (Ninja) on 23 Aug.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    }
+   ],
+   "lat": -2.49682,
+   "lon": 28.79081,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 215605,
+    "matched": "Kabare",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Minova",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-01-21",
+   "as_of": "2026-09-25",
+   "confidence": "high",
+   "note": "AFC/M23 parallel administration issued security rules to traders (communiqué of 9 Aug 2026) and opened a CADECO bank outlet on 31 Aug 2026; pro-government forces have not pressured it (late Sept).",
+   "sources": [
+    {
+     "title": "Minova : L'administration parallèle de l'AFC/M23 impose de nouvelles mesures sécuritaires aux commerçants",
+     "publisher": "Africa Monde",
+     "url": "https://africamonde.net/actualite/Minova--Ladministration-parallele-de-lAFCM23-impose-de-nouvelles-mesures-securitaires-aux-commeroants",
+     "date": "2026-08"
+    },
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Congo War Security Review, September 25, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-25-2026",
+     "date": "2026-09-25"
+    }
+   ],
+   "lat": -1.70695,
+   "lon": 29.01916,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 209071,
+    "matched": "Minova",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kalehe (centre)",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-02-13",
+   "as_of": "2026-04-21",
+   "confidence": "medium",
+   "note": "Captured Feb 2025; an AFC/M23 vice-governor was issuing orders for the whole territory in Apr 2026; 2026 fighting is in the northern highlands (Ziralo), not the centre. No later source on the centre itself.",
+   "sources": [
+    {
+     "title": "Sud-Kivu : Au nom de l'AFC-M23, le vice-gouverneur ... ordonne l'arrêt des tracasseries sur toute l'étendue du territoire de Kalehe",
+     "publisher": "Soleil du Graben",
+     "url": "https://soleildugraben.org/2026/04/21/sud-kivu-au-nom-de-lafc-m23-le-vice-gouverneur-dunia-masumbuko-bwenge-doux-ordonne-larret-des-tracasseries-sur-toute-letendue-du-territoire-de-kalehe/",
+     "date": "2026-04-21"
+    },
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    }
+   ],
+   "lat": -2.10399,
+   "lon": 28.91879,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 215002,
+    "matched": "Kalehe",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Nyabibwe",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "AFC/M23 (FRN)",
+   "status": "unclear",
+   "since": "2025-02-05",
+   "as_of": "2026-07-06",
+   "confidence": "low",
+   "note": "Taken by M23 Feb 2025; 2026 reports mention 995 displaced households in Nyabibwe (Jul 2026) but none states current control explicitly.",
+   "sources": [
+    {
+     "title": "RDC: le M23 prend le contrôle de la cité de Nyabibwe au Sud-Kivu",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2025/02/05/rdc-le-m23-prend-le-controle-de-la-cite-de-nyabibwe-au-sud-kivu",
+     "date": "2025-02-05"
+    },
+    {
+     "title": "Kalehe : plus de 3 000 ménages déplacés après les combats entre Wazalendos et AFC-M23",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/07/06/crise-humanitaire-kalehe-sud/",
+     "date": "2026-07-06"
+    }
+   ],
+   "lat": -1.92151,
+   "lon": 28.94062,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1159316902",
+    "matched": "Nyabibwe",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Numbi",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "2026-10-07",
+   "as_of": "2026-10-07",
+   "confidence": "medium",
+   "note": "Mining town taken by pro-government forces on 6 Oct 2026 after M23 withdrew, retaken by M23 on 7 Oct (with Shanje and a village named Kavumu).",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -1.78854,
+   "lon": 28.89346,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 206904,
+    "matched": "Numbi",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Shanje",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "2026-10-07",
+   "as_of": "2026-10-07",
+   "confidence": "low",
+   "note": "Captured by pro-government forces ~5 Oct, retaken by M23 7 Oct 2026; Wazalendo reportedly burned houses/shops at Shanje market while withdrawing.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -1.83134,
+   "lon": 28.86057,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/9415837602",
+    "matched": "Shanje",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Lumbishi",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "2026-10-05",
+   "as_of": "2026-10-07",
+   "confidence": "low",
+   "note": "Reportedly taken by pro-government forces ~5 Oct 2026 (fourth pro-government offensive in Ziralo since late June); status after M23's 7 Oct counterattack not reported.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Kalehe : l'AFC-M23 reprend plusieurs agglomérations, dont Tushunguti",
+     "publisher": "Kivu Morning Post",
+     "url": "https://kivumorningpost.com/2026/08/19/kalehe-lafc-m23-reprend-plusieurs-agglomerations-dont-tushunguti/",
+     "date": "2026-08-19"
+    }
+   ]
+  },
+  {
+   "name": "Chambombo",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-07",
+   "confidence": "low",
+   "note": "Villages around 'Chambombo et Kudépôt' reportedly taken by FARDC/Wazalendo ~3 Oct; M23 advancing back toward Chambombo on 7 Oct 2026.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ]
+  },
+  {
+   "name": "Tushunguti",
+   "province": "Sud-Kivu",
+   "territory": "Kalehe",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-09-16",
+   "confidence": "low",
+   "note": "Changed hands repeatedly in 2026 (Apr, May, M23 on 18-19 Aug, Wazalendo claim 16 Sept).",
+   "sources": [
+    {
+     "title": "Kalehe : l'AFC-M23 reprend plusieurs agglomérations, dont Tushunguti",
+     "publisher": "Kivu Morning Post",
+     "url": "https://kivumorningpost.com/2026/08/19/kalehe-lafc-m23-reprend-plusieurs-agglomerations-dont-tushunguti/",
+     "date": "2026-08-19"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ]
+  },
+  {
+   "name": "Kamanyola",
+   "province": "Sud-Kivu",
+   "territory": "Walungu",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-02",
+   "as_of": "2026-05-13",
+   "confidence": "medium",
+   "note": "AFC/M23 relocated its Ruzizi Plain troops to Kamanyola on 9-11 May 2026; M23 said Kamanyola was not covered by the withdrawal. No Aug-Oct 2026 source found.",
+   "sources": [
+    {
+     "title": "AFC/M23 : retrait mystérieux et pillages à Sange, panique à Kamanyola",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/05/13/afc-m23-combattants-redeploiement-kamanyola/",
+     "date": "2026-05-13"
+    },
+    {
+     "title": "RDC : sous pression américaine, jusqu'où reculera l'AFC/M23 ?",
+     "publisher": "Afrikarabia",
+     "url": "https://afrikarabia.com/wordpress/rdc-sous-pression-americaine-jusquou-reculera-lafc-m23/",
+     "date": "2026-05"
+    }
+   ],
+   "lat": -2.77788,
+   "lon": 29.00132,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 214710,
+    "matched": "Kamanyola",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Katogota",
+   "province": "Sud-Kivu",
+   "territory": "Uvira",
+   "controller": "Other",
+   "status": "unclear",
+   "since": "",
+   "as_of": "2026-05-20",
+   "confidence": "low",
+   "note": "Controller: unclear: AFC/M23 or FARDC. Sources conflict: CTP (Feb 2026) called it government-held; May 2026 reports said M23 would regroup at Katogota, but Banyamulenge leaders said no presence was seen there.",
+   "sources": [
+    {
+     "title": "Uvira Returned, But South Kivu Still At Risk: Congo War Security Review Special Edition",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/analysis/uvira-returned-but-south-kivu-still-at-risk-congo-war-security-review-special-edition",
+     "date": "2026-02-02"
+    },
+    {
+     "title": "Retrait AFC/M23 Ruzizi : doute des Banyamulenge à Kinshasa",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/05/20/banyamulenge-doubt-afc-m23-ruzizi-withdrawal/",
+     "date": "2026-05-20"
+    }
+   ],
+   "lat": -2.78831,
+   "lon": 29.00036,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1160970653",
+    "matched": "Katogota",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Sange (Ruzizi Plain)",
+   "province": "Sud-Kivu",
+   "territory": "Uvira",
+   "controller": "FARDC with Wazalendo",
+   "status": "recaptured",
+   "since": "2026-05-11",
+   "as_of": "2026-05-13",
+   "confidence": "medium",
+   "note": "AFC/M23 withdrew unilaterally from Kabunambo, Sange, Mutarule and Bwegera on 9-11 May 2026 and FARDC/Wazalendo reoccupied; looting reported. No later status source found.",
+   "sources": [
+    {
+     "title": "Retrait progressif de l'AFC/M23 de plusieurs localités du territoire d'Uvira",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/05/11/actualite/societe/retrait-progressif-de-lafcm23-de-plusieurs-localites-du-territoire",
+     "date": "2026-05-11"
+    },
+    {
+     "title": "RDC : le M23 se retire de plusieurs localités dans l'est du pays (AFP)",
+     "publisher": "RTBF",
+     "url": "https://www.rtbf.be/article/rdc-le-m23-se-retire-de-plusieurs-localites-dans-l-est-du-pays-11722474",
+     "date": "2026-05"
+    }
+   ],
+   "lat": -3.03634,
+   "lon": 29.1891,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 205848,
+    "matched": "Senge",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Uvira",
+   "province": "Sud-Kivu",
+   "territory": "Uvira",
+   "controller": "Government (FARDC)",
+   "status": "recaptured",
+   "since": "2026-01-18",
+   "as_of": "2026-10-03",
+   "confidence": "high",
+   "note": "M23 captured Uvira in Dec 2025 and withdrew in Jan 2026; it is now the provisional seat of the South Kivu provincial government (court oath-taking 2 Oct, communiqué 3 Oct 2026).",
+   "sources": [
+    {
+     "title": "Congolese army 'retakes strategic city of Uvira' after AFC/M23 withdrawal",
+     "publisher": "France 24",
+     "url": "https://www.france24.com/en/africa/20260120-congolese-army-retakes-strategic-city-of-uvira-after-m23-withdrawal",
+     "date": "2026-01-20"
+    },
+    {
+     "title": "Sud-Kivu : les hauts magistrats de la Cour d'appel renouvellent leurs serments à Uvira",
+     "publisher": "RTNC",
+     "url": "https://rtnc.cd/sud-kivu-les-hauts-magistrats-de-la-cour-dappel-renouvellent-leurs-serments-a-uvira/",
+     "date": "2026-10-02"
+    },
+    {
+     "title": "Investigating the M23's Occupation of Uvira in Eastern DR Congo",
+     "publisher": "Human Rights Watch",
+     "url": "https://www.hrw.org/news/2026/04/01/investigating-the-m23s-occupation-of-uvira-in-eastern-dr-congo",
+     "date": "2026-04-01"
+    }
+   ],
+   "lat": -3.39534,
+   "lon": 29.13779,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 204405,
+    "matched": "Uvira",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Lemera",
+   "province": "Sud-Kivu",
+   "territory": "Uvira",
+   "controller": "Other",
+   "status": "unclear",
+   "since": "",
+   "as_of": "2026-08-28",
+   "confidence": "low",
+   "note": "Controller: unclear. M23 advanced through Lemera in Jan 2026; Twirwaneho took Bijobo 'near Lemera' on 18 Aug 2026; no source states who holds Lemera itself.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    },
+    {
+     "title": "Timeline of the M23 campaign (2026) (lead only)",
+     "publisher": "Wikipedia",
+     "url": "https://en.wikipedia.org/wiki/Timeline_of_the_M23_campaign_(2026)",
+     "date": "2026-09-22"
+    }
+   ],
+   "lat": -3.03781,
+   "lon": 28.9853,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 212022,
+    "matched": "Lemera",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Bijombo / Masango (Uvira midlands)",
+   "province": "Sud-Kivu",
+   "territory": "Uvira",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-09-04",
+   "confidence": "low",
+   "note": "Twirwaneho took Bijobo (18 Aug) and claimed Masango-centre (26 Aug); CTP then reported government recapture of Malimba, Rubarati, Masango, Manguda and Ruhuha by early Sept.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    },
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    }
+   ],
+   "lat": -3.3125,
+   "lon": 28.90389,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 387569,
+    "matched": "Masango",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Magunda / Mibunda (Itombwe)",
+   "province": "Sud-Kivu",
+   "territory": "Mwenga",
+   "controller": "Twirwaneho",
+   "status": "contested",
+   "since": "2026-09-26",
+   "as_of": "2026-09-26",
+   "confidence": "low",
+   "note": "Magunda, Maheta, Kakuku, Mushojo, Nanjale and Mibunda reportedly captured by Twirwaneho and RED-Tabara ~26 Sept 2026 after 24-27 Sept fighting.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Congo War Security Review, September 25, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-25-2026",
+     "date": "2026-09-25"
+    }
+   ],
+   "lat": -3.36246,
+   "lon": 28.87968,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1160972463",
+    "matched": "Magunda",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Minembwe (centre)",
+   "province": "Sud-Kivu",
+   "territory": "Fizi",
+   "controller": "Twirwaneho",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-07",
+   "confidence": "medium",
+   "note": "Twirwaneho (M23-allied) has held the centre despite a FARDC claim to have retaken it in June 2026; a FARDC/Wazalendo/Burundian offensive since mid-Aug has besieged surrounding villages (Rugezi, Gipimo, Wihene) with drone strikes into Oct.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Sud-Kivu : le Twirwaneho dément la prise de Minembwe-Centre par les FARDC",
+     "publisher": "Kivu Morning Post",
+     "url": "https://kivumorningpost.com/2026/06/19/sud-kivu-le-twirwaneho-dement-la-prise-de-minembwe-centre-par-les-fardc/",
+     "date": "2026-06-19"
+    },
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    }
+   ],
+   "lat": -3.93442,
+   "lon": 28.73006,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1157427852",
+    "matched": "Minembwe",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Point Zéro",
+   "province": "Sud-Kivu",
+   "territory": "Fizi",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-04",
+   "confidence": "medium",
+   "note": "Changed hands several times in 2026 (Twirwaneho 16 Jan, FARDC 29 Jan, etc.); pro-government attacks 19, 27 and 30 Sept and drone attacks 4 Oct 2026.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    },
+    {
+     "title": "Sud-Kivu : Le Twirwaneho/AFC-M23 prend le contrôle du Point Zéro",
+     "publisher": "Kivu Morning Post",
+     "url": "https://kivumorningpost.com/2026/01/16/sud-kivu-le-twirwaneho-afc-m23-prend-le-controle-du-point-zero/",
+     "date": "2026-01-16"
+    }
+   ]
+  },
+  {
+   "name": "Mikenge",
+   "province": "Sud-Kivu",
+   "territory": "Mwenga",
+   "controller": "Twirwaneho",
+   "status": "unclear",
+   "since": "2026-07-01",
+   "as_of": "2026-07-09",
+   "confidence": "low",
+   "note": "Changed hands repeatedly (Twirwaneho 8 Jun, FARDC claim 10 Jun, Twirwaneho again ~1 Jul 2026); no later explicit status found.",
+   "sources": [
+    {
+     "title": "Sud-Kivu : de nouvelles pertes présumées de l'armée burundaise relancent les interrogations sur son engagement en RDC",
+     "publisher": "SOS Médias Burundi",
+     "url": "https://www.sosmediasburundi.org/2026/07/09/sud-kivu-de-nouvelles-pertes-presumees-de-larmee-burundaise-relancent-les-interrogations-sur-son-engagement-en-rdc/",
+     "date": "2026-07-09"
+    }
+   ],
+   "lat": -3.76796,
+   "lon": 28.74428,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1157428600",
+    "matched": "Mikenge",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Mulenge",
+   "province": "Sud-Kivu",
+   "territory": "Uvira",
+   "controller": "Other",
+   "status": "unclear",
+   "since": "",
+   "as_of": "2026-08-28",
+   "confidence": "low",
+   "note": "Controller: Twirwaneho area; unconfirmed. Described as the Twirwaneho's area of origin; no 2026 source states control of Mulenge itself.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    }
+   ],
+   "lat": -3.10611,
+   "lon": 28.99361,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 208226,
+    "matched": "Mulenge",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Fizi (centre)",
+   "province": "Sud-Kivu",
+   "territory": "Fizi",
+   "controller": "FARDC with Wazalendo",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-07-09",
+   "confidence": "medium",
+   "note": "FARDC with Wazalendo and Burundian (FDNB) support hold Fizi-centre; Twirwaneho shelling killed ~16 civilians in Fizi territory in early Jul 2026; no Aug-Oct report of a change.",
+   "sources": [
+    {
+     "title": "Poursuite des affrontements à Fizi entre FARDC et rebelles Twirwaneho",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/07/09/actualite/securite/poursuite-des-affrontements-fizi-entre-fardc-et-rebelles-twirwaneho",
+     "date": "2026-07-09"
+    },
+    {
+     "title": "Comment les FARDC tiennent Fizi et Baraka face à la coalition M23-Twirwaneho",
+     "publisher": "Beto.cd",
+     "url": "https://beto.cd/comment-les-fardc-tiennent-fizi-et-baraka-face-a-la-coalition-m23-twirwaneho/",
+     "date": "2026-07"
+    }
+   ],
+   "lat": -4.30241,
+   "lon": 28.94197,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 216541,
+    "matched": "Fizi",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Baraka",
+   "province": "Sud-Kivu",
+   "territory": "Fizi",
+   "controller": "FARDC with Wazalendo",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-07",
+   "confidence": "medium",
+   "note": "Remained under FARDC control (with Wazalendo and Burundian troops) despite social-media rumours of its fall in early Jul 2026; rising banditry reported.",
+   "sources": [
+    {
+     "title": "Sud-Kivu : Baraka reste sous contrôle des FARDC, Mulima serait tombée aux mains de la rébellion rwandaise",
+     "publisher": "Congo Pub Online",
+     "url": "https://congopubonline.com/?p=98209",
+     "date": "2026-07"
+    },
+    {
+     "title": "Comment les FARDC tiennent Fizi et Baraka face à la coalition M23-Twirwaneho",
+     "publisher": "Beto.cd",
+     "url": "https://beto.cd/comment-les-fardc-tiennent-fizi-et-baraka-face-a-la-coalition-m23-twirwaneho/",
+     "date": "2026-07"
+    }
+   ],
+   "lat": -4.09926,
+   "lon": 29.09333,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 219488,
+    "matched": "Baraka",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Mwenga (centre)",
+   "province": "Sud-Kivu",
+   "territory": "Mwenga",
+   "controller": "Government (FARDC)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-04",
+   "confidence": "medium",
+   "note": "CTP describes Mwenga as a government-controlled town; heavy fighting resumed on the RN2 north of it (Kasika-Kalambi-Chidasa) from 30 Aug 2026.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    }
+   ],
+   "lat": -3.4,
+   "lon": 29.15,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 9179570,
+    "matched": "Mwenga",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kasika",
+   "province": "Sud-Kivu",
+   "territory": "Mwenga",
+   "controller": "Contested",
+   "status": "contested",
+   "since": "2025-11",
+   "as_of": "2026-09-04",
+   "confidence": "low",
+   "note": "Captured by M23 in late Nov 2025; fighting with Wazalendo/FARDC on the Kasika-Kalambi-Chidasa axis from 30 Aug 2026; CTP calls current control disputed.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Mwenga : combats AFC-M23 Wazalendo-FARDC, déplacements",
+     "publisher": "Réveil Congo",
+     "url": "https://reveil-congo.net/securite/combats-mwenga-afc-m23-wazalendo/",
+     "date": "2026-08-31"
+    }
+   ],
+   "lat": -2.91403,
+   "lon": 28.53165,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 213983,
+    "matched": "Kasika",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Luntukulu",
+   "province": "Sud-Kivu",
+   "territory": "Walungu / Mwenga border",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-09-04",
+   "confidence": "low",
+   "note": "Fighting reached Luntukulu on 27 Aug 2026; CTP (4 Sept) says M23 reasserted control over Nzibira and Luntukulu.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    }
+   ],
+   "lat": -2.72997,
+   "lon": 28.4745,
+   "geocode": {
+    "source": "OpenStreetMap (Nominatim)",
+    "osm": "node/1160971828",
+    "matched": "Luntukulu",
+    "feature": "village"
+   }
+  },
+  {
+   "name": "Nzibira",
+   "province": "Sud-Kivu",
+   "territory": "Walungu",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-09-04",
+   "confidence": "medium",
+   "note": "M23-controlled mineral-trading hub; heavy Wazalendo/FARDC attacks 21-27 Aug 2026, after which M23 reasserted control and pushed to Chulwe and Lubimbe.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Congo War Security Review, August 28, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/august-28-2026",
+     "date": "2026-08-28"
+    }
+   ],
+   "lat": -2.66782,
+   "lon": 28.50249,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 206829,
+    "matched": "Nzibira",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Walungu (centre)",
+   "province": "Sud-Kivu",
+   "territory": "Walungu",
+   "controller": "AFC/M23 (FRN)",
+   "status": "held",
+   "since": "2025-02",
+   "as_of": "2026-09-26",
+   "confidence": "medium",
+   "note": "AFC/M23 controls southern Walungu and the centre per CTP (Feb 2026); Kaniola civil society accused AFC/M23 of war crimes in Sept 2026. Capture month is approximate.",
+   "sources": [
+    {
+     "title": "La société civile accuse l'AFC/M23 de crimes de guerre à Walungu",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/09/26/actualite/securite/la-societe-civile-accuse-lafcm23-de-crimes-de-guerre-walungu",
+     "date": "2026-09-26"
+    },
+    {
+     "title": "Uvira Returned, But South Kivu Still At Risk: Congo War Security Review Special Edition",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/analysis/uvira-returned-but-south-kivu-still-at-risk-congo-war-security-review-special-edition",
+     "date": "2026-02-02"
+    }
+   ],
+   "lat": -2.6214,
+   "lon": 28.66946,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 204330,
+    "matched": "Walungu",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Kaziba",
+   "province": "Sud-Kivu",
+   "territory": "Walungu",
+   "controller": "AFC/M23 (FRN)",
+   "status": "contested",
+   "since": "",
+   "as_of": "2026-10-12",
+   "confidence": "medium",
+   "note": "AFC/M23 controlled the Kaziba chiefdom (Feb 2026); two days of clashes with Wazalendo on 11-12 Oct 2026 (Kabembe, Buzibi).",
+   "sources": [
+    {
+     "title": "Walungu : deux jours d'affrontements entre AFC/M23 et wazalendo à Kaziba",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/10/12/walungu-deux-jours-daffrontements-entre-afcm23-et-wazalendo-kaziba",
+     "date": "2026-10-12"
+    },
+    {
+     "title": "Uvira Returned, But South Kivu Still At Risk: Congo War Security Review Special Edition",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/analysis/uvira-returned-but-south-kivu-still-at-risk-congo-war-security-review-special-edition",
+     "date": "2026-02-02"
+    }
+   ]
+  },
+  {
+   "name": "Shabunda (centre)",
+   "province": "Sud-Kivu",
+   "territory": "Shabunda",
+   "controller": "FARDC with Wazalendo",
+   "status": "unclear",
+   "since": "",
+   "as_of": "2025-11-26",
+   "confidence": "low",
+   "note": "Controller: Raia Mutomboki. M23 pushed into Shabunda territory in Oct-Nov 2025 (Mayimingi, Kimbili, Nyarubemba) but the centre was not reported taken; CTP's 7 Oct 2026 brief reports nothing significant on the southwest axis; no 2026 report on the centre.",
+   "sources": [
+    {
+     "title": "Violents combats M23-FARDC à Shabunda : au moins 10 morts, la population en fuite",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2025/11/26/actualite/societe/violents-combats-m23-fardc-shabunda-au-moins-10-morts-la-population-en",
+     "date": "2025-11-26"
+    },
+    {
+     "title": "Congo War Security Review, October 7, 2026 (landing page; URL shows the latest edition)",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review",
+     "date": "2026-10-07"
+    }
+   ],
+   "lat": -2.69154,
+   "lon": 27.34625,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 205697,
+    "matched": "Shabunda",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Bunia",
+   "province": "Ituri",
+   "territory": "Irumu / Bunia city",
+   "controller": "Government (FARDC)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-09-04",
+   "confidence": "high",
+   "note": "Provincial capital, no M23 presence reported; Ebola outbreak declared in Ituri in May 2026; ADF/CODECO threats elsewhere in the province.",
+   "sources": [
+    {
+     "title": "Congo War Security Review, September 4, 2026",
+     "publisher": "Critical Threats Project (AEI)",
+     "url": "https://www.criticalthreats.org/briefs/congo-war-security-review/september-4-2026",
+     "date": "2026-09-04"
+    },
+    {
+     "title": "Ituri Ebola Outbreak 2026 DRC: Summary overview of context",
+     "publisher": "Social Science in Humanitarian Action Platform",
+     "url": "https://www.socialscienceinaction.org/resources/ituri-ebola-outbreak-2026-drc-summary-overview-of-context/",
+     "date": "2026-06"
+    }
+   ],
+   "lat": 1.55941,
+   "lon": 30.25224,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 217695,
+    "matched": "Bunia",
+    "feature": "PPLA"
+   }
+  },
+  {
+   "name": "Mambasa (centre)",
+   "province": "Ituri",
+   "territory": "Mambasa",
+   "controller": "Government (FARDC)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-10-16",
+   "confidence": "high",
+   "note": "Government-held town with MONUSCO mobile bases; ADF attacks across the territory (Nduye 4 Oct, Babila Babombi 14-16 Oct 2026) - see activity zones.",
+   "sources": [
+    {
+     "title": "Mambasa : 6 corps de civils découverts à Nduye après une attaque attribuée aux ADF",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/05/actualite/securite/mambasa-6-corps-de-civils-decouverts-nduye-apres-une-attaque-attribuee",
+     "date": "2026-10-05"
+    },
+    {
+     "title": "Ituri : dix morts dans des attaques ADF à Mambasa",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/10/16/mambasa-attaques-adf-dix-morts/",
+     "date": "2026-10-16"
+    }
+   ],
+   "lat": 1.3622,
+   "lon": 29.03596,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 209756,
+    "matched": "Mambasa",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Djugu (territory)",
+   "province": "Ituri",
+   "territory": "Djugu",
+   "controller": "Government (FARDC)",
+   "status": "held",
+   "since": "",
+   "as_of": "2026-10-13",
+   "confidence": "medium",
+   "note": "State control of the main centres; CODECO militias attack villages and displacement sites (Maze 9 Oct, Rhoo 12 Oct, Jissa 12-13 Oct 2026) without holding towns - see activity zones.",
+   "sources": [
+    {
+     "title": "11 civils tués dans une attaque attribuée à la CODECO à Djugu",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/10/actualite/securite/11-civils-tues-dans-une-attaque-attribuee-la-codeco-djugu",
+     "date": "2026-10-10"
+    },
+    {
+     "title": "Au moins 5 000 déplacés fuient leurs sites après des menaces d'attaques à Djugu",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/au-moins-5-000-deplaces-fuient-leurs-sites-apres-des-menaces-dattaques",
+     "date": "2026-10-13"
+    }
+   ],
+   "lat": 1.91932,
+   "lon": 30.50257,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 217100,
+    "matched": "Djugu",
+    "feature": "PPL"
+   }
+  }
+ ],
+ "activity": [
+  {
+   "name": "Mambasa",
+   "province": "Ituri",
+   "group": "ADF",
+   "zone": "Mambasa territory (Nduye; Babila Babombi chiefdom; Bakaheku mining sites Makimbilio, Biasiko, Makamanda, toward Mangadi)",
+   "period": "2026-10-04 to 2026-10-16",
+   "note": "Six bodies found at Nduye 4 Oct; at least 10 killed in attacks 14-16 Oct; MONUSCO deployed mobile operating bases; attacks complicate the Ebola response.",
+   "sources": [
+    {
+     "title": "Mambasa : 6 corps de civils découverts à Nduye après une attaque attribuée aux ADF",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/05/actualite/securite/mambasa-6-corps-de-civils-decouverts-nduye-apres-une-attaque-attribuee",
+     "date": "2026-10-05"
+    },
+    {
+     "title": "Ituri : dix morts dans des attaques ADF à Mambasa",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/10/16/mambasa-attaques-adf-dix-morts/",
+     "date": "2026-10-16"
+    },
+    {
+     "title": "Ebola en RDC : les attaques des ADF menacent la riposte en Ituri",
+     "publisher": "AfricActu",
+     "url": "https://www.africactu.com/people/ebola-en-rdc-les-attaques-des-adf-menacent-la-riposte-en-ituri/",
+     "date": "2026-10"
+    }
+   ],
+   "kind": "activity_not_control",
+   "lat": 1.3622,
+   "lon": 29.03596,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 209756,
+    "matched": "Mambasa",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": "Beni",
+   "province": "Nord-Kivu",
+   "group": "ADF",
+   "zone": "Beni and Lubero territories (incl. Bapakombe groupement / Makumo; Kambau-Njiapanda axis)",
+   "period": "2026-01 to 2026-08",
+   "note": "At least 62 civilians killed by ADF in Beni and Lubero Jan-early Feb 2026; displacement on the Kambau-Njiapanda axis in Aug 2026 after alerts of ADF movements. No October 2026 Beni/Lubero ADF attack found.",
+   "sources": [
+    {
+     "title": "Au moins 62 civils tués dans des attaques des ADF depuis janvier 2026 à Beni et Lubero",
+     "publisher": "allAfrica (FR)",
+     "url": "https://fr.allafrica.com/stories/202602060306.html",
+     "date": "2026-02-06"
+    },
+    {
+     "title": "Lubero : des déplacements des populations signalés sur l'axe Kambau-Njiapanda après des alertes sur des mouvements présumés des ADF",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/08/05/lubero-des-deplacements-des-populations-signales-sur-laxe-kambau-njiapanda-apres-des",
+     "date": "2026-08-05"
+    }
+   ],
+   "kind": "activity_not_control",
+   "lat": 0.49113,
+   "lon": 29.47306,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 219057,
+    "matched": "Beni",
+    "feature": "PPL"
+   }
+  },
+  {
+   "name": null,
+   "province": "Haut-Uélé",
+   "group": "ADF",
+   "zone": "Haut-Uélé (spillover)",
+   "period": "2026-10",
+   "note": "Reports of deadly ADF attacks extending into Haut-Uélé; UN Human Rights: 319 ADF violations affecting 1,500+ victims Jan-Sept 2026 (all areas).",
+   "sources": [
+    {
+     "title": "ADF : des attaques meurtrières s'étendent au Haut-Uélé",
+     "publisher": "Congo Quotidien",
+     "url": "https://www.congoquotidien.com/2026/10/08/adf-attaques-haut-uele-monusco/",
+     "date": "2026-10-08"
+    },
+    {
+     "title": "RDC: les ADF responsables de 319 violations des droits humains ayant touché plus de 1 500 victimes entre janvier et septembre 2026",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/10/10/rdc-les-adf-responsables-de-319-violations-des-droits-humains-ayant-touche-plus-de-1-500",
+     "date": "2026-10-10"
+    }
+   ],
+   "kind": "activity_not_control"
+  },
+  {
+   "name": "Djugu",
+   "province": "Ituri",
+   "group": "CODECO",
+   "zone": "Djugu territory (Maze; Rhoo/Rhôe displacement site; Jissa; Blukwa; Djangi site)",
+   "period": "2026-10-09 to 2026-10-13",
+   "note": "11 civilians killed at Maze (9 Oct); at least 4 displaced people killed at Rhoo site (12 Oct); 11 reported killed and a health centre burned at Jissa (12-13 Oct, unconfirmed); 5,000+ displaced fled to MONUSCO bases.",
+   "sources": [
+    {
+     "title": "11 civils tués dans une attaque attribuée à la CODECO à Djugu",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/10/actualite/securite/11-civils-tues-dans-une-attaque-attribuee-la-codeco-djugu",
+     "date": "2026-10-10"
+    },
+    {
+     "title": "RDC : au moins quatre déplacés tués lors de l'attaque du site de Rhoo à Djugu",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/10/12/rdc-au-moins-quatre-deplaces-tues-lors-de-lattaque-du-site-de-rhoo-djugu",
+     "date": "2026-10-12"
+    },
+    {
+     "title": "Djugu : 11 morts dans une nouvelle attaque attribuée à la CODECO, un centre de santé incendié",
+     "publisher": "Actualite.cd",
+     "url": "https://actualite.cd/2026/10/13/djugu-11-morts-dans-une-nouvelle-attaque-attribuee-la-codeco-un-centre-de-sante-incendie",
+     "date": "2026-10-13"
+    },
+    {
+     "title": "Au moins 5 000 déplacés fuient leurs sites après des menaces d'attaques à Djugu",
+     "publisher": "Radio Okapi",
+     "url": "https://www.radiookapi.net/2026/10/13/actualite/securite/au-moins-5-000-deplaces-fuient-leurs-sites-apres-des-menaces-dattaques",
+     "date": "2026-10-13"
+    }
+   ],
+   "kind": "activity_not_control",
+   "lat": 1.91932,
+   "lon": 30.50257,
+   "geocode": {
+    "source": "GeoNames",
+    "geonameid": 217100,
+    "matched": "Djugu",
+    "feature": "PPL"
+   }
+  }
+ ]
+}

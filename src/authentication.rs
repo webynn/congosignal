@@ -32,7 +32,10 @@ pub fn actor() -> Actor {
     })
 }
 pub fn enabled() -> bool {
-    std::env::var("AUTH_MODE").as_deref() == Ok("oidc")
+    matches!(
+        std::env::var("AUTH_MODE").as_deref(),
+        Ok("oidc" | "password")
+    )
 }
 #[derive(Clone)]
 struct Oidc {
@@ -42,16 +45,17 @@ struct Oidc {
     authorize: String,
     token: String,
     jwks: String,
+    userinfo: String,
 }
 static OIDC: OnceLock<Oidc> = OnceLock::new();
-fn random() -> String {
+pub(crate) fn random() -> String {
     format!(
         "{}{}",
         uuid::Uuid::new_v4().simple(),
         uuid::Uuid::new_v4().simple()
     )
 }
-fn hash(s: &str) -> String {
+pub(crate) fn hash(s: &str) -> String {
     crate::extract::digest(s.as_bytes())
 }
 fn client() -> Result<reqwest::Client> {
@@ -86,12 +90,12 @@ fn endpoint(s: &str) -> Result<String> {
 }
 pub async fn init(db: &SqlitePool) -> Result<()> {
     ensure!(
-        ["local", "oidc"].contains(
+        ["local", "oidc", "password"].contains(
             &std::env::var("AUTH_MODE")
                 .unwrap_or_else(|_| "local".into())
                 .as_str()
         ),
-        "AUTH_MODE must be local or oidc"
+        "AUTH_MODE must be local, oidc or password"
     );
     sqlx::raw_sql("CREATE TABLE IF NOT EXISTS workspaces(id TEXT PRIMARY KEY,name TEXT NOT NULL);INSERT OR IGNORE INTO workspaces VALUES('congo-signal','Congo Signal');
  CREATE TABLE IF NOT EXISTS auth_users(id TEXT PRIMARY KEY,subject TEXT UNIQUE NOT NULL,email TEXT NOT NULL);
@@ -124,7 +128,19 @@ pub async fn init(db: &SqlitePool) -> Result<()> {
     if has_notes > 0 {
         sqlx::query("INSERT OR IGNORE INTO private_notes SELECT 'congo-signal','local-owner',article_id,saved,review,note,updated_at FROM analyst_notes").execute(db).await?;
     }
+    crate::password_auth::init(db).await?;
     if enabled() {
+        let origin = std::env::var("APP_ORIGIN")?;
+        let u = url::Url::parse(&origin)?;
+        ensure!(
+            u.origin().ascii_serialization() == origin
+                && (u.scheme() == "https"
+                    || (u.scheme() == "http"
+                        && [Some("localhost"), Some("127.0.0.1")].contains(&u.host_str()))),
+            "APP_ORIGIN must be an HTTPS origin (loopback HTTP allowed)"
+        );
+    }
+    if std::env::var("AUTH_MODE").as_deref() == Ok("oidc") {
         let issuer = endpoint(std::env::var("OIDC_ISSUER")?.trim_end_matches('/'))?;
         let client_id = std::env::var("OIDC_CLIENT_ID")?;
         ensure!(!client_id.is_empty(), "OIDC client ID required");
@@ -154,8 +170,11 @@ pub async fn init(db: &SqlitePool) -> Result<()> {
             authorize: endpoint(d["authorization_endpoint"].as_str().unwrap_or(""))?,
             token: endpoint(d["token_endpoint"].as_str().unwrap_or(""))?,
             jwks: endpoint(d["jwks_uri"].as_str().unwrap_or(""))?,
+            userinfo: endpoint(d["userinfo_endpoint"].as_str().unwrap_or(""))?,
         };
         let _ = OIDC.set(c);
+    }
+    if enabled() {
         let owner = std::env::var("AUTH_OWNER_EMAIL")?.trim().to_lowercase();
         ensure!(
             valid_email(&owner),
@@ -176,8 +195,8 @@ fn cookie(headers: &HeaderMap, key: &str) -> Option<String> {
             (k == key).then(|| v.to_string())
         })
 }
-fn cookie_value(name: &str, value: &str, age: u32) -> String {
-    let secure = OIDC.get().is_some_and(|c| c.origin.starts_with("https://"));
+pub(crate) fn cookie_value(name: &str, value: &str, age: u32) -> String {
+    let secure = std::env::var("APP_ORIGIN").is_ok_and(|s| s.starts_with("https://"));
     format!(
         "{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={age}{}",
         if secure { "; Secure" } else { "" }
@@ -206,6 +225,9 @@ fn permit(role: &str, method: &str, path: &str) -> bool {
     if path.starts_with("/v1/watches") || path.starts_with("/v1/alerts") {
         return role != "worker";
     }
+    if path == "/v1/research-briefs" && method != "GET" {
+        return ["administrator", "analyst", "reviewer"].contains(&role);
+    }
     if path == "/v1/voice/token" || path == "/v1/voice/chat" {
         return ["administrator", "analyst", "reviewer"].contains(&role);
     }
@@ -214,6 +236,9 @@ fn permit(role: &str, method: &str, path: &str) -> bool {
         || path.ends_with("/history")
         || path.ends_with("/sample")
     {
+        return ["administrator", "analyst", "reviewer"].contains(&role);
+    }
+    if path == "/v1/control" || path == "/v1/control/dismiss" {
         return ["administrator", "analyst", "reviewer"].contains(&role);
     }
     if path.ends_with("/review") {
@@ -247,6 +272,37 @@ fn valid_csrf(headers: &HeaderMap, origin: &str, csrf: &str) -> bool {
         && headers.get("origin").and_then(|v| v.to_str().ok()) == Some(origin)
         && headers.get("x-csrf-token").and_then(|v| v.to_str().ok()) == Some(csrf)
 }
+// Local-owner mode is never exposed through a public proxy or cross-site browser request.
+fn valid_local_request(headers: &HeaderMap) -> bool {
+    let Some(host) = headers.get("host").and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let Ok(url) = url::Url::parse(&format!("http://{host}")) else {
+        return false;
+    };
+    let local = match url.host() {
+        Some(url::Host::Domain("localhost")) => true,
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        _ => false,
+    };
+    if !local
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return false;
+    }
+    if headers.get("sec-fetch-site").and_then(|v| v.to_str().ok()) == Some("cross-site") {
+        return false;
+    }
+    if let Some(origin) = headers.get("origin") {
+        return origin.to_str().ok() == Some(url.origin().ascii_serialization().as_str());
+    }
+    true
+}
 pub async fn middleware(
     State(app): State<App>,
     req: Request<axum::body::Body>,
@@ -259,15 +315,20 @@ pub async fn middleware(
             Err(_) => return denied(StatusCode::INTERNAL_SERVER_ERROR, "Session lookup failed"),
         }
     } else {
-        if let Some(token) = &app.token {
-            if req
+        if !valid_local_request(req.headers()) {
+            return denied(
+                StatusCode::FORBIDDEN,
+                "Local mode requires a same-origin loopback request; configure OIDC for deployment",
+            );
+        }
+        if let Some(token) = &app.token
+            && req
                 .headers()
                 .get("authorization")
                 .and_then(|s| s.to_str().ok())
                 != Some(format!("Bearer {token}").as_str())
-            {
-                return denied(StatusCode::UNAUTHORIZED, "bearer token required");
-            }
+        {
+            return denied(StatusCode::UNAUTHORIZED, "bearer token required");
         }
         (
             Actor {
@@ -287,18 +348,19 @@ pub async fn middleware(
     }
     let mutation = req.method() != axum::http::Method::GET;
     if enabled() && mutation {
-        let origin = OIDC.get().map(|c| c.origin.as_str()).unwrap_or("");
-        if !valid_csrf(req.headers(), origin, &csrf) {
+        let origin = std::env::var("APP_ORIGIN").unwrap_or_default();
+        if !valid_csrf(req.headers(), &origin, &csrf) {
             return denied(StatusCode::FORBIDDEN, "Invalid origin or CSRF token");
         }
     }
     let path = req.uri().path().to_string();
     let audit_actor = a.clone();
     let response = ACTOR.scope(a, next.run(req)).await;
-    if mutation && response.status().is_success() {
-        if let Err(e) = audit(&app.db, &audit_actor, "api_mutation", &path).await {
-            tracing::error!(error=%e,"Failed to persist mutation audit");
-        }
+    if mutation
+        && response.status().is_success()
+        && let Err(e) = audit(&app.db, &audit_actor, "api_mutation", &path).await
+    {
+        tracing::error!(error=%e,"Failed to persist mutation audit");
     }
     let mut response = response;
     response
@@ -319,7 +381,7 @@ async fn audit(db: &SqlitePool, a: &Actor, action: &str, target: &str) -> Result
 }
 pub async fn config() -> Json<Value> {
     Json(
-        json!({"mode":if enabled(){"oidc"}else{"local"},"configured":OIDC.get().is_some(),"login_url":"/auth/login"}),
+        json!({"mode":std::env::var("AUTH_MODE").unwrap_or_else(|_|"local".into()),"configured":enabled(),"login_url":"/auth/login"}),
     )
 }
 pub async fn me(State(app): State<App>, headers: HeaderMap) -> ApiResult<Json<Value>> {
@@ -329,10 +391,13 @@ pub async fn me(State(app): State<App>, headers: HeaderMap) -> ApiResult<Json<Va
         None
     };
     Ok(Json(
-        json!({"user":actor(),"csrf":csrf,"mode":if enabled(){"oidc"}else{"local"}}),
+        json!({"user":actor(),"csrf":csrf,"mode":std::env::var("AUTH_MODE").unwrap_or_else(|_|"local".into())}),
     ))
 }
 pub async fn login(State(app): State<App>) -> ApiResult<Response> {
+    if crate::password_auth::enabled() {
+        return Ok(crate::password_auth::page().await);
+    }
     let c = OIDC.get().ok_or_else(|| {
         ApiError(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -392,8 +457,8 @@ pub struct Callback {
 #[derive(Clone, Deserialize)]
 struct Claims {
     sub: String,
-    email: String,
-    email_verified: bool,
+    email: Option<String>,
+    email_verified: Option<bool>,
     nonce: String,
     azp: Option<String>,
     aud: Value,
@@ -412,7 +477,7 @@ fn verify_identity(
     validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
     let claims = jsonwebtoken::decode::<Claims>(raw, key, &validation)?.claims;
     ensure!(
-        claims.nonce == nonce && claims.email_verified && !claims.sub.is_empty(),
+        claims.nonce == nonce && !claims.sub.is_empty(),
         "Unverified identity"
     );
     ensure!(
@@ -422,6 +487,26 @@ fn verify_identity(
         "Authorized party mismatch"
     );
     Ok(claims)
+}
+// Email may be omitted from an authorization-code ID token. Bind the provider's
+// UserInfo response to the cryptographically verified subject before using it.
+fn verified_email(claims: &Claims, profile: Option<&Value>) -> Result<String> {
+    let (email, verified) = if let Some(profile) = profile {
+        ensure!(
+            profile["sub"].as_str() == Some(claims.sub.as_str()),
+            "UserInfo subject mismatch"
+        );
+        (
+            profile["email"].as_str(),
+            profile["email_verified"].as_bool(),
+        )
+    } else {
+        (claims.email.as_deref(), claims.email_verified)
+    };
+    ensure!(verified == Some(true), "Email is not verified");
+    let email = email.unwrap_or("").trim().to_lowercase();
+    ensure!(valid_email(&email), "Verified email missing or invalid");
+    Ok(email)
 }
 pub async fn callback(
     State(app): State<App>,
@@ -498,7 +583,30 @@ pub async fn callback(
         &nonce,
     )
     .map_err(|_| ApiError(StatusCode::UNAUTHORIZED, "Invalid identity token".into()))?;
-    let email = claims.email.trim().to_lowercase();
+    let profile = if claims.email.is_none() || claims.email_verified.is_none() {
+        let access = token["access_token"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("Missing user access token"))?;
+        Some(
+            read_json(
+                client()?
+                    .get(&c.userinfo)
+                    .bearer_auth(access)
+                    .send()
+                    .await
+                    .map_err(anyhow::Error::from)?,
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
+    let email = verified_email(&claims, profile.as_ref()).map_err(|_| {
+        ApiError(
+            StatusCode::UNAUTHORIZED,
+            "A verified email for this identity is required".into(),
+        )
+    })?;
     let subject = format!("{}|{}", c.issuer, claims.sub);
     let uid = hash(&subject);
     let mut tx = app.db.begin().await?;
@@ -596,7 +704,7 @@ pub async fn logout(State(app): State<App>, h: HeaderMap) -> ApiResult<Response>
     );
     Ok(r)
 }
-fn valid_email(s: &str) -> bool {
+pub(crate) fn valid_email(s: &str) -> bool {
     s.len() < 254 && s.contains('@') && !s.chars().any(char::is_whitespace)
 }
 #[derive(Deserialize)]
@@ -667,6 +775,10 @@ pub async fn change_member(
         }
     }
     sqlx::query("INSERT INTO memberships(workspace_id,email,role,active,daily_requests,daily_micros,monthly_micros) VALUES(?,?,?,?,?,?,?) ON CONFLICT(workspace_id,email) DO UPDATE SET role=excluded.role,active=excluded.active,daily_requests=excluded.daily_requests,daily_micros=excluded.daily_micros,monthly_micros=excluded.monthly_micros").bind(&a.workspace_id).bind(&email).bind(m.role).bind(m.active).bind(m.daily_requests).bind((m.daily_usd*1e6).round() as i64).bind((m.monthly_usd*1e6).round() as i64).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM password_links WHERE email=?")
+        .bind(&email)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM auth_sessions WHERE workspace_id=? AND user_id IN (SELECT user_id FROM memberships WHERE workspace_id=? AND email=?)").bind(&a.workspace_id).bind(&a.workspace_id).bind(&email).execute(&mut *tx).await?;
     tx.commit().await?;
     audit(&app.db, &a, "member_changed", &email).await?;
@@ -699,6 +811,22 @@ pub async fn team(State(app): State<App>) -> ApiResult<Json<Value>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn local_mode_rejects_public_hosts_and_cross_origin() {
+        let mut h = HeaderMap::new();
+        h.insert("host", "127.0.0.1:8080".parse().unwrap());
+        assert!(valid_local_request(&h));
+        h.insert("origin", "https://example.org".parse().unwrap());
+        assert!(!valid_local_request(&h));
+        h.insert("origin", "http://127.0.0.1:8080".parse().unwrap());
+        assert!(valid_local_request(&h));
+        h.remove("origin");
+        h.insert("host", "evil.example".parse().unwrap());
+        assert!(!valid_local_request(&h));
+        h.insert("host", "localhost:8080".parse().unwrap());
+        h.insert("sec-fetch-site", "cross-site".parse().unwrap());
+        assert!(!valid_local_request(&h));
+    }
     #[test]
     fn csrf_requires_both_expected_origin_and_session_token() {
         let mut h = HeaderMap::new();
@@ -743,7 +871,6 @@ mod tests {
             ("iss", json!("https://evil.example")),
             ("aud", json!("other")),
             ("nonce", json!("other")),
-            ("email_verified", json!(false)),
             ("exp", json!(0)),
             ("azp", json!("other")),
         ] {
@@ -761,6 +888,45 @@ mod tests {
                 "{field}"
             );
         }
+        let mut minimal = claims.clone();
+        minimal.as_object_mut().unwrap().remove("email");
+        minimal.as_object_mut().unwrap().remove("email_verified");
+        let identity = verify_identity(
+            &sign(&minimal),
+            &public,
+            "https://identity.example",
+            "client",
+            "nonce",
+        )
+        .unwrap();
+        assert!(verified_email(&identity, None).is_err());
+        let profile = json!({"sub":"test","email":"Test@Example.org","email_verified":true});
+        assert_eq!(
+            verified_email(&identity, Some(&profile)).unwrap(),
+            "test@example.org"
+        );
+        for (field, value) in [
+            ("sub", json!("another-user")),
+            ("email_verified", json!(false)),
+            ("email_verified", Value::Null),
+            ("email", json!("")),
+        ] {
+            let mut bad = profile.clone();
+            bad[field] = value;
+            assert!(verified_email(&identity, Some(&bad)).is_err());
+        }
+        let embedded = verify_identity(
+            &sign(&claims),
+            &public,
+            "https://identity.example",
+            "client",
+            "nonce",
+        )
+        .unwrap();
+        assert_eq!(verified_email(&embedded, None).unwrap(), "test@example.org");
+        let mut unverified = embedded.clone();
+        unverified.email_verified = Some(false);
+        assert!(verified_email(&unverified, None).is_err());
         let mut tampered = sign(&claims);
         tampered.push('x');
         assert!(

@@ -1,0 +1,11 @@
+# Copy to deploy/.env; chmod 600 deploy/.env. No real keys belong here.
+SITE_HOST=research.example.org
+APP_ORIGIN=https://research.example.org
+AUTH_MODE=password
+AUTH_OWNER_EMAIL=owner@example.org
+POLL_SECONDS=21600
+EVIDENCE_POLL_SECONDS=21600
+FEED_POLL_SECONDS=21600
+AI_AUTO_PREVIEWS=false
+X_ENABLED=false
+# Configure provider keys in AI settings after login; then set deliberate budgets.

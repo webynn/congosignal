@@ -516,8 +516,10 @@ mod tests {
     #[test]
     fn settings_persist_with_private_permissions() {
         let path = std::env::temp_dir().join(format!("settings-{}.json", uuid::Uuid::new_v4()));
-        let mut s = Settings::default();
-        s.analysis = Some("deepseek".into());
+        let s = Settings {
+            analysis: Some("deepseek".into()),
+            ..Settings::default()
+        };
         persist(&path, &s).unwrap();
         let loaded: Settings = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(loaded.analysis, s.analysis);

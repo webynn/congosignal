@@ -1,10 +1,14 @@
+> Railway setup: [deployment status and next steps](docs/railway-deployment.txt).
+
+> MVP status and launch gates: [runbook](docs/mvp-runbook.txt). New dashboard pages: **Data quality** and **My research briefs**.
+
 # Congo Signal · DRC OSINT worker
 
 Rust/Axum API and background collector for public Actualite.cd articles. SQLite keeps the job queue, article records, and editorial revisions with source HTML. This is an ingestion foundation for DRC research; collected reporting is source material, not independently verified intelligence.
 
 ## Multi-user authentication
 
-See [authentication setup](docs/authentication.txt) and [environment template](config/authentication.env.example). ZITADEL OIDC must be configured before public deployment. The default loopback development mode is a local owner, not a multi-user login. Non-loopback binding requires `AUTH_MODE=oidc`. Provider budgets and per-member allowances are separate.
+See [built-in email/password setup](docs/password-authentication.md) and [environment template](config/authentication.env.example). Public deployment uses `AUTH_MODE=password`; OIDC remains an optional alternative. The default loopback development mode is a local owner, not a multi-user login. Provider budgets and per-member allowances are separate.
 
 ## Run
 
@@ -31,7 +35,7 @@ The API binds to `127.0.0.1:8080`. Configuration uses environment variables (`.e
 | --- | --- | --- |
 | `BIND_ADDR` | `127.0.0.1:8080` | Listening address |
 | `DATABASE_URL` | `sqlite://data/osint.db` | SQLite file; create its parent directory first |
-| `API_TOKEN` | unset | Bearer token for all `/v1` endpoints; at least 24 characters required when binding beyond loopback |
+| `API_TOKEN` | unset | Optional shared token for local development only; public deployment requires password or OIDC authentication |
 | `POLL_SECONDS` | unset | Optional homepage collection interval, at least 60 seconds; 900 is a reasonable starting value |
 | `CRAWLER_USER_AGENT` | `DrcOsintWorker/0.1` | Must start with `DrcOsintWorker`; append an operator contact for deployment |
 | `RUST_LOG` | `info` | Logging filter |
@@ -79,13 +83,9 @@ The source adapter targets the site's observed Drupal body block, excluding navi
 
 ## Docker
 
-```sh
-docker build -t drc-osint-worker .
-docker run --rm -p 8080:8080 \
-  -e API_TOKEN='replace-with-a-long-random-token' \
-  -e POLL_SECONDS=900 \
-  -v drc-osint-data:/data drc-osint-worker
-```
+Use the [private pilot deployment and recovery runbook](docs/mvp-runbook.txt).
+Public deployment requires configured password or OIDC authentication, HTTPS and persistent storage.
+`deploy/compose.yaml` provides one Rust worker plus Caddy; do not publish local-owner mode.
 
 ## Validation
 
@@ -149,7 +149,7 @@ python3 tests/social_smoke.py
 
 ### Hosting the AI-enabled version
 
-A 4 GB VPS can run the collector and dashboard with `AI_PROVIDER=claude`, because inference runs through Anthropic. Configure the server environment with the Claude key and Mapbox public token, use HTTPS and the existing API bearer-token protection, and persist the SQLite data directory. API and Mapbox usage are billed to the accounts owning the configured keys. Do not embed `.env` in an image; inject it at runtime (for example Docker `--env-file`). No hosting deployment is included in this workspace.
+A 4 GB VPS can run the collector and dashboard with `AI_PROVIDER=claude`, because inference runs through Anthropic. Configure the server environment with the Claude key and Mapbox public token, use HTTPS and password or OIDC authentication, and persist the SQLite data directory. API and Mapbox usage are billed to the accounts owning the configured keys. Do not embed `.env` in an image; inject it at runtime (for example Docker `--env-file`). No hosting deployment is included in this workspace.
 
 For local Ollama, run the service separately with the configured model installed. The 12B model does not fit a 4 GB VPS; use a separately provisioned inference service or appropriately sized hardware. In Docker, `127.0.0.1:11434` refers to the container. Keep one API/worker process per SQLite database.
 
@@ -425,3 +425,107 @@ Dates follow the publication date, adjusted for "hier", named weekdays and expli
 - a numbered source list that every item cites.
 
 **Sources.** Radio Okapi and 7sur7.cd are collected in full text, respecting robots.txt and crawl delays. ReliefWeb (UN OCHA) needs an approved app name: request one at https://apidoc.reliefweb.int/parameters#appname and set `RELIEFWEB_APPNAME`. See `docs/news-sources.txt`.
+
+### Automatic English feed previews
+
+With AI enabled, `AI_AUTO_PREVIEWS` defaults to `1`. A background scan every minute queues
+English headline/summary previews for collected non-English articles, including existing articles
+(newest acquisitions first). It reuses completed bilingual briefs and stores previews globally in
+`enrichments` as task `preview`; switching language or users makes no AI request. Input is just the
+headline and at most 1,800 excerpt characters; output contains no impact scoring. The preview cache
+key includes the actual input, language and prompt version, so collection timestamps don't trigger
+another charge. Changes to the headline/excerpt create a new preview. Original text is preserved.
+
+The existing configured analysis provider/model and its cost controls apply. At most 50 jobs are
+queued at once; explicit briefs/full translations run before previews. Failed previews aren't
+retried automatically; POST `/v1/intelligence/analyze` with task `preview` retries explicitly.
+Set `AI_AUTO_PREVIEWS=0` to stop automatic enqueueing (already queued jobs still finish).
+Full article translations remain on demand and are shared/cached by source fingerprint. Articles
+already in English display their original text without a translation request. Source documents in
+the separate primary-source archive are not automatically translated by this news preview worker.
+
+### Coverage comparison and journalist/byline activity
+
+Open **Compare coverage** (`#compare`). GET `/v1/comparisons` returns the latest 3,000 stored news
+articles, publisher-scoped byline counts, saved comparisons and up to 100 candidate pairs from the
+latest 600 articles. Candidates require different publisher labels, timestamps within 72 hours,
+and at least three shared meaningful headline words with 40% overlap against the shorter headline.
+This is a retrieval heuristic, not a same-event verdict; paraphrases/cross-language matches can be
+missed. Manual selection supports 2–4 articles. Aggregator prefixes are removed when comparing
+publisher names, but independent ownership or syndication is not established.
+
+POST `/v1/comparisons/analyze` with `{"ids":["article-id-1","article-id-2"]}` invokes the configured
+analysis engine and existing budget ledger. It sends at most 7,000 text characters per article,
+returns English/French shared claims, differences, limitations and editorial observations, and
+checks every evidence quotation against the exact supplied headline/text. Findings with unverified quotations are omitted with a visible count; malformed results are rejected. One comparison request runs at a time. Completed results persist in SQLite and are
+reused across users/provider changes for the same ordered source fingerprints; edited source text
+creates a new cache key. Failed comparisons require explicit retry. No comparisons run automatically.
+
+Byline profiles list stored articles and categories, plus evidence observations from saved
+comparisons for current source versions. Exact normalized names are scoped to publisher; they may
+represent teams, organisations, heuristic bylines or different people with the same name. Missing
+bylines remain unknown. This is collection coverage, not career output. No political affiliation,
+intent or person-level bias score is inferred; findings concern observable text. Historical saved
+comparisons retain their source snapshot and date. Primary-source PDFs are outside this first version.
+
+### Historical province reporting
+
+**Historical situation** (`#history-control`) is a delayed research map for Nord-Kivu, Sud-Kivu
+and Ituri. Grey province reference markers mean unknown, never FARDC control. Markers count
+reviewed historical claims, not territory, troop locations or front lines. No area percentages or
+advance/withdrawal measurements are computed. Map zoom is capped at province scale.
+
+The worker scans archived article text and dated primary-source snapshots hourly, without AI/API
+charges. Only publications at least 30 days old with explicit province, actor and presence/control
+language create candidate passages. Unknown dates remain excluded; no dates are inferred from
+collection timestamps. Candidates are persisted, deduplicated and unreviewed, and never plotted.
+GET `/v1/history-control` returns candidates, reviews, province reference points and the cutoff.
+POST `/v1/history-control/refresh` rescans archived sources (administrator/owner/worker).
+POST `/v1/history-control/review` requires reviewer/administrator/owner, an eligible event date
+not after publication, actor, assessment, decision and a substantive evidence/uncertainty note.
+Reviews are append-only. A revised/rejected claim leaves its earlier reviews in the audit trail.
+The latest review determines map eligibility; the date filter selects observations by event date.
+This is a retrospective view using current reviews, not a reconstruction of what was known on a day.
+
+Approval means a human reviewed a source claim, not independent verification. Presence, reported
+local control, contested status and unknown are separate assessments. Province-wide control is
+never inferred from a town-level passage. Independent corroboration must be checked by the reviewer,
+using source links and Compare coverage. The first run intentionally publishes no control claims
+until someone reviews the candidates. Source changes create new candidates; prior snapshots and
+reviews stay as historical evidence. Rejected entries remain in the audit history.
+
+### Armed-group reporting directory
+
+`/#armed-groups` (EN/FR) and `GET /v1/armed-groups` show a partial catalogue of
+named groups, coalitions, umbrella terms and unresolved historical IPIS actor
+labels. These categories are intentionally distinct: 68 entries do not mean
+68 independent organizations. Config is `config/armed-groups.json`; no aliases,
+relationships, leadership or faction mergers are inferred. Sanctions remain
+in the existing actor directory and are not used as an activity signal.
+
+Each read matches the latest archived articles and primary-source text using
+word-bounded names (case-sensitive for short acronyms), retaining up to three
+passages per source/page/group. Repeated snapshots of the same passage are
+deduplicated by URL/page/text/group. Matching passages remain candidates,
+including negations and historical references. No AI or new external calls
+are made. The client displays at most 100 candidate passages per profile;
+the API contains all matching passages. Refreshing picks up collected news.
+
+Owner/admin/reviewer can POST `/v1/armed-groups/review` with `group_id`,
+`evidence_ids` (1–5), `event_date` (YYYY-MM-DD), `activity`, `decision`, `note`
+and `independent_sources`. The date must not be future or after any known
+source publication date. Reviewers must establish the actual event date;
+the API cannot establish that semantic fact automatically. Corroboration
+requires different URLs and publishers plus explicit reviewer attestation
+of independence and same-event attribution. Different publishers alone do
+not prove independence. No automated corroboration score is used.
+
+Reviews store source snapshots, reviewer and timestamp in append-only
+`group_activity_reviews`. Reusing the same first evidence ID creates a new
+revision of that event. The latest revision determines whether an event is
+reported, corroborated, disputed or rejected. Latest eligible event date,
+not publication date, determines 30-day / 31–90-day / historical status.
+Dissolution and merger remain attributed reports, not categorical assertions.
+No reviewed evidence means insufficient evidence, never inactive. One latest
+status is a summary; inspect the full event timeline for conflicting reports.
+Tests: `cargo test --locked armed_groups::tests`.

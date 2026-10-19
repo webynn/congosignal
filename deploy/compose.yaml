@@ -1,0 +1,46 @@
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      AUTH_MODE: ${AUTH_MODE:-password}
+      BIND_ADDR: 0.0.0.0:8080
+      DATABASE_URL: sqlite:///data/osint.db
+      EVIDENCE_ARCHIVE_DIR: /data/evidence
+      AGREEMENTS_ARCHIVE_DIR: /data/agreements
+      AI_SETTINGS_PATH: /data/ai-settings.json
+      LOAD_DOTENV: '0'
+    volumes:
+      - ./data:/data
+    expose:
+      - '8080'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', 'http://127.0.0.1:8080/ready']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      SITE_HOST: ${SITE_HOST:?Set SITE_HOST in deploy/.env}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  caddy_data:
+  caddy_config:

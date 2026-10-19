@@ -5,6 +5,7 @@
 //! is screened for DRC relevance (Great Lakes neighbours are kept as flagged regional context).
 //! Conditional GET (ETag / Last-Modified) keeps feed polling cheap; raw items are kept as evidence.
 mod fulltext;
+mod newsdata;
 use crate::extract::{Article, digest};
 use crate::text::{self, Doc, Term};
 use crate::{ApiResult, App, reference, store};
@@ -26,6 +27,7 @@ enum Mode {
     FeedFullText,
     Listing,
     ReliefwebApi,
+    NewsdataApi,
 }
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Feed {
@@ -53,6 +55,9 @@ pub struct Feed {
 impl Feed {
     /// Why the source cannot run, if it needs configuration.
     fn not_configured(&self) -> Option<&'static str> {
+        if self.mode == Mode::NewsdataApi && newsdata::api_key().is_none() {
+            return Some("not configured: set NEWSDATA_API_KEY");
+        }
         (self.mode == Mode::ReliefwebApi && fulltext::reliefweb_appname().is_none())
             .then_some(fulltext::RELIEFWEB_NOT_CONFIGURED)
     }
@@ -492,6 +497,7 @@ async fn run(
         Mode::Feed | Mode::FeedFullText => poll(db, client, pages, feed).await,
         Mode::Listing => fulltext::poll_listing(db, pages, feed, &previous).await,
         Mode::ReliefwebApi => fulltext::poll_reliefweb(db, client, feed).await,
+        Mode::NewsdataApi => newsdata::poll(db, feed).await,
     };
     // A failed poll keeps the per-URL failure counts so broken pages stay bounded.
     let detail = result.as_ref().cloned().unwrap_or_else(
@@ -609,7 +615,7 @@ mod tests {
     </channel></rss>"#;
     #[test]
     fn feed_items_are_screened_and_attributed() {
-        let feed = &feeds()[0];
+        let feed = feeds().iter().find(|f| f.id == "jeuneafrique").unwrap();
         let items = parse_feed(RSS).unwrap();
         assert_eq!(items.len(), 5);
         let a = to_article(feed, &items[0]).unwrap().unwrap();

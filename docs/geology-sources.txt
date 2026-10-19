@@ -162,3 +162,33 @@ or "Map … sites & mining areas"), or open /#focus/<commodity id or label>.
 Validation: node tests/mineral_focus.cjs (linkage, minimum size, territory
 separation, outlines contain sites, mask winding and non-overlapping holes,
 real gold data).
+
+HISTORICAL PROVINCE STATISTICS (19 October 2026)
+scripts/import_historical_ipis.py derives dashboard/geology/historical-ipis.json
+from the pinned raw CSV above. Only 2009–2023 visits in Nord-Kivu, Sud-Kivu,
+and Ituri are included. Select the latest visit per pcode per province/year,
+using vid to break date ties. This is distinct from the latest-ever mineral
+inventory: no forward filling between years. 37 province/year rows, 4,259
+site/year observations. The same site can occur in different years.
+Presence and interference retain yes/no/unknown counts. Actor names are
+counted once per site/year across three actor slots; actor mention does not
+attribute the site's interference flag to that actor. Names remain verbatim.
+The export includes no mine coordinates, town names, or military boundaries.
+Source hash, attribution ODC-BY 1.0, and reproducible import retained. These
+are later-download historical observations, not the original 2023 publication
+sample or a reconstruction of knowledge available at each historical date.
+UI: Historical situation > IPIS mining observations. This is a pinned dataset,
+not a scheduled remote collector. The separate news-candidate worker remains
+hourly. UN PDF archive is linked as a reference, not imported control claims.
+Validation: python3 scripts/test_historical_ipis.py.
+
+HISTORICAL CHOROPLETH BOUNDARIES
+Downloaded geoBoundaries gbOpen COD ADM1 simplified GeoJSON from commit
+9469f09 (26 provinces, 2017 geography). Catalogue, immutable URL, licence,
+and SHA-256 retained in dashboard/geology/provinces-source.json. Source:
+OpenStreetMap / Wambacher, ODbL 1.0. Full source geometry retained unmodified.
+The historical map joins North Kivu -> Nord-Kivu and South Kivu -> Sud-Kivu.
+Colour is sites reporting interference / all surveyed sites in that year,
+including unknowns in the denominator. No observations means grey. These
+are administrative statistical summaries, never inferred military boundaries.
+Town labels from the Mapbox basemap are geographic context only.

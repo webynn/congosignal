@@ -63,7 +63,8 @@ def wait_task(task):
     raise AssertionError('AI task did not finish')
 with tempfile.TemporaryDirectory(prefix='congo-signal-test-') as directory:
     db=Path(directory)/'test.db'
-    env=dict(os.environ,EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'),EVIDENCE_POLL_SECONDS='0',LOAD_DOTENV='0',REFERENCE_SYNC='0',FEED_POLL_SECONDS='0',AI_PROVIDER=PROVIDER,ANTHROPIC_API_KEY='test-only-key',CLAUDE_MODEL='test-model',CLAUDE_API_URL=f'http://127.0.0.1:{mock.server_port}/v1/messages',MAPBOX_PUBLIC_TOKEN='sk.must-never-expose',DATABASE_URL=f'sqlite://{db}',BIND_ADDR=f'127.0.0.1:{port}',AI_ENABLED='1',OLLAMA_URL=f'http://127.0.0.1:{mock.server_port}',OLLAMA_MODEL='test-model',API_TOKEN='integration-test-secret-long')
+    env=dict(os.environ,EVIDENCE_ARCHIVE_DIR=str(Path(directory)/'evidence'),EVIDENCE_POLL_SECONDS='0',LOAD_DOTENV='0',REFERENCE_SYNC='0',FEED_POLL_SECONDS='0',AI_PROVIDER=PROVIDER,ANTHROPIC_API_KEY='test-only-key',CLAUDE_MODEL='claude-haiku-4-5-20251001',CLAUDE_API_URL=f'http://127.0.0.1:{mock.server_port}/v1/messages',MAPBOX_PUBLIC_TOKEN='sk.must-never-expose',DATABASE_URL=f'sqlite://{db}',BIND_ADDR=f'127.0.0.1:{port}',AI_ENABLED='1',OLLAMA_URL=f'http://127.0.0.1:{mock.server_port}',OLLAMA_MODEL='test-model',API_TOKEN='integration-test-secret-long')
+    env.update(AI_SETTINGS_PATH=str(Path(directory)/'ai-settings.json'), AI_AUTO_PREVIEWS='false', AUTH_MODE='local', AGREEMENTS_POLL_SECONDS='0')
     env.pop('POLL_SECONDS',None)
     env['X_ENABLED']='0'
     env.pop('X_BEARER_TOKEN',None)
@@ -76,6 +77,9 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-test-') as directory:
         raise AssertionError('Startup failed')
     def stop(p):p.send_signal(signal.SIGINT);p.wait(timeout=10)
     p=start()
+    # Permit only the local mock provider in this temporary database.
+    with sqlite3.connect(db) as c:
+        c.execute("UPDATE cost_limits SET paused=0,daily_requests=100,daily_micros=1000000,monthly_micros=1000000,request_micros=1 WHERE provider=?",(PROVIDER,))
     try:
         article=dict(id='test-article',source='Actualite.cd',url='https://actualite.cd/2026/10/12/test',fetched_url='https://actualite.cd/2026/10/12/test',title='Santé à Goma',description='Une source de recherche.',category='Santé',author=None,author_method=None,language='fr',published_at='2026-10-12T11:00:00+00:00',modified_at=None,fetched_at='2026-10-12T12:00:00+00:00',content='Une épidémie à Goma.\n\nSelon MSF.',paragraphs=['Une épidémie à Goma.','Selon MSF.'],content_sha256=hashlib.sha256(b'test').hexdigest(),html_sha256=hashlib.sha256(b'html').hexdigest(),extractor_version='fixture')
         with sqlite3.connect(db) as c:c.execute('INSERT INTO articles VALUES(?,?,?,?,?,?,?,?,?)',(article['id'],article['url'],article['title'],article['content'],article['category'],article['published_at'],article['fetched_at'],article['fetched_at'],json.dumps(article)))
@@ -114,7 +118,7 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-test-') as directory:
         item=api('/v1/intelligence')[1]['items'][0]
         assert item['verification']=='single_source_unverified' and item['places'][0]['name']=='Goma'
         assert api('/v1/intelligence/analyze',{'article_id':'test-article','task':'brief'})[0]==202
-        assert wait_task('brief')['status']=='completed'
+        result=wait_task('brief'); assert result['status']=='completed', result
         assert api('/v1/intelligence/analyze',{'article_id':'test-article','task':'brief'})[1]['status']=='completed'
         assert len(calls)==1,'completed task should be cached'
         assert 'UNTRUSTED SOURCE DATA' in (calls[0]['system'] if PROVIDER=='claude' else calls[0]['messages'][0]['content'])
@@ -127,6 +131,21 @@ with tempfile.TemporaryDirectory(prefix='congo-signal-test-') as directory:
         assert translation['status']=='completed' and len(translation['data']['paragraphs'])==2
         n={'saved':True,'review':'follow_up','note':'<script>test</script> is stored as plain text'}
         assert api('/v1/intelligence/test-article/notes',n)[1]==n
+        before_calls=len(calls)
+        code,snapshot=api('/v1/research-briefs',{'title':'Pilot test','lang':'en'})
+        assert code==200 and len(snapshot['articles'])==1
+        assert snapshot['articles'][0]['title']=='DRC public health report'
+        assert 'script' not in json.dumps(snapshot) and len(calls)==before_calls
+        assert api('/v1/research-briefs/'+snapshot['id'])[1]==snapshot
+        req=urllib.request.Request(base+'/v1/research-briefs/'+snapshot['id']+'?format=html',headers={'Authorization':'Bearer integration-test-secret-long'})
+        with urllib.request.urlopen(req) as r:
+            html=r.read().decode()
+            assert 'DRC public health report' in html and article['url'] in html
+            assert '<script>' not in html
+        assert api('/v1/research-briefs')[1]['items'][0]['id']==snapshot['id']
+        assert api('/ready',auth=False)==(200,{'status':'ready'})
+        assert api('/v1/quality')[1]['articles']==1
+        assert api('/v1/quality',auth=False)[0]==401
         assert api('/v1/intelligence/test-article/notes',{**n,'review':'verified'})[0]==400
         stop(p);p=start()
         assert api('/v1/intelligence/test-article')[1]['analyst']==n

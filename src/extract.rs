@@ -41,14 +41,14 @@ pub fn is_article(url: &Url) -> bool {
 pub fn seed(input: &str) -> Result<Url> {
     let original = Url::parse(input)?;
     let mut url = normalize(input)?;
-    if !is_article(&url) {
-        if let Some((_, value)) = original.query_pairs().find(|(k, _)| k == "page") {
-            let page: u32 = value
-                .parse()
-                .map_err(|_| anyhow::anyhow!("page must be an integer"))?;
-            ensure!(page <= 10000, "archive page exceeds limit");
-            url.set_query(Some(&format!("page={page}")));
-        }
+    if !is_article(&url)
+        && let Some((_, value)) = original.query_pairs().find(|(k, _)| k == "page")
+    {
+        let page: u32 = value
+            .parse()
+            .map_err(|_| anyhow::anyhow!("page must be an integer"))?;
+        ensure!(page <= 10000, "archive page exceeds limit");
+        url.set_query(Some(&format!("page={page}")));
     }
     ensure!(
         is_article(&url)

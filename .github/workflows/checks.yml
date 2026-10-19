@@ -1,0 +1,22 @@
+name: MVP checks
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo test --locked
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo build --locked
+      - run: node --check dashboard/app.js
+      - run: for test in tests/*.cjs; do node "$test" || exit 1; done
+      - run: python3 scripts/test_container_start.py
+      - run: python3 scripts/test_backup.py
+      - run: python3 scripts/test_historical_ipis.py
+      - run: python3 tests/intelligence_smoke.py
+      - run: TEST_PROVIDER=claude python3 tests/intelligence_smoke.py
+      - run: python3 tests/social_smoke.py

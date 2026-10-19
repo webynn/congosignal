@@ -1,0 +1,12 @@
+.git/
+.toolchain/
+target/
+data/
+backups/
+.env
+.env.*
+deploy/.env
+deploy/data/
+**/__pycache__/
+*.log
+.DS_Store
