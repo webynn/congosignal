@@ -314,6 +314,7 @@ SIPRI's database host was unreachable from this machine, so transfers are import
 | `REFERENCE_CONTACT` | unset | Contact (email or URL) appended to the User-Agent, as Wikimedia's policy requests |
 | `SIPRI_DIR` | `data/sipri` | Folder of SIPRI trade-register CSV exports |
 | `FEED_POLL_SECONDS` | `1800` | Publisher feed polling interval; `0` disables |
+| `RELIEFWEB_APPNAME` | unset | Approved ReliefWeb API appname; the ReliefWeb source stays "not configured" (no requests) until set |
 
 New endpoints (same bearer-token policy): `GET /v1/actors`, `GET /v1/actors/{id}`, `POST /v1/actors/refresh` (re-queues lists and reference data), `GET /v1/arms`, `GET /v1/arms/{id}`.
 
@@ -334,7 +335,9 @@ New endpoints (same bearer-token policy): `GET /v1/actors`, `GET /v1/actors/{id}
 
 Public deployment that redistributes these data should keep the attributions shown in the interface. Sketchfab models marked non-commercial must not be used in commercial products.
 
-## Publisher feeds: Jeune Afrique
+## Publisher feeds
+
+### Jeune Afrique (feed summary)
 
 `config/news-feeds.json` lists publisher syndication feeds collected as news, alongside the Actualite.cd crawler. Jeune Afrique's site answers automated clients (including `robots.txt` and its own `/feed/`) with a Cloudflare bot challenge, and many articles are paywalled; the collector does not attempt to bypass either. It reads the publisher's official FeedBurner feed (`feeds.feedburner.com/jeuneafrique`) instead, which carries the latest ~30 items with title, lede, author, section and publication time.
 
@@ -343,7 +346,22 @@ Public deployment that redistributes these data should keep the attributions sho
 - Articles are marked `coverage: "feed_summary"`; the dashboard labels them, AI briefs note that they rest on the headline and lede, and the report links to the full article. The raw feed item is stored as revision evidence, so edited headlines create versions.
 - Submitting a Jeune Afrique URL to `POST /v1/jobs` returns `200 already_collected` with the article ID, or `422 feed_only` explaining that pages are not fetched. The feed carries no archive, so articles published before polling started are not available.
 
-Add another publisher by appending a feed (id, name, url, site, language, coverage, access_note); no code change is needed.
+### Full-text sources: Radio Okapi, 7sur7.cd, ReliefWeb
+
+Three sources store the full article text (`coverage: "full_text"`), configured by `mode` in `config/news-feeds.json` and described in detail, with the licence checks, in `docs/news-sources.txt`.
+
+| Source | Mode | Access | Limits |
+| --- | --- | --- | --- |
+| Radio Okapi (UN radio run by MONUSCO) | `feed_full_text` | News feed `/feed/actualite`, then each new DRC article page (Drupal body field) | robots.txt checked; Crawl-delay 10 s honoured; at most 20 pages per poll; feed summary stored and the page retried (3 attempts) when a page fails |
+| 7sur7.cd (private outlet, no feed) | `listing` | Dated article links (`/YYYY/MM/DD/slug`, last 14 days) on the homepage and four section pages, then each new page | robots.txt checked before every request; 5 s apart; at most 25 pages per poll |
+| ReliefWeb (UN OCHA) | `reliefweb_api` | `POST api.reliefweb.int/v2/reports`, primary country DRC, last 7 days, newest 50 | Needs `RELIEFWEB_APPNAME`; every 2 h; reliefweb.int pages are never fetched |
+
+- Pages are requested with the app's identifying User-Agent, one host at a time; a 429/503 pauses that host (Retry-After, 1 min–1 h) and ends the poll's page fetching. Bot-challenge or layout-changed pages fail extraction and are recorded, never bypassed. The raw page HTML (with the feed item, for Radio Okapi) or the raw API record is stored as revision evidence.
+- `GET /v1/feeds` lists every source with `mode`, `configured`, `status_note`, counts (`collected`, `full_text`), last poll detail (`full_text`, `avg_chars`, `page_errors`, `last_page_error`) and errors; the dashboard's **News sources** and **Collection status** panels show them. `POST /v1/feeds/refresh` (**Collect latest**) polls all of them.
+- Submitting a URL of one of these publishers to `POST /v1/jobs` returns `200 already_collected` or `422 collected_automatically`.
+- Manual live check (never part of `cargo test`; honours all delays): `LIVE_DB=sqlite://copy.db cargo test live_collect -- --ignored --nocapture` on a copy of the database.
+
+Add another publisher by appending a feed (id, name, url, site, language, coverage, access_note, and optionally mode, listing_paths, page_delay_seconds, max_pages, poll_seconds); no code change is needed for Drupal-style pages.
 
 ## Web-search images (OpenAI)
 
