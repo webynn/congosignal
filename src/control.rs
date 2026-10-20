@@ -323,6 +323,7 @@ pub async fn dismiss(State(app): State<App>, Json(b): Json<Value>) -> ApiResult<
 }
 pub async fn get(State(app): State<App>) -> ApiResult<Json<Value>> {
     let places = places(&app.db).await?;
+    let public = crate::authentication::actor().role == "public";
     // Extracted claims of seizures from the last 45 days: leads for analysts, never shown as control.
     let since = (Utc::now() - chrono::Duration::days(45)).date_naive();
     let claims: Vec<Value> = crate::events::between(&app.db, since)
@@ -339,8 +340,9 @@ pub async fn get(State(app): State<App>) -> ApiResult<Json<Value>> {
         "places": places,
         "activity": activity(),
         "baseline": BASELINE["meta"],
-        "claims": claims,
-        "suggestions": suggestions(&app.db, &places).await?,
+        "claims": if public { json!([]) } else { json!(claims) },
+        // The review queue and unconfirmed claims are for signed-in analysts only.
+        "suggestions": if public { json!([]) } else { json!(suggestions(&app.db, &places).await?) },
         "controllers": CONTROLLERS,
         "statuses": STATUSES,
         "latest_as_of": latest,

@@ -360,6 +360,16 @@ pub async fn middleware(
     let (a, csrf) = if enabled() {
         match session(&app.db, req.headers()).await {
             Ok(Some(v)) => v,
+            // Anonymous readers of the news edition get the published, read-only endpoints.
+            Ok(None) if crate::public_api::allowed(req.method().as_str(), req.uri().path()) => (
+                Actor {
+                    user_id: "public".into(),
+                    workspace_id: WORKSPACE.into(),
+                    role: "public".into(),
+                    email: String::new(),
+                },
+                String::new(),
+            ),
             Ok(None) => return denied(StatusCode::UNAUTHORIZED, "Sign in required"),
             Err(_) => return denied(StatusCode::INTERNAL_SERVER_ERROR, "Session lookup failed"),
         }
@@ -430,7 +440,7 @@ async fn audit(db: &SqlitePool, a: &Actor, action: &str, target: &str) -> Result
 }
 pub async fn config() -> Json<Value> {
     Json(
-        json!({"mode":std::env::var("AUTH_MODE").unwrap_or_else(|_|"local".into()),"configured":enabled(),"login_url":"/auth/login"}),
+        json!({"mode":std::env::var("AUTH_MODE").unwrap_or_else(|_|"local".into()),"configured":enabled(),"login_url":"/auth/login","signup":crate::password_auth::signup_enabled(),"public_news":std::env::var("PUBLIC_NEWS").as_deref()!=Ok("0")}),
     )
 }
 pub async fn me(State(app): State<App>, headers: HeaderMap) -> ApiResult<Json<Value>> {

@@ -227,11 +227,24 @@ async function api(path, data) {
   }
   return r.json();
 }
+/// Anonymous readers: the news edition from the public, read-only endpoints.
+async function loadPublic() {
+  state.public = true; state.simple = true; document.documentElement.dataset.mode = 'simple';
+  if (!['today', 'news', 'map', 'read', 'listen'].includes(state.view)) state.view = 'today';
+  const get = p => fetch(p).then(r => r.ok ? r.json() : null).catch(() => null);
+  const [news, config, events, control, newsImages, radio] = await Promise.all([get('/v1/public/news'), state.config ? state.config : get('/v1/config'), get('/v1/events?days=30'), get('/v1/control'), get('/v1/news/images'), get('/v1/radio')]);
+  Object.assign(state, { items: news?.items || [], total: news?.total || 0, updated: news?.generated_at, config: config || {}, events, control, newsImages, radio, error: news ? '' : L('The news is unavailable right now.', 'L’actualité est indisponible pour le moment.') });
+  state.loaded = true; render();
+}
+const goSignIn = (signup = true) => { location.href = '/auth/login' + (signup ? '' : '#signin') };
 async function load() {
   try {
     state.authConfig=await fetch('/auth/config').then(r=>r.json());
     state.auth=await api('/v1/auth/me');state.loginRequired=false;
-  } catch(e) {if(['oidc','password'].includes(state.authConfig?.mode)){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
+  } catch(e) {if(['oidc','password'].includes(state.authConfig?.mode)){
+    state.auth=null;
+    if(state.authConfig?.public_news){await loadPublic();return}
+    state.loginRequired=true;state.loaded=true;closeOverlay();render();return}}
   try {
     const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, control, newsImages] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
@@ -1496,6 +1509,7 @@ function simpleMapView() {
   return `<div class="simple-page wide"><header class="s-hero compact"><h1>${L('Map', 'Carte')}</h1><p>${L('Red areas have towns held by the AFC/M23 (FRN) rebels, orange areas are disputed, and coloured dots are incidents reported in the news. Click a town or a dot to learn more.', 'Les zones rouges comptent des localités tenues par les rebelles de l’AFC/M23 (FRN), les zones orange sont disputées, et les points colorés sont des incidents rapportés dans la presse. Cliquez sur une localité ou un point pour en savoir plus.')}</p></header>${warRoom()}</div>`;
 }
 function followView() {
+  if (state.public) return `<section class="n-listing"><header class="n-head"><h1>${L('Following', 'Mes suivis')}</h1><p class="n-sub">${L('Create a free account to follow towns, people and topics and get alerts when they are in the news.', 'Créez un compte gratuit pour suivre des villes, des personnes et des sujets et recevoir une alerte quand ils sont dans l’actualité.')}</p></header><p style="margin-top:20px"><a class="n-button" href="/auth/login">${L('Create an account', 'Créer un compte')}</a> <a class="n-button ghost" href="/auth/login#signin">${L('Sign in', 'Se connecter')}</a></p></section>`;
   const ws = (state.watches?.items || []).filter(w => ['search', 'place', 'actor'].includes(w.kind)), al = state.alerts?.items || [], d = state.followDraft;
   const kinds = [['place', L('A town or place', 'Une ville ou un lieu')], ['search', L('A topic or word', 'Un sujet ou un mot')], ['actor', L('A person or group', 'Une personne ou un groupe')]];
   const suggestions = d.kind === 'actor' ? (state.actors?.items || []).map(a => a.name) : d.kind === 'place' ? [...new Set(placesList().map(p => p.name))] : ['Ebola', 'M23', 'Goma', 'élections', 'cobalt'];
@@ -1538,7 +1552,7 @@ function paperShell(content) {
   const date = new Date().toLocaleDateString(locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Africa/Kinshasa' });
   return `<div class="paper">
     <header class="n-mast"><div class="n-top-bar"><div class="n-tools-l"><button class="n-link" data-act="simple-search" aria-label="${L('Search', 'Rechercher')}">${icon('search')}</button><span class="n-lang"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'on' : ''}" aria-pressed="${state.lang === 'en'}">English</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'on' : ''}" aria-pressed="${state.lang === 'fr'}">Français</button></span></div>
-        <div class="n-tools-r">${onAirChip()}<button class="n-link n-adv" data-act="ui-mode" data-arg="advanced">${L('Analyst edition', 'Édition analyste')}</button></div></div>
+        <div class="n-tools-r">${onAirChip()}${state.public ? `<a class="n-link" href="/auth/login#signin">${L('Sign in', 'Se connecter')}</a>${state.authConfig?.signup ? `<a class="n-link n-adv" href="/auth/login">${L('Analyst edition · Join', 'Édition analyste · S’inscrire')}</a>` : ''}` : `<button class="n-link n-adv" data-act="ui-mode" data-arg="advanced">${L('Analyst edition', 'Édition analyste')}</button>`}</div></div>
       <div class="n-plate"><div class="n-date"><strong>${esc(date)}</strong><span>${L('Kinshasa edition', 'Édition de Kinshasa')}</span></div><a class="n-name" href="#today" data-act="nav" data-arg="today">Congo Signal</a><div class="n-date r"><span>${L('Today’s stories', 'Articles du jour')}</span><strong>${newsItems().filter(a => within(a.published_at, 24)).length}</strong></div></div>
       <nav class="n-nav" aria-label="${L('Sections', 'Rubriques')}">${nav.map(([id, label]) => `<button class="${active(id) ? 'on' : ''}" ${active(id) ? 'aria-current="page"' : ''} data-act="${id.startsWith('section:') ? 'simple-section' : 'nav'}" data-arg="${id.startsWith('section:') ? id.slice(8) : id}">${esc(label)}</button>`).join('')}</nav></header>
     <main class="paper-main view-${state.view}">${content}</main>
@@ -1591,7 +1605,7 @@ async function openRead(id) {
   if (state.view !== 'read') { state.view = 'read'; state.enter = true }
   if (location.hash !== '#read/' + encodeURIComponent(id)) history.pushState(null, '', '#read/' + encodeURIComponent(id));
   render(); window.scrollTo(0, 0);
-  try { const d = await api(`/v1/intelligence/${encodeURIComponent(id)}`); if (state.readId === id) { state.read = d; render() } } catch (e) { state.read = { error: e.message }; render() }
+  try { const d = state.public ? await fetch(`/v1/public/article/${encodeURIComponent(id)}`).then(r => { if (!r.ok) throw Error(L('This story is unavailable.', 'Cet article est indisponible.')); return r.json() }) : await api(`/v1/intelligence/${encodeURIComponent(id)}`); if (state.readId === id) { state.read = d; render() } } catch (e) { state.read = { error: e.message }; render() }
 }
 function readView() {
   const d = state.read, item = state.items.find(a => a.id === state.readId);
@@ -1610,7 +1624,7 @@ function readView() {
     ${tr ? `<div class="n-langbar"><button class="${english ? '' : 'on'}" data-act="read-lang" data-arg="">${L('Original', 'Original')}</button><button class="${english ? 'on' : ''}" data-act="read-lang" data-arg="en">${L('English translation', 'Traduction anglaise')}</button></div>` : ''}
     <div class="n-body" ${english ? '' : `lang="${esc(a.language || 'fr')}"`}>${paras.filter(Boolean).map(p => `<p>${esc(p)}</p>`).join('')}</div>
     ${a.coverage === 'feed_summary' || item?.coverage === 'feed_summary' ? `<p class="n-note">${L('This outlet only publishes a summary in its feed.', 'Ce média ne publie qu’un résumé dans son flux.')}</p>` : ''}
-    <div class="n-end"><a class="n-button" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${L(`Read the original on ${a.source || 'the publisher’s site'}`, `Lire l’original sur ${a.source || 'le site de l’éditeur'}`)}</a>${firstPlace ? `<button class="n-button ghost" data-act="watch-quick" data-arg="${esc(`place|${firstPlace}|${firstPlace}`)}">${L(`Follow ${firstPlace}`, `Suivre ${firstPlace}`)}</button>` : ''}${locMap(places, 'end')}</div>
+    <div class="n-end"><a class="n-button" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${L(`Read the original on ${a.source || 'the publisher’s site'}`, `Lire l’original sur ${a.source || 'le site de l’éditeur'}`)}</a>${firstPlace && state.public ? `<a class="n-button ghost" href="/auth/login">${L(`Follow ${firstPlace} · free account`, `Suivre ${firstPlace} · compte gratuit`)}</a>` : ''}${firstPlace && !state.public ? `<button class="n-button ghost" data-act="watch-quick" data-arg="${esc(`place|${firstPlace}|${firstPlace}`)}">${L(`Follow ${firstPlace}`, `Suivre ${firstPlace}`)}</button>` : ''}${locMap(places, 'end')}</div>
     <p class="n-note">${L('Congo Signal shows what the outlet reported. It has not been independently verified.', 'Congo Signal présente ce que le média a rapporté. Ce n’est pas vérifié de façon indépendante.')}</p>
     ${related.length ? `<section class="n-related"><h4 class="n-label">${L(`More on ${firstPlace}`, `Plus sur ${firstPlace}`)}</h4><div class="n-row three">${related.map(x => storyLink(x, `${photo(x, 'fig-card')}<h3>${esc(title(x))}</h3>${storyMeta(x)}`)).join('')}</div></section>` : ''}</article>`;
 }
@@ -1621,6 +1635,7 @@ function listenView() {
     <div class="n-stations">${groups.map(([place, list]) => `<div><h4 class="n-label">${esc(place)}</h4>${list.map(s => { const on = state.radioNow === s.id && state.radioStatus === 'playing'; return `<div class="n-station ${on ? 'on' : ''}"><button class="n-play" data-act="radio-play" data-arg="${esc(s.id)}" aria-label="${esc((on ? L('Pause', 'Pause') : L('Play', 'Lecture')) + ' ' + s.name)}">${on ? '❚❚' : '▶'}</button><div><strong>${esc(s.name)}</strong><small>${esc((s.languages || []).join(' · ') || (s.tags || []).slice(0, 2).join(' · '))}</small></div></div>` }).join('')}</div>`).join('') || `<p class="n-empty">${L('No station is on air right now.', 'Aucune station n’est à l’antenne pour le moment.')}</p>`}</div></section>`;
 }
 function setUiMode(mode) {
+  if (mode === 'advanced' && state.public) return goSignIn(state.authConfig?.signup !== false);
   state.simple = mode === 'simple'; store.set('congo-mode', mode);
   document.documentElement.dataset.mode = mode;
   if (state.simple) { state.aiMode = false; store.set('congo-ai-mode', '0') }
@@ -3390,7 +3405,7 @@ openFromHash();
 document.addEventListener('visibilitychange',()=>{document.documentElement.dataset.pageHidden=String(document.hidden)});
 // Full refresh every minute (17 endpoints); unread alerts every 20 s with a one-row request.
 setInterval(async () => {
-  if (document.hidden) return;
+  if (document.hidden || state.public) return;
   try { const a = await api('/v1/alerts?unread=true&limit=1'); if (state.alerts && a.unread !== state.alerts.unread) { state.alerts = await api('/v1/alerts?limit=200'); state.watches = await api('/v1/watches').catch(() => state.watches); render() } } catch {}
 }, 20000);
 setInterval(async () => {

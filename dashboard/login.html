@@ -1,3 +1,82 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Sign in · Congo Signal</title><style>
-*{box-sizing:border-box}body{margin:0;background:#0b1310;color:#edf4ee;font:16px/1.55 system-ui,sans-serif;min-height:100svh;display:grid;place-items:center;padding:24px}main{width:min(440px,100%);background:#14201a;border:1px solid #344b3c;border-radius:16px;padding:28px}header{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{font-size:12px;letter-spacing:2px;color:#bbdf9b}h1{font-size:28px;line-height:1.2;margin:28px 0 12px}p{color:#afc0b3}label{display:block;margin:18px 0 6px}input,button{font:inherit;min-height:48px;border-radius:8px}input{width:100%;background:#0b1310;color:#edf4ee;border:1px solid #4b6352;padding:12px}button{cursor:pointer;background:#c8dd91;color:#142010;border:0;padding:10px 16px}button:disabled{opacity:.6;cursor:wait}.primary{width:100%;font-weight:650;margin-top:24px}.link{background:none;color:#c8dd91;padding:8px 0;text-align:left}.lang{background:#26372b;color:#edf4ee;font-size:14px}#status{white-space:pre-wrap;overflow-wrap:anywhere}#status.error{color:#ffb7a9}.foot{font-size:13px;border-top:1px solid #344b3c;padding-top:18px;margin-top:20px}a{color:#c8dd91}[hidden]{display:none!important}:focus-visible{outline:3px solid #c8dd91;outline-offset:3px}
-</style></head><body><main><header><strong class="brand">CONGO SIGNAL</strong><button class="lang" id="lang" type="button">FR</button></header><h1 id="title">Welcome back</h1><p id="intro">Sign in to your invited workspace.</p><form id="login"><label for="email" id="email-label">Email</label><input id="email" name="email" type="email" autocomplete="username" maxlength="254" required><label for="password" id="password-label">Password</label><input id="password" name="password" type="password" autocomplete="current-password" maxlength="1024" required><div id="confirm-wrap" hidden><label for="confirm" id="confirm-label">Confirm password</label><input id="confirm" type="password" autocomplete="new-password" maxlength="1024"></div><button class="primary" id="submit">Sign in</button></form><button class="link" id="forgot">Forgot password?</button><p id="status" role="status" aria-live="polite"></p><p class="foot" id="foot">Access is by invitation. Contact your workspace administrator for an invitation or password reset link.</p></main><script src="/auth/password.js" defer></script></body></html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Analyst edition · Congo Signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400&family=UnifrakturMaguntia&display=swap">
+<style>
+*{box-sizing:border-box}
+:root{--text:#121212;--text2:#363636;--muted:#5a5a5a;--line:#e2e2e2;--line2:#c7c7c7;--red:#c60a1c;--serif:'Newsreader',Georgia,'Times New Roman',serif;--sans:'Libre Franklin','Helvetica Neue',Arial,sans-serif}
+body{margin:0;background:#fff;color:var(--text);font:15px/1.55 var(--sans);min-height:100svh}
+a{color:var(--text)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+.top{display:flex;justify-content:space-between;align-items:center;padding:12px 0 0;font-size:12px}
+.back{font-weight:600;text-decoration:none;letter-spacing:.3px}.back:hover{text-decoration:underline}
+.lang{display:flex;gap:12px}.lang button{border:0;background:none;padding:0;font:500 12px var(--sans);color:var(--muted);cursor:pointer}.lang button.on{color:var(--text);font-weight:700}
+.plate{text-align:center;padding:6px 0 10px;border-bottom:3px double var(--text)}
+.name{font:400 clamp(40px,6vw,62px)/1.05 'UnifrakturMaguntia','Old English Text MT',serif;color:var(--text);text-decoration:none}
+.edition{margin-top:4px;font:700 11px var(--sans);letter-spacing:2px;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:56px;padding:40px 0 60px}
+.pitch h1{margin:0 0 14px;font:700 clamp(30px,3.6vw,42px)/1.12 var(--serif);letter-spacing:-.3px}
+.pitch .dek{margin:0 0 22px;font:400 19px/1.5 var(--serif);color:var(--text2)}
+.pitch ul{list-style:none;margin:0;padding:0;border-top:1px solid var(--text)}
+.pitch li{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.pitch li b{font:700 12px var(--sans);letter-spacing:.6px;text-transform:uppercase}.pitch li span{font:400 16px/1.45 var(--serif);color:var(--text2)}
+.pitch .fine{margin-top:18px;font-size:12.5px;color:var(--muted)}
+.card{border-top:3px solid var(--text);padding-top:6px}
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--line);margin-bottom:22px}
+.tabs button{border:0;background:none;padding:12px 0;font:600 14px var(--sans);color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--text);border-bottom-color:var(--text)}
+h2{margin:0 0 6px;font:700 26px/1.2 var(--serif)}
+.intro{margin:0 0 18px;color:var(--text2);font:400 16px/1.5 var(--serif)}
+label{display:block;margin:14px 0 6px;font:600 13px var(--sans)}
+label small{font-weight:400;color:var(--muted)}
+input,select{width:100%;height:46px;padding:0 12px;border:1px solid var(--line2);border-radius:3px;background:#fff;color:var(--text);font:15px var(--sans)}
+input:focus,select:focus{outline:none;border-color:var(--text);box-shadow:0 0 0 3px #1212121a}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint{margin:6px 0 0;font-size:12px;color:var(--muted)}
+.check{display:flex;gap:10px;align-items:flex-start;margin:18px 0 0;font:400 13px/1.45 var(--sans);color:var(--text2)}
+.check input{width:18px;height:18px;margin:1px 0 0;flex-shrink:0;accent-color:var(--text)}
+.primary{width:100%;height:48px;margin-top:22px;border:1px solid var(--text);border-radius:3px;background:var(--text);color:#fff;font:600 15px var(--sans);cursor:pointer}
+.primary:hover{background:#333}.primary:disabled{opacity:.6;cursor:wait}
+.link{border:0;background:none;padding:10px 0 0;font:500 13px var(--sans);color:var(--text);text-decoration:underline;cursor:pointer}
+#status{min-height:1.2em;margin:14px 0 0;font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere}#status.error{color:var(--red)}
+.foot{margin-top:22px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+[hidden]{display:none!important}:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+@media(max-width:860px){.grid{grid-template-columns:1fr;gap:34px;padding-top:26px}.card{order:-1}.pitch li{grid-template-columns:1fr;gap:2px}}
+@media(max-width:480px){.wrap{padding:0 16px}.row{grid-template-columns:1fr}}
+</style></head><body>
+<div class="wrap">
+ <div class="top"><a class="back" href="/#today" id="back">← Back to the news</a><div class="lang" role="group" aria-label="Language"><button type="button" id="lang-en">English</button><button type="button" id="lang-fr">Français</button></div></div>
+ <header class="plate"><a class="name" href="/#today">Congo Signal</a><div class="edition" id="edition">Analyst edition</div></header>
+ <main class="grid">
+  <section class="pitch" aria-labelledby="pitch-title">
+   <h1 id="pitch-title">Go deeper than the headlines.</h1>
+   <p class="dek" id="pitch-dek">The analyst edition gives researchers, journalists and humanitarian teams the full picture behind the news from the DRC.</p>
+   <ul>
+    <li><b id="f1t">War room</b><span id="f1">Who controls which towns, with a cited source and date for every change, and incidents on a live map.</span></li>
+    <li><b id="f2t">Event log</b><span id="f2">Dated incidents extracted from every report: what happened, where, who was named and the toll reported.</span></li>
+    <li><b id="f3t">Watchlists</b><span id="f3">Follow places, people, sanctioned names or military flights and get alerts as soon as they appear.</span></li>
+    <li><b id="f4t">Briefs</b><span id="f4">Daily and weekly briefs in Word or PDF, every item cited to its source.</span></li>
+   </ul>
+   <p class="fine" id="fine">New accounts start with read access. Paid tools (AI analysis, X history, voice) are enabled by the editors for verified members.</p>
+  </section>
+  <section class="card" aria-labelledby="form-title">
+   <div class="tabs" role="tablist"><button type="button" role="tab" id="tab-signup">Create account</button><button type="button" role="tab" id="tab-login">Sign in</button></div>
+   <h2 id="form-title">Create your account</h2><p class="intro" id="intro">It takes a minute. You can read the news without an account.</p>
+   <form id="login" novalidate>
+    <div id="signup-fields">
+     <label for="name" id="name-label">Full name</label><input id="name" name="name" autocomplete="name" maxlength="100">
+     <div class="row"><div><label for="organisation"><span id="org-label">Organisation</span> <small id="org-opt">(optional)</small></label><input id="organisation" name="organisation" autocomplete="organization" maxlength="120"></div>
+      <div><label for="purpose" id="purpose-label">I work in</label><select id="purpose" name="purpose"><option value="">—</option><option value="research">Research</option><option value="journalism">Journalism</option><option value="humanitarian">Humanitarian / NGO</option><option value="government">Government / diplomacy</option><option value="business">Business</option><option value="education">Education</option><option value="other">Other</option></select></div></div>
+    </div>
+    <label for="email" id="email-label">Email</label><input id="email" name="email" type="email" autocomplete="username" maxlength="254">
+    <label for="password" id="password-label">Password</label><input id="password" name="password" type="password" autocomplete="current-password" maxlength="1024"><p class="hint" id="pw-hint" hidden>At least 12 characters.</p>
+    <div id="confirm-wrap" hidden><label for="confirm" id="confirm-label">Confirm password</label><input id="confirm" type="password" autocomplete="new-password" maxlength="1024"></div>
+    <label class="check" id="accept-wrap"><input type="checkbox" id="accept"><span id="accept-text">I will use the analyst edition for legitimate research and reporting, and I understand that reports are unverified unless stated.</span></label>
+    <button class="primary" id="submit">Create account</button>
+   </form>
+   <button class="link" id="forgot" type="button">Forgot your password?</button>
+   <p id="status" role="status" aria-live="polite"></p>
+   <p class="foot" id="foot">Your email is used to sign you in and is never shared.</p>
+  </section>
+ </main>
+</div>
+<script src="/auth/password.js" defer></script></body></html>

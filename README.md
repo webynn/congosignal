@@ -529,3 +529,9 @@ Dissolution and merger remain attributed reports, not categorical assertions.
 No reviewed evidence means insufficient evidence, never inactive. One latest
 status is a summary; inspect the full event timeline for conflicting reports.
 Tests: `cargo test --locked armed_groups::tests`.
+
+## Public news edition and analyst sign-up
+
+With `AUTH_MODE=password`, visitors who are not signed in get the news edition (front page, sections, article pages, map and radio) from read-only public endpoints (`/v1/public/news`, `/v1/public/article/{id}`, plus events, control, images, radio and config). Analyst notes, AI assessments, the control review queue and every other endpoint require an account. `PUBLIC_NEWS=0` turns the public edition off.
+
+**Analyst edition · Join** opens the sign-up page at `/auth/login` (`#signin` for the sign-in tab). The form asks for a name, an optional organisation, a sector, an email, a password of at least 12 characters and acceptance of the terms of use. Accounts are created with the read-only **viewer** role and signed in immediately. Viewers can use every analyst view and their own watchlists, but cannot trigger paid AI, X or voice requests. Owners raise a member's role on the Team page. Registration is throttled like sign-in, profiles are stored in `member_profiles`, and each registration is audited (`self_registration`). `SIGNUP_ENABLED=0` returns to invitation-only.

@@ -33,3 +33,18 @@ APP_REDIRECT_HOSTS to its other alias, virunga.coffee, www.virunga.coffee,
 and congo-signal-production.up.railway.app. Redeploy existing image with
 railway redeploy --service congo-signal --environment production --yes.
 Do not upload unrelated working tree changes to deploy this environment change.
+
+LATEST DOMAIN DECISION (supersedes Moanda): signalcongo.com, 2026-10-19.
+Hostinger cosmos/nova nameservers unchanged. Replaced parked A 2.57.91.91 TTL50.
+ALIAS @ -> da538r99.up.railway.app TTL300
+CNAME www -> riacjndt.up.railway.app TTL300
+Ownership TXT _railway-verify and _railway-verify.www saved and verified.
+Railway root ID 92d052bf-29e3-45f3-9ecb-c12564ace1b6
+Railway www ID ebc5a092-2d18-406a-9445-c362ba751c2e
+Both HTTPS certificates ISSUING / POLLING_AUTHORIZATIONS. Public TLS still fails.
+Do not change APP_ORIGIN until HTTPS validates.
+Next: set APP_ORIGIN=https://signalcongo.com and APP_REDIRECT_HOSTS to
+www.signalcongo.com,virunga.coffee,www.virunga.coffee,moandainvest.com,
+www.moandainvest.com,congo-signal-production.up.railway.app then redeploy
+existing image (railway redeploy --service congo-signal --environment production --yes).
+No automatic future task has been scheduled.

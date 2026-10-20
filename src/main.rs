@@ -21,6 +21,7 @@ mod intelligence;
 mod news_images;
 mod notify;
 mod password_auth;
+mod public_api;
 mod quality;
 mod radio;
 mod reference;
@@ -370,6 +371,8 @@ async fn main() -> Result<()> {
         .route("/v1/alerts/read", post(watch::mark_read))
         .route("/v1/events", get(events::list))
         .route("/v1/news/images", get(news_images::list))
+        .route("/v1/public/news", get(public_api::news))
+        .route("/v1/public/article/{id}", get(public_api::article))
         .route("/v1/control", get(control::get).post(control::update))
         .route("/v1/control/dismiss", post(control::dismiss))
         .route("/v1/brief", get(brief::get))
@@ -459,6 +462,7 @@ async fn main() -> Result<()> {
         .route("/auth/callback", get(authentication::callback))
         .route("/auth/password/login", post(password_auth::login))
         .route("/auth/password/setup", post(password_auth::setup))
+        .route("/auth/password/register", post(password_auth::register))
         .route(
             "/auth/password/reset-request",
             post(password_auth::reset_request),

@@ -27,7 +27,8 @@ pub async fn init(db: &SqlitePool) -> anyhow::Result<()> {
     sqlx::raw_sql("CREATE TABLE IF NOT EXISTS password_credentials(user_id TEXT PRIMARY KEY,password_hash TEXT NOT NULL,updated_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS password_links(hash TEXT PRIMARY KEY,email TEXT NOT NULL,expires INTEGER NOT NULL,created_by TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS password_links_email ON password_links(email);
-    CREATE TABLE IF NOT EXISTS password_attempts(bucket TEXT PRIMARY KEY,started INTEGER NOT NULL,attempts INTEGER NOT NULL);").execute(db).await?;
+    CREATE TABLE IF NOT EXISTS password_attempts(bucket TEXT PRIMARY KEY,started INTEGER NOT NULL,attempts INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS member_profiles(user_id TEXT PRIMARY KEY,name TEXT NOT NULL,organisation TEXT NOT NULL,purpose TEXT NOT NULL,created_at INTEGER NOT NULL);").execute(db).await?;
     if enabled() {
         let _ = DUMMY.set(hash_password(random()).await?);
     }
@@ -115,7 +116,7 @@ pub async fn page() -> Response {
         ("x-frame-options", "DENY"),
         (
             "content-security-policy",
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
         ),
     ] {
         r.headers_mut().insert(k, v.parse().unwrap());
@@ -344,4 +345,136 @@ pub async fn reset_request(
     Ok(response(
         json!({"message":"Ask your workspace owner or administrator for a new password link. No email has been sent."}),
     ))
+}
+
+// ---------------------------------------------------------------------------------------------
+// Self-registration for the analyst edition. New accounts get the read-only `viewer` role: they
+// can use every analyst view and their own watchlists, but cannot trigger paid AI, X or voice
+// requests until an owner raises their role on the Team page. SIGNUP_ENABLED=0 turns it off.
+
+pub fn signup_enabled() -> bool {
+    enabled() && std::env::var("SIGNUP_ENABLED").as_deref() != Ok("0")
+}
+pub const PURPOSES: [&str; 7] = [
+    "research",
+    "journalism",
+    "humanitarian",
+    "government",
+    "business",
+    "education",
+    "other",
+];
+#[derive(Deserialize)]
+pub struct Register {
+    name: String,
+    email: String,
+    password: String,
+    #[serde(default)]
+    organisation: String,
+    #[serde(default)]
+    purpose: String,
+    #[serde(default)]
+    accept: bool,
+}
+pub async fn register(
+    State(app): State<App>,
+    headers: HeaderMap,
+    Json(input): Json<Register>,
+) -> ApiResult<Response> {
+    guard(&headers)?;
+    if !signup_enabled() {
+        return Err(error(
+            StatusCode::FORBIDDEN,
+            "Registration is closed. Ask an administrator for an invitation.",
+        ));
+    }
+    let email = input.email.trim().to_lowercase();
+    let name = input.name.trim().to_string();
+    let organisation = input
+        .organisation
+        .trim()
+        .chars()
+        .take(120)
+        .collect::<String>();
+    if name.is_empty() || name.chars().count() > 100 {
+        return Err(error(StatusCode::BAD_REQUEST, "Enter your name"));
+    }
+    if !valid_email(&email) {
+        return Err(error(
+            StatusCode::BAD_REQUEST,
+            "Enter a valid email address",
+        ));
+    }
+    if input.password.chars().count() < 12 || input.password.len() > 1024 {
+        return Err(error(
+            StatusCode::BAD_REQUEST,
+            "Choose a password of at least 12 characters",
+        ));
+    }
+    if !PURPOSES.contains(&input.purpose.as_str()) {
+        return Err(error(
+            StatusCode::BAD_REQUEST,
+            "Tell us how you will use the analyst edition",
+        ));
+    }
+    if !input.accept {
+        return Err(error(
+            StatusCode::BAD_REQUEST,
+            "Accept the terms of use to continue",
+        ));
+    }
+    throttle(&app.db, "register", &email).await?;
+    let encoded = hash_password(input.password).await?;
+    let uid = hash(&format!("password:{email}"));
+    let now = chrono::Utc::now().timestamp();
+    let mut tx = app.db.begin_with("BEGIN IMMEDIATE").await?;
+    let exists: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM memberships WHERE workspace_id=? AND email=?")
+            .bind(WORKSPACE)
+            .bind(&email)
+            .fetch_one(&mut *tx)
+            .await?;
+    if exists > 0 {
+        return Err(error(
+            StatusCode::CONFLICT,
+            "An account with this email already exists. Sign in instead.",
+        ));
+    }
+    sqlx::query("INSERT OR IGNORE INTO auth_users VALUES(?,?,?)")
+        .bind(&uid)
+        .bind(format!("password:{email}"))
+        .bind(&email)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        "INSERT INTO memberships(workspace_id,email,user_id,role,active) VALUES(?,?,?,'viewer',1)",
+    )
+    .bind(WORKSPACE)
+    .bind(&email)
+    .bind(&uid)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("INSERT INTO password_credentials VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET password_hash=excluded.password_hash,updated_at=excluded.updated_at").bind(&uid).bind(&encoded).bind(now).execute(&mut *tx).await?;
+    sqlx::query("INSERT INTO member_profiles VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET name=excluded.name,organisation=excluded.organisation,purpose=excluded.purpose")
+        .bind(&uid).bind(&name).bind(&organisation).bind(&input.purpose).bind(now).execute(&mut *tx).await?;
+    let token = random();
+    let csrf = random();
+    sqlx::query("INSERT INTO auth_sessions VALUES(?,?,?,?,?)")
+        .bind(hash(&token))
+        .bind(&uid)
+        .bind(WORKSPACE)
+        .bind(&csrf)
+        .bind(now + 28800)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT INTO audit_log(at,user_id,workspace_id,action,target) VALUES(?,?,?,'self_registration','viewer')").bind(chrono::Utc::now().to_rfc3339()).bind(&uid).bind(WORKSPACE).execute(&mut *tx).await?;
+    tx.commit().await?;
+    let mut r = response(json!({"redirect":"/#briefing"}));
+    r.headers_mut().insert(
+        "set-cookie",
+        cookie_value("congo_session", &token, 28800)
+            .parse()
+            .unwrap(),
+    );
+    Ok(r)
 }
