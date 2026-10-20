@@ -59,12 +59,12 @@ const icon = n => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><pat
 // ---------------------------------------------------------------------------------------------
 // State
 
-const VIEWS = ['quality', 'research-briefs', 'armed-groups', 'history-control', 'compare', 'briefing', 'situation', 'events', 'alerts', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team', 'ai-settings', 'ai-command'];
+const VIEWS = ['today', 'news', 'map', 'follow', 'read', 'listen', 'quality', 'research-briefs', 'armed-groups', 'history-control', 'compare', 'briefing', 'situation', 'events', 'alerts', 'reports', 'social', 'sources', 'actors', 'arms', 'saved', 'method', 'agreements', 'costs', 'team', 'ai-settings', 'ai-command'];
 const LEGACY_VIEWS = { map: 'situation', overview: 'briefing' };
-const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('report/')) return 'reports'; if (h === 'flights' || h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
+const viewFromHash = () => { const h = location.hash.slice(1); if (h.startsWith('read/')) return 'read'; if (h.startsWith('report/')) return 'reports'; if (h === 'flights' || h === 'minerals' || h === 'radio' || h.startsWith('radio/') || h.startsWith('mine/') || h.startsWith('focus/')) return 'situation'; if (h.startsWith('account/')) return 'social'; if (h.startsWith('actor/')) return 'actors'; if (h.startsWith('weapon/')) return 'arms'; const v = LEGACY_VIEWS[h] || h; return VIEWS.includes(v) ? v : 'briefing' };
 const hashAccount = () => location.hash.startsWith('#account/') ? decodeURIComponent(location.hash.slice(9)) : '';
 const hashPart = prefix => location.hash.startsWith(`#${prefix}/`) ? decodeURIComponent(location.hash.slice(prefix.length + 2)) : '';
-function openFromHash() { if (hashPart('report')) openDetail(hashPart('report')); else if (hashPart('radio')) { state.radioMode = true; state.flightMode = false; state.mineralMode = false; state.radioSel = hashPart('radio'); render() } else if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; state.radioMode = false; state.flightMode = false; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
+function openFromHash() { if (hashPart('read')) { if (state.readId !== hashPart('read')) openRead(hashPart('read')) } else if (hashPart('report')) openDetail(hashPart('report')); else if (hashPart('radio')) { state.radioMode = true; state.flightMode = false; state.mineralMode = false; state.radioSel = hashPart('radio'); render() } else if (hashPart('focus')) focusMineral(hashPart('focus')); else if (hashPart('mine')) { state.mineralMode = true; state.radioMode = false; state.flightMode = false; selectMineral(hashPart('mine')) } else if (hashAccount()) openDossier(hashAccount()); else if (hashPart('actor')) openActor(hashPart('actor')); else if (hashPart('weapon')) openWeapon(hashPart('weapon')) }
 const state = {
   aiMode: store.get('congo-ai-mode')==='1'||viewFromHash()==='ai-command', aiMotion: store.get('congo-ai-motion')!=='0',
   lang: store.get('congo-lang') || 'en', theme: document.documentElement.dataset.theme || 'dark', view: viewFromHash(),
@@ -233,7 +233,7 @@ async function load() {
     state.auth=await api('/v1/auth/me');state.loginRequired=false;
   } catch(e) {if(['oidc','password'].includes(state.authConfig?.mode)){state.loginRequired=true;state.auth=null;state.loaded=true;closeOverlay();render();return}}
   try {
-    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, control] = await Promise.all([
+    const [data, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, control, newsImages] = await Promise.all([
       api(`/v1/intelligence?limit=${state.limit}${state.includeRegional ? '&scope=regional' : ''}`),
       api('/v1/intelligence/status'),
       state.config ? state.config : api('/v1/config'),
@@ -256,9 +256,10 @@ async function load() {
       api('/v1/alerts?limit=200').catch(() => null),
       api(`/v1/events?days=${state.evDays}`).catch(() => null),
       api('/v1/control').catch(() => null),
+      api('/v1/news/images').catch(() => null),
     ]);
     if (state.agDetail?.assessment?.status === 'running') state.agDetail = await api('/v1/agreements/'+state.agDetail.id);
-    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, control, error: '' });
+    Object.assign(state, { items: data.items, total: data.total, updated: data.generated_at, status, config, ev, sources, social, posts, accounts, actors, arms, feeds, agreements, costs, team, commodities, radio, flights, aiSettings, watches, alerts, events, control, newsImages, error: '' });
   } catch (e) { state.error = e.message }
   if(state.view==='history-control') { try {state.controlHistory=await api('/v1/history-control');if(!state.controlAsOf)state.controlAsOf=state.controlHistory.cutoff;} catch(e){state.error=e.message;} }
   if(['quality','research-briefs'].includes(state.view)){try{await loadPilotView(state.view,false)}catch(e){state.error=e.message}}
@@ -476,7 +477,13 @@ async function downloadResearchBrief(id,format){
  const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download=`congo-research-${id}.${format}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
-const NAV = () => [
+const NAV = () => state.simple ? [
+  ['today', 'grid', L('Today', 'Aujourd’hui')],
+  ['news', 'layers', L('News', 'Actualités'), state.items.filter(a => a.record_type !== 'evidence' && Date.now() - Date.parse(a.published_at) < 864e5).length],
+  ['map', 'map', L('Map', 'Carte')],
+  ['follow', 'bell', L('Follow', 'Suivre'), state.alerts?.unread, true],
+  ['listen', 'radio', L('Radio', 'Radio')],
+] : [
   ['research-briefs','book',L('My research briefs','Mes dossiers de recherche')],
   ['quality','shield',L('Data quality','Qualité des données')],
   ...(state.aiMode ? [['ai-command','spark',L('OKAPI / AI','OKAPI / IA')]] : []),
@@ -525,6 +532,7 @@ function wire() {
   return `<div class="wire" aria-label="${L('Priority wire', 'Fil prioritaire')}"><div class="wire-label"><i class="dot bad live"></i>${L('PRIORITY WIRE', 'FIL PRIORITAIRE')}</div><div class="wire-track"><div class="wire-run">${row}<i class="wire-sep" aria-hidden="true">◆</i>${row}</div></div></div>`;
 }
 function shell(content) {
+  if (state.simple) return paperShell(content);
   const nav = NAV().filter(([v])=>!['costs','ai-settings'].includes(v)||state.auth?.user?.role==='owner');
   return `<div class="app"><aside class="rail" aria-label="${L('Main navigation', 'Navigation principale')}">
     <a class="brand" href="#briefing" data-act="nav" data-arg="briefing"><span class="brand-mark">${icon('globe')}</span><div><strong>CONGO SIGNAL</strong><small>${L('DRC situational awareness', 'Veille de situation · RDC')}</small></div></a>
@@ -538,13 +546,14 @@ function shell(content) {
       <button class="omni" data-act="palette" aria-label="${L('Search everything', 'Tout rechercher')}">${icon('search')}<span>${L('Search reports, places, actors, weapons…', 'Rechercher articles, lieux, acteurs, armes…')}</span><kbd>⌘K</kbd></button>
       <div class="clocks" aria-label="${L('Current time', 'Heure actuelle')}"><span><small>UTC</small><b id="clock-utc">${clockText(0)}</b></span><span><small>KIN</small><b id="clock-kin">${clockText(1)}</b></span></div>
       ${onAirChip()}<button class="iconbtn bell ${state.alerts?.unread ? 'has' : ''}" data-act="nav" data-arg="alerts" aria-label="${esc(L(`Alerts: ${state.alerts?.unread || 0} unread`, `Alertes : ${state.alerts?.unread || 0} non lues`))}" title="${esc(L('Watchlists & alerts', 'Veilles et alertes'))}">${icon('bell')}${state.alerts?.unread ? `<b>${state.alerts.unread > 99 ? '99+' : state.alerts.unread}</b>` : ''}</button><span class="live-pill ${state.error ? 'down' : ''}"><i class="dot ${state.error ? 'bad' : 'ok live'}"></i>${state.error ? L('OFFLINE', 'HORS LIGNE') : L('LIVE', 'EN DIRECT')}</span>
+      <div class="seg ui-mode" role="group" aria-label="${L('Interface', 'Interface')}"><button data-act="ui-mode" data-arg="simple" class="${state.simple ? 'active' : ''}" aria-pressed="${!!state.simple}" title="${L('Simple view for everyone', 'Vue simple pour tous')}">${L('Simple', 'Simple')}</button><button data-act="ui-mode" data-arg="advanced" class="${state.simple ? '' : 'active'}" aria-pressed="${!state.simple}" title="${L('Full analyst tools', 'Outils complets d’analyse')}">${L('Advanced', 'Avancé')}</button></div>
       <div class="seg" role="group" aria-label="${L('Language', 'Langue')}"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'active' : ''}">EN</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'active' : ''}">FR</button></div>
       <button class="btn sm ai-mode-switch" data-act="ai-mode" aria-pressed="${state.aiMode}">${icon('spark')}${state.aiMode?L('Exit AI mode','Quitter le mode IA'):L('AI mode','Mode IA')}</button>
       <button class="btn sm" data-act="voice-open">Okapi</button>
       <button class="iconbtn" data-act="theme" aria-label="${L('Toggle theme', 'Changer de thème')}" title="${L('Toggle theme', 'Changer de thème')}">${icon(state.theme === 'light' ? 'moon' : 'sun')}</button>
       <button class="iconbtn" data-act="settings" aria-label="${L('Connection settings', 'Paramètres de connexion')}">${icon('settings')}</button>
     </header>${['situation','ai-command'].includes(state.view) ? '' : wire()}</div>
-    <main class="view view-${state.view} ${state.enter ? 'enter' : ''}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div><nav class="mobile-tabs" aria-label="${L('Quick navigation','Navigation rapide')}">${[['briefing','pulse',L('Briefing','Briefing')],['situation','map',L('Map','Carte')],['reports','layers',L('Reports','Articles')],['ai-command','spark','Okapi']].map(([id,ic,label])=>`<button data-act="nav" data-arg="${id}" ${state.view===id?'aria-current="page"':''}>${icon(ic)}<span>${label}</span></button>`).join('')}</nav></div>`;
+    <main class="view view-${state.view} ${state.enter ? 'enter' : ''}">${state.error && state.view !== 'situation' ? `<div class="errorbar">${icon('alert')}${esc(state.error)} <button class="linkbtn" data-act="settings">${L('Connection settings', 'Paramètres de connexion')}</button></div>` : ''}${content}</main></div><nav class="mobile-tabs" aria-label="${L('Quick navigation','Navigation rapide')}">${(state.simple ? [['today','grid',L('Today','Aujourd’hui')],['news','layers',L('News','Actualités')],['map','map',L('Map','Carte')],['follow','bell',L('Follow','Suivre')]] : [['briefing','pulse',L('Briefing','Briefing')],['situation','map',L('Map','Carte')],['reports','layers',L('Reports','Articles')],['ai-command','spark','Okapi']]).map(([id,ic,label])=>`<button data-act="nav" data-arg="${id}" ${state.view===id?'aria-current="page"':''}>${icon(ic)}<span>${label}</span></button>`).join('')}</nav></div>`;
 }
 /// HH:MM:SS at UTC + offset hours (Kinshasa is UTC+1 year-round).
 function clockText(offset) { return new Date(Date.now() + offset * 3600000).toISOString().slice(11, 19) }
@@ -578,7 +587,7 @@ function render() {
   document.documentElement.dataset.aiMotion=state.aiMotion?'on':'off';
   document.documentElement.dataset.theme=state.aiMode?'dark':state.theme;
   mapHost?.remove();
-  const views = { quality: qualityView, 'research-briefs': researchBriefsView, 'armed-groups':groupsView, 'history-control': historicalControlView, compare: comparisonView, briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView, "ai-settings": aiSettingsView, "ai-command": aiCommandView, events: eventsView, alerts: alertsView };
+  const views = { today: todayView, news: newsView, map: simpleMapView, follow: followView, read: readView, listen: listenView, quality: qualityView, 'research-briefs': researchBriefsView, 'armed-groups':groupsView, 'history-control': historicalControlView, compare: comparisonView, briefing: briefingView, situation: situationView, reports: reportsView, saved: reportsView, social: socialView, sources: sourcesView, actors: actorsView, arms: armsView, method: methodView, agreements: agreementsView, costs: costsView, team: teamView, "ai-settings": aiSettingsView, "ai-command": aiCommandView, events: eventsView, alerts: alertsView };
   $('#app').innerHTML = shell(views[state.view]());
   if(reviewDraft)for(const [name,value] of Object.entries(reviewDraft)){const el=document.querySelector(`#control-review-form [name="${name}"]`);if(el)el.value=value;}
   if(groupDraft)for(const d of groupDraft){const el=[...document.querySelectorAll('#group-evidence-form [name]')].find(e=>e.name===d.name&&(d.name!=='evidence'||e.value===d.value));if(el){el.value=d.value;el.checked=d.checked;}}
@@ -592,6 +601,8 @@ function render() {
   state.enter = false;
 }
 function go(view) {
+  if (state.simple && view === 'briefing') view = 'today';
+  if (state.simple && view === 'situation') view = 'listen';
   if (!VIEWS.includes(view)) return;
   if (state.modal === 'mobile-menu') closeOverlay();
   if(view==='ai-command'){state.aiMode=true;store.set('congo-ai-mode','1')}
@@ -1448,6 +1459,178 @@ function focusPanel() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Simple mode: a calm, plain-language site for non-specialists (Today, News, Map, Follow, Radio).
+// No AI panels, scores, budgets or analyst tools; the switch in the top bar returns to Advanced.
+
+state.snQ = ''; state.snTopic = ''; state.snProvince = ''; state.snWhen = 'week'; state.snVisible = 12; state.followDraft = { kind: 'place', text: '', email: '' };
+const SIMPLE_VIEWS = ['today', 'news', 'map', 'follow'];
+const ago = s => age(s);
+function greeting() {
+  const h = new Date(Date.now() + 3600000).getUTCHours(); // Kinshasa time
+  return h < 12 ? L('Good morning', 'Bonjour') : h < 18 ? L('Good afternoon', 'Bon après-midi') : L('Good evening', 'Bonsoir');
+}
+const newsItems = () => state.items.filter(a => a.record_type !== 'evidence');
+const within = (s, hours) => Date.now() - Date.parse(s) < hours * 36e5;
+function storyCard(a, big = false) {
+  const places = [...new Set(a.places.map(p => p.name))].slice(0, 3);
+  return `<button class="s-story ${big ? 'big' : ''}" data-act="report" data-arg="${esc(a.id)}">
+    <span class="s-topic" style="--c:${layerColor(reportLayer(a))}">${esc(layerName(reportLayer(a)))}</span>
+    <strong>${esc(title(a))}</strong>
+    ${a.description ? `<p>${esc(String(a.description).slice(0, big ? 260 : 150))}${String(a.description).length > (big ? 260 : 150) ? '…' : ''}</p>` : ''}
+    <small>${esc(a.source || '')} · ${ago(a.published_at)}${places.length ? ` · ${icon('pin')}${esc(places.join(', '))}` : ''}</small></button>`;
+}
+const SIMPLE_EVENT_WORDS = {
+  armed_clash: ['Fighting reported', 'Combats signalés'], attack_on_civilians: ['Attack on civilians', 'Attaque contre des civils'], explosive_or_drone: ['Drone strike or shelling', 'Frappe de drone ou bombardement'],
+  abduction: ['Kidnapping reported', 'Enlèvement signalé'], displacement: ['People displaced', 'Population déplacée'], territorial_control: ['Change of control reported', 'Changement de contrôle signalé'],
+  protest_unrest: ['Protest or unrest', 'Manifestation ou troubles'], arrest_detention: ['Arrests reported', 'Arrestations signalées'], sexual_violence: ['Sexual violence reported', 'Violences sexuelles signalées'],
+  health_outbreak: ['Disease outbreak', 'Épidémie'], disaster: ['Natural disaster', 'Catastrophe naturelle'],
+};
+const simpleEvent = k => SIMPLE_EVENT_WORDS[k] ? L(...SIMPLE_EVENT_WORDS[k]) : evLabel(k);
+function simpleNewsRows() {
+  const q = norm(state.snQ.trim()), hours = { today: 24, week: 168, all: 1e9 }[state.snWhen];
+  return newsItems().filter(a => within(a.published_at, hours) && (!state.snTopic || reportLayer(a) === state.snTopic) && (!state.snProvince || a.places.some(p => p.province === state.snProvince))
+    && (!q || norm(`${title(a)} ${a.title} ${a.description || ''} ${a.source} ${a.places.map(p => p.name).join(' ')}`).includes(q)))
+    .sort((a, b) => String(b.published_at).localeCompare(String(a.published_at)));
+}
+function simpleMapView() {
+  return `<div class="simple-page wide"><header class="s-hero compact"><h1>${L('Map', 'Carte')}</h1><p>${L('Red areas have towns held by the AFC/M23 (FRN) rebels, orange areas are disputed, and coloured dots are incidents reported in the news. Click a town or a dot to learn more.', 'Les zones rouges comptent des localités tenues par les rebelles de l’AFC/M23 (FRN), les zones orange sont disputées, et les points colorés sont des incidents rapportés dans la presse. Cliquez sur une localité ou un point pour en savoir plus.')}</p></header>${warRoom()}</div>`;
+}
+function followView() {
+  const ws = (state.watches?.items || []).filter(w => ['search', 'place', 'actor'].includes(w.kind)), al = state.alerts?.items || [], d = state.followDraft;
+  const kinds = [['place', L('A town or place', 'Une ville ou un lieu')], ['search', L('A topic or word', 'Un sujet ou un mot')], ['actor', L('A person or group', 'Une personne ou un groupe')]];
+  const suggestions = d.kind === 'actor' ? (state.actors?.items || []).map(a => a.name) : d.kind === 'place' ? [...new Set(placesList().map(p => p.name))] : ['Ebola', 'M23', 'Goma', 'élections', 'cobalt'];
+  return `<div class="simple-page"><header class="s-hero compact"><h1>${L('Follow', 'Suivre')}</h1><p>${L('Choose what matters to you. New stories about it appear here, and by email if you want.', 'Choisissez ce qui compte pour vous. Les nouveaux articles apparaissent ici, et par e-mail si vous le souhaitez.')}</p></header>
+    <form class="s-section s-follow-form" data-form="simple-follow"><div class="s-chips" role="radiogroup" aria-label="${L('What to follow', 'Que suivre')}">${kinds.map(([k, l]) => `<button type="button" class="s-chip ${d.kind === k ? 'active' : ''}" data-act="follow-kind" data-arg="${k}" role="radio" aria-checked="${d.kind === k}">${l}</button>`).join('')}</div>
+      <div class="s-row"><input class="input" id="follow-text" name="text" list="follow-suggest" required value="${esc(d.text)}" placeholder="${d.kind === 'place' ? 'Goma, Bunia, Uvira…' : d.kind === 'actor' ? 'Corneille Nangaa, M23…' : 'Ebola, cobalt…'}" aria-label="${L('Name', 'Nom')}"><datalist id="follow-suggest">${suggestions.slice(0, 400).map(v => `<option value="${esc(v)}">`).join('')}</datalist>
+        <input class="input" name="email" type="email" value="${esc(d.email)}" placeholder="${L('Email (optional)', 'E-mail (facultatif)')}" aria-label="${L('Email (optional)', 'E-mail (facultatif)')}"><button class="btn primary" type="submit">${icon('bell')} ${L('Follow', 'Suivre')}</button></div></form>
+    <div class="s-grid follow">${ws.length ? `<section class="s-section"><h2>${L('You follow', 'Vous suivez')}</h2>${ws.map(w => `<div class="s-followed"><div><strong>${esc(w.name)}</strong><small>${w.unread ? `<b>${w.unread} ${L('new', 'nouveaux')}</b>` : L('Nothing new', 'Rien de nouveau')}${w.notify?.email ? ` · ${icon('mail')} ${esc(w.notify.email)}` : ''}</small></div><button class="btn sm ghost" data-act="watch-delete" data-arg="${esc(w.id)}">${L('Unfollow', 'Ne plus suivre')}</button></div>`).join('')}</section>` : ''}
+      <section class="s-section"><h2>${L('New for you', 'Nouveau pour vous')}</h2>${al.filter(a => ['article', 'post'].includes(a.kind)).slice(0, 20).map(a => `<button class="s-alert ${a.read ? '' : 'unread'}" data-act="alert-open" data-arg="${esc(alertOpenArgs(a))}"><strong>${esc(a.title)}</strong><small>${esc(a.watch_name || '')} · ${esc(a.detail?.source || '')} · ${ago(a.created_at)}</small></button>`).join('') || `<p class="s-empty">${ws.length ? L('No new stories yet. They will appear here as soon as they are published.', 'Pas encore de nouvel article. Ils apparaîtront ici dès leur publication.') : L('Follow something above to start.', 'Suivez un sujet ci-dessus pour commencer.')}</p>`}</section></div></div>`;
+}
+// ---------------------------------------------------------------------------------------------
+// Simple mode as a newspaper (white page, blackletter nameplate, photo-led front, hairline rules).
+
+state.readId = ''; state.read = null; state.newsImages = null;
+const PAPER_SECTIONS = () => [['security', L('Security', 'Sécurité')], ['politics', L('Politics', 'Politique')], ['health', L('Health', 'Santé')], ['economy', L('Economy', 'Économie')]];
+const imageOf = a => state.newsImages?.items?.[a?.id];
+/// Publisher photo, loaded from the publisher (no referrer), credited; removed if it fails to load.
+function photo(a, cls = '') {
+  const im = imageOf(a); if (!im) return '';
+  return `<figure class="n-fig ${cls}"><img src="${esc(im.url)}" alt="${esc(im.alt || '')}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.closest('figure').remove()"><figcaption>${im.alt ? `${esc(im.alt)} ` : ''}<span>${L('Photo', 'Photo')}: ${esc(a.source || '')}</span></figcaption></figure>`;
+}
+let locPath = '';
+function locMap(places, cls = '') {
+  const p = (places || []).find(x => Number.isFinite(x.lon)); if (!p || !state.geometry) return '';
+  const xy = (lon, lat) => [(lon - 12) * 5, (5.6 - lat) * 5];
+  locPath ||= state.geometry.features[0].geometry.coordinates.map(r => r.map((q, i) => `${i ? 'L' : 'M'}${xy(...q).map(v => v.toFixed(1)).join(',')}`).join('') + 'Z').join('');
+  const [x, y] = xy(p.lon, p.lat);
+  return `<svg class="locmap ${cls}" viewBox="-2 -2 102 100" role="img" aria-label="${esc(L(`Map: ${p.name}`, `Carte : ${p.name}`))}"><path d="${locPath}"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"/></svg>`;
+}
+/// Summary in the reader's language: the English summary when reading in English, else the outlet's lede.
+const lede = a => (state.lang === 'en' ? preview(a)?.summary_en || brief(a)?.summary_en : '') || a.description || '';
+const readMins = a => Math.max(1, Math.round(String(a.search_text || a.description || '').split(/\s+/).length / 230));
+const placeLine = a => [...new Set(a.places.map(p => p.name))].slice(0, 2).join(', ');
+const storyMeta = a => `<span class="n-meta">${ago(a.published_at)} · ${esc(a.source || '')}${a.search_text ? ` · ${readMins(a)} ${L('min read', 'min de lecture')}` : ''}</span>`;
+const storyLink = (a, inner, cls = '') => `<a class="n-story ${cls}" href="#read/${encodeURIComponent(a.id)}" data-act="read" data-arg="${esc(a.id)}">${inner}</a>`;
+function kicker(a) { const pl = placeLine(a); return `<span class="n-kicker">${esc(pl || layerName(reportLayer(a)))}</span>` }
+function paperShell(content) {
+  const nav = [['today', L('Home', 'Accueil')], ['news', L('Latest', 'En continu')], ...PAPER_SECTIONS().map(([k, l]) => [`section:${k}`, l]), ['map', L('Map', 'Carte')], ['listen', L('Radio', 'Radio')], ['follow', L('Following', 'Mes suivis') + (state.alerts?.unread ? ` (${state.alerts.unread})` : '')]];
+  const active = id => id === state.view || (id.startsWith('section:') && state.view === 'news' && state.snTopic === id.slice(8)) || (id === 'news' && state.view === 'news' && !state.snTopic);
+  const date = new Date().toLocaleDateString(locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'Africa/Kinshasa' });
+  return `<div class="paper">
+    <header class="n-mast"><div class="n-top-bar"><div class="n-tools-l"><button class="n-link" data-act="simple-search" aria-label="${L('Search', 'Rechercher')}">${icon('search')}</button><span class="n-lang"><button data-act="lang" data-arg="en" class="${state.lang === 'en' ? 'on' : ''}" aria-pressed="${state.lang === 'en'}">English</button><button data-act="lang" data-arg="fr" class="${state.lang === 'fr' ? 'on' : ''}" aria-pressed="${state.lang === 'fr'}">Français</button></span></div>
+        <div class="n-tools-r">${onAirChip()}<button class="n-link n-adv" data-act="ui-mode" data-arg="advanced">${L('Analyst edition', 'Édition analyste')}</button></div></div>
+      <div class="n-plate"><div class="n-date"><strong>${esc(date)}</strong><span>${L('Kinshasa edition', 'Édition de Kinshasa')}</span></div><a class="n-name" href="#today" data-act="nav" data-arg="today">Congo Signal</a><div class="n-date r"><span>${L('Today’s stories', 'Articles du jour')}</span><strong>${newsItems().filter(a => within(a.published_at, 24)).length}</strong></div></div>
+      <nav class="n-nav" aria-label="${L('Sections', 'Rubriques')}">${nav.map(([id, label]) => `<button class="${active(id) ? 'on' : ''}" ${active(id) ? 'aria-current="page"' : ''} data-act="${id.startsWith('section:') ? 'simple-section' : 'nav'}" data-arg="${id.startsWith('section:') ? id.slice(8) : id}">${esc(label)}</button>`).join('')}</nav></header>
+    <main class="paper-main view-${state.view}">${content}</main>
+    <footer class="n-foot"><a class="n-name small" href="#today" data-act="nav" data-arg="today">Congo Signal</a><p>${L('Stories are gathered from Actualite.cd, Radio Okapi, 7sur7.cd, Jeune Afrique and other outlets and link to the original. Photos belong to the publishers. Stories report what the media say; they are not independently verified.', 'Les articles proviennent d’Actualite.cd, Radio Okapi, 7sur7.cd, Jeune Afrique et d’autres médias, avec un lien vers l’original. Les photos appartiennent aux éditeurs. Les articles rapportent ce que disent les médias ; ils ne sont pas vérifiés de façon indépendante.')}</p><button class="n-link" data-act="ui-mode" data-arg="advanced">${L('Switch to the analyst edition', 'Passer à l’édition analyste')} →</button></footer></div>`;
+}
+function todayView() {
+  const news = newsItems().filter(a => within(a.published_at, 96));
+  const score = a => a.rank.score + (imageOf(a) ? 6 : 0);
+  const ranked = [...news].sort((a, b) => score(b) - score(a) || String(b.published_at).localeCompare(String(a.published_at)));
+  const lead = ranked.find(a => imageOf(a)) || ranked[0];
+  if (!lead) return `<p class="n-empty">${L('No stories yet. Collection may still be running.', 'Pas encore d’articles. La collecte est peut-être en cours.')}</p>`;
+  const used = new Set([lead.id]);
+  const take = (n, pred = () => true) => { const out = ranked.filter(a => !used.has(a.id) && pred(a)).slice(0, n); out.forEach(a => used.add(a.id)); return out };
+  const leadSide = take(2), rail = take(4), row = take(4, a => imageOf(a));
+  const latest = [...newsItems()].filter(a => !used.has(a.id)).sort((a, b) => String(b.published_at).localeCompare(String(a.published_at))).slice(0, 6);
+  const incidents = (state.events?.items || []).filter(e => Date.now() - Date.parse(e.date) < 3 * 864e5).sort((a, b) => b.date.localeCompare(a.date) || (b.fatalities || 0) - (a.fatalities || 0)).slice(0, 6);
+  const held = (state.control?.places || []).filter(p => p.controller === 'AFC/M23 (FRN)' && p.status === 'held');
+  const sections = PAPER_SECTIONS().map(([k, label]) => [k, label, take(4, a => reportLayer(a) === k)]).filter(([, , list]) => list.length >= 2);
+  const time = s => new Date(s).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Kinshasa' });
+  return `<section class="n-top">
+      <div class="n-lead">${storyLink(lead, `<div class="n-lead-text">${kicker(lead)}<h2>${esc(title(lead))}</h2><p>${esc(String(lede(lead)).slice(0, 300))}${String(lede(lead)).length > 300 ? '…' : ''}</p>${storyMeta(lead)}</div>${photo(lead, 'fig-lead')}`, 'lead')}
+        <div class="n-lead-side">${leadSide.map(a => storyLink(a, `<h3>${esc(title(a))}</h3><p>${esc(String(lede(a)).slice(0, 170))}${String(lede(a)).length > 170 ? '…' : ''}</p>${storyMeta(a)}`)).join('')}</div></div>
+      <aside class="n-rail">${rail.map((a, i) => storyLink(a, `${i === 0 ? photo(a, 'fig-rail') : ''}${kicker(a)}<h3>${esc(title(a))}</h3>${storyMeta(a)}`)).join('')}</aside></section>
+    ${row.length ? `<section class="n-row">${row.map(a => storyLink(a, `${photo(a, 'fig-card')}<h3>${esc(title(a))}</h3>${storyMeta(a)}`)).join('')}</section>` : ''}
+    <section class="n-split">
+      <div class="n-briefing"><h4 class="n-label">${L('Security briefing', 'Point sécurité')}<span>${L('last 3 days', '3 derniers jours')}</span></h4>${incidents.map(e => `<a class="n-brief" href="#read/${encodeURIComponent(e.sources[0]?.article_id || '')}" data-act="read" data-arg="${esc(e.sources[0]?.article_id || '')}"><strong>${esc(e.place)}${e.province && e.province !== e.place ? `, ${esc(e.province)}` : ''}</strong> ${esc(simpleEvent(e.kind).toLowerCase())}${e.fatalities ? `; ${e.fatalities} ${L('dead reported', 'morts signalés')}` : ''}. <span>${esc(dayLabel(e.date))}</span></a>`).join('') || `<p class="n-empty">${L('No incidents reported in the last three days.', 'Aucun incident signalé ces trois derniers jours.')}</p>`}</div>
+      <div class="n-latest"><h4 class="n-label">${L('Latest', 'En continu')}</h4>${latest.map(a => storyLink(a, `<time>${time(a.published_at)}</time><span>${esc(title(a))}</span>`, 'line')).join('')}<button class="n-more" data-act="nav" data-arg="news">${L('More news', 'Plus d’actualités')} →</button></div>
+      ${held.length ? `<div class="n-mapbox"><h4 class="n-label">${L('Who controls what', 'Qui contrôle quoi')}</h4>${controlThumb(held)}<p>${L(`AFC/M23 (FRN) rebels hold <strong>${held.length} towns</strong> in North and South Kivu, including Goma and Bukavu, according to recent reports.`, `Les rebelles de l’AFC/M23 (FRN) tiennent <strong>${held.length} localités</strong> au Nord et au Sud-Kivu, dont Goma et Bukavu, selon des rapports récents.`)}</p><button class="n-more" data-act="nav" data-arg="map">${L('Explore the map', 'Explorer la carte')} →</button></div>` : ''}</section>
+    ${sections.map(([k, label, list]) => `<section class="n-section"><h4 class="n-label"><button data-act="simple-section" data-arg="${k}">${esc(label)} ›</button></h4><div class="n-section-grid">${storyLink(list[0], `${photo(list[0], 'fig-section')}<h3>${esc(title(list[0]))}</h3><p>${esc(String(lede(list[0])).slice(0, 220))}${String(lede(list[0])).length > 220 ? '…' : ''}</p>${storyMeta(list[0])}`, 'first')}<div class="n-section-list">${list.slice(1).map(a => storyLink(a, `<div><h3>${esc(title(a))}</h3>${storyMeta(a)}</div>${photo(a, 'fig-thumb')}`, 'item')).join('')}</div></div></section>`).join('')}`;
+}
+function controlThumb(held) {
+  if (!state.geometry) return '';
+  const xy = (lon, lat) => [(lon - 12) * 5, (5.6 - lat) * 5];
+  locMap([{ lon: 0, lat: 0, name: '' }]);
+  return `<svg class="locmap control" viewBox="-2 -2 102 100" role="img" aria-label="${L('Towns held by the AFC/M23 (FRN)', 'Localités tenues par l’AFC/M23 (FRN)')}"><path d="${locPath}"/>${held.filter(p => Number.isFinite(p.lon)).map(p => { const [x, y] = xy(p.lon, p.lat); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.5"/>` }).join('')}</svg>`;
+}
+function newsView() {
+  const rows = simpleNewsRows(), provinces = [...new Set(newsItems().flatMap(a => a.places.map(p => p.province)))].sort();
+  const heading = state.snTopic ? layerName(state.snTopic) : L('Latest news', 'Dernières nouvelles');
+  const date = s => new Date(s).toLocaleDateString(locale(), { month: 'short', day: 'numeric', timeZone: 'Africa/Kinshasa' });
+  return `<section class="n-listing"><header class="n-head"><h1>${esc(heading)}</h1>
+      <div class="n-filters"><label class="n-search">${icon('search')}<input id="sn-q" type="search" data-model="snQ" value="${esc(state.snQ)}" placeholder="${L('Search', 'Rechercher')}" aria-label="${L('Search news', 'Rechercher')}"></label>
+        <select data-model="snProvince" aria-label="${L('Province', 'Province')}"><option value="">${L('All provinces', 'Toutes les provinces')}</option>${provinces.map(p => `<option ${state.snProvince === p ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select>
+        <span class="n-when">${[['today', L('Today', 'Aujourd’hui')], ['week', L('This week', 'Cette semaine')], ['all', L('All', 'Tout')]].map(([k, l]) => `<button class="${state.snWhen === k ? 'on' : ''}" data-act="simple-when" data-arg="${k}" aria-pressed="${state.snWhen === k}">${l}</button>`).join('')}</span></div></header>
+    <div class="n-rows">${rows.slice(0, state.snVisible).map(a => storyLink(a, `<time>${esc(date(a.published_at))}</time><div>${kicker(a)}<h3>${esc(title(a))}</h3><p>${esc(String(lede(a)).slice(0, 240))}${String(lede(a)).length > 240 ? '…' : ''}</p>${storyMeta(a)}</div>${photo(a, 'fig-list')}`, 'listrow')).join('') || `<p class="n-empty">${L('No stories match. Try another word or a longer period.', 'Aucun article ne correspond. Essayez un autre mot ou une période plus longue.')}</p>`}</div>
+    ${rows.length > state.snVisible ? `<button class="n-button" data-act="simple-more">${L('Show more', 'Afficher plus')}</button>` : ''}</section>`;
+}
+async function openRead(id) {
+  state.readId = id; state.read = null; state.readLang = '';
+  if (state.view !== 'read') { state.view = 'read'; state.enter = true }
+  if (location.hash !== '#read/' + encodeURIComponent(id)) history.pushState(null, '', '#read/' + encodeURIComponent(id));
+  render(); window.scrollTo(0, 0);
+  try { const d = await api(`/v1/intelligence/${encodeURIComponent(id)}`); if (state.readId === id) { state.read = d; render() } } catch (e) { state.read = { error: e.message }; render() }
+}
+function readView() {
+  const d = state.read, item = state.items.find(a => a.id === state.readId);
+  if (!d) return `<article class="n-article"><div class="n-loading"></div></article>`;
+  if (d.error) return `<article class="n-article"><p class="n-empty">${esc(d.error)}</p><button class="n-button" data-act="nav" data-arg="today">${L('Back to the home page', 'Retour à l’accueil')}</button></article>`;
+  const a = d.article, tr = d.translation?.data, english = state.readLang === 'en' && tr;
+  const paras = english ? (tr.paragraphs || String(tr.content || '').split(/\n{2,}/)) : (a.paragraphs?.length ? a.paragraphs : String(a.content || '').split(/\n{2,}/));
+  const places = item?.places || [], firstPlace = places[0]?.name;
+  const related = item ? newsItems().filter(x => x.id !== item.id && x.places.some(p => places.some(q => q.name === p.name))).sort((x, y) => String(y.published_at).localeCompare(String(x.published_at))).slice(0, 3) : [];
+  const date = a.published_at ? new Date(a.published_at).toLocaleString(locale(), { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Kinshasa' }) : '';
+  const enTitle = state.lang === 'en' && item ? title(item) : '', enLede = state.lang === 'en' && item ? lede(item) : '';
+  const head = english ? `<h1>${esc(tr.title || enTitle || a.title)}</h1>` : enTitle && enTitle !== a.title ? `<h1>${esc(enTitle)}</h1>${enLede && enLede !== a.description ? `<p class="n-dek">${esc(enLede)}</p>` : ''}<p class="n-orig">${L('Originally published in French as', 'Publié en français sous le titre')} <i lang="fr">${esc(a.title)}</i></p>` : `<h1>${esc(a.title)}</h1>${a.description ? `<p class="n-dek">${esc(a.description)}</p>` : ''}`;
+  return `<article class="n-article"><header>${item ? `<span class="n-kicker">${esc(placeLine(item) || layerName(reportLayer(item)))}</span>` : ''}${head}
+      <div class="n-byline"><span>${a.author ? `${L('By', 'Par')} <strong>${esc(a.author)}</strong> · ` : ''}<strong>${esc(a.source || '')}</strong></span><time>${esc(date)}</time></div></header>
+    ${item ? photo(item, 'fig-hero') : ''}
+    ${tr ? `<div class="n-langbar"><button class="${english ? '' : 'on'}" data-act="read-lang" data-arg="">${L('Original', 'Original')}</button><button class="${english ? 'on' : ''}" data-act="read-lang" data-arg="en">${L('English translation', 'Traduction anglaise')}</button></div>` : ''}
+    <div class="n-body" ${english ? '' : `lang="${esc(a.language || 'fr')}"`}>${paras.filter(Boolean).map(p => `<p>${esc(p)}</p>`).join('')}</div>
+    ${a.coverage === 'feed_summary' || item?.coverage === 'feed_summary' ? `<p class="n-note">${L('This outlet only publishes a summary in its feed.', 'Ce média ne publie qu’un résumé dans son flux.')}</p>` : ''}
+    <div class="n-end"><a class="n-button" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${L(`Read the original on ${a.source || 'the publisher’s site'}`, `Lire l’original sur ${a.source || 'le site de l’éditeur'}`)}</a>${firstPlace ? `<button class="n-button ghost" data-act="watch-quick" data-arg="${esc(`place|${firstPlace}|${firstPlace}`)}">${L(`Follow ${firstPlace}`, `Suivre ${firstPlace}`)}</button>` : ''}${locMap(places, 'end')}</div>
+    <p class="n-note">${L('Congo Signal shows what the outlet reported. It has not been independently verified.', 'Congo Signal présente ce que le média a rapporté. Ce n’est pas vérifié de façon indépendante.')}</p>
+    ${related.length ? `<section class="n-related"><h4 class="n-label">${L(`More on ${firstPlace}`, `Plus sur ${firstPlace}`)}</h4><div class="n-row three">${related.map(x => storyLink(x, `${photo(x, 'fig-card')}<h3>${esc(title(x))}</h3>${storyMeta(x)}`)).join('')}</div></section>` : ''}</article>`;
+}
+function listenView() {
+  const stations = (state.radio?.items || []).filter(stationLive);
+  const groups = [...stations.reduce((m, s) => { const k = s.location?.place || L('National & online', 'National et en ligne'); return m.set(k, [...(m.get(k) || []), s]) }, new Map())];
+  return `<section class="n-listing"><header class="n-head"><h1>${L('Radio', 'Radio')}</h1><p class="n-sub">${L('Congolese stations, live. The sound keeps playing while you read.', 'Les radios congolaises en direct. Le son continue pendant que vous lisez.')}</p></header>
+    <div class="n-stations">${groups.map(([place, list]) => `<div><h4 class="n-label">${esc(place)}</h4>${list.map(s => { const on = state.radioNow === s.id && state.radioStatus === 'playing'; return `<div class="n-station ${on ? 'on' : ''}"><button class="n-play" data-act="radio-play" data-arg="${esc(s.id)}" aria-label="${esc((on ? L('Pause', 'Pause') : L('Play', 'Lecture')) + ' ' + s.name)}">${on ? '❚❚' : '▶'}</button><div><strong>${esc(s.name)}</strong><small>${esc((s.languages || []).join(' · ') || (s.tags || []).slice(0, 2).join(' · '))}</small></div></div>` }).join('')}</div>`).join('') || `<p class="n-empty">${L('No station is on air right now.', 'Aucune station n’est à l’antenne pour le moment.')}</p>`}</div></section>`;
+}
+function setUiMode(mode) {
+  state.simple = mode === 'simple'; store.set('congo-mode', mode);
+  document.documentElement.dataset.mode = mode;
+  if (state.simple) { state.aiMode = false; store.set('congo-ai-mode', '0') }
+  go(state.simple ? 'today' : 'briefing');
+}
+state.simple = store.get('congo-mode') === 'simple';
+document.documentElement.dataset.mode = state.simple ? 'simple' : 'advanced';
+if (state.simple && (!location.hash || location.hash === '#briefing')) state.view = 'today';
+
+// ---------------------------------------------------------------------------------------------
 // War room: territorial control (cited baseline + analyst updates), territory shading, incidents
 // and timeline playback on a dedicated Mapbox map.
 
@@ -1540,7 +1723,7 @@ function warPanel() {
     : selEvent ? `<div class="war-dossier" style="--c:${evColor(selEvent.kind)}"><div class="eyebrow">${esc(selEvent.date)} · ${esc(selEvent.province)}</div><h3>${esc(selEvent.place)}</h3><p class="war-ctl"><i></i><b>${esc(evLabel(selEvent.kind))}</b>${selEvent.fatalities ? ` · ${selEvent.fatalities} ${L('deaths reported', 'morts rapportés')}` : ''}</p>${selEvent.actors?.length ? `<div class="chips">${selEvent.actors.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div>` : ''}<p>“${esc(selEvent.sources[0]?.excerpt || '')}”</p><div class="actions"><button class="btn sm" data-act="report" data-arg="${esc(selEvent.sources[0]?.article_id || '')}">${L('Open report', 'Ouvrir')}</button><button class="iconbtn" data-act="war-clear" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>` : '';
   return `<aside class="war-board glass" aria-label="${L('Control board', 'Tableau de contrôle')}">
     <div class="eyebrow">${L('CONTROL BOARD', 'TABLEAU DE CONTRÔLE')}<span>${c?.latest_as_of ? `${L('as of', 'au')} ${esc(c.latest_as_of)}` : ''}</span></div>
-    ${reviewQueue()}
+    ${state.simple ? '' : reviewQueue()}
     ${(() => { const n = places.filter(isStale).length; return n ? `<p class="war-stale">${icon('history')} ${n} ${L(`places with no source in the last ${STALE_DAYS} days`, `lieux sans source depuis ${STALE_DAYS} jours`)}</p>` : '' })()}
     <div class="war-counts">${counts.map(([k, n]) => `<span style="--c:${CONTROL_COLORS[k]}"><i></i>${esc(controllerLabel(k))}<b>${n}</b></span>`).join('') || `<span class="muted">${L('No control data loaded', 'Aucune donnée de contrôle')}</span>`}</div>
     <div class="war-provinces">${board.map(([p, v]) => `<div class="war-prov"><strong>${esc(p)}</strong><span class="war-bar">${['held', 'partly', 'contested', 'other', 'government'].map(k => v[k] ? `<i style="flex:${v[k]};background:${TERR_STATUS[k][1]}" data-tip="${esc(`${TERR_STATUS[k][0]}: ${v[k]}`)}"></i>` : '').join('')}<i style="flex:${Math.max(0, v.total - v.held - v.partly - v.contested - v.other - v.government)};background:var(--line)"></i></span><small>${v.held + v.partly} ${L('of', 'sur')} ${v.total} ${L('territories with rebel-held towns', 'territoires avec des villes tenues par les rebelles')}${v.contested ? ` · ${v.contested} ${L('contested', 'disputés')}` : ''}</small></div>`).join('')}
@@ -1569,7 +1752,7 @@ function warRoom() {
   const L2 = (k, en, fr, col) => `<button class="war-layer ${state.warLayers[k] ? 'on' : ''}" data-act="war-layer" data-arg="${k}" aria-pressed="${state.warLayers[k]}" style="--c:${col}"><i></i>${L(en, fr)}</button>`;
   return `<section class="warroom ${mapbox ? '' : 'static'}">${mapbox ? '<div id="war-slot"></div>' : eventMap(eventRows())}
     <div class="war-hud" aria-hidden="true"><i class="hud-c tl"></i><i class="hud-c tr"></i><i class="hud-c bl"></i><i class="hud-c br"></i><div class="war-scan"></div></div>
-    <div class="war-title"><span class="war-live"><i></i>${L('WAR ROOM', 'SALLE DE CRISE')}</span><strong>${L('Eastern DRC · control & incidents', 'Est de la RDC · contrôle et incidents')}</strong><small id="war-readout">${state.evDay ? esc(dayLabel(state.evDay)) : L('Current picture', 'Situation actuelle')}</small></div>
+    <div class="war-title"><span class="war-live"><i></i>${state.simple ? L('LIVE MAP', 'CARTE EN DIRECT') : L('WAR ROOM', 'SALLE DE CRISE')}</span><strong>${state.simple ? L('Eastern DRC · who controls what', 'Est de la RDC · qui contrôle quoi') : L('Eastern DRC · control & incidents', 'Est de la RDC · contrôle et incidents')}</strong><small id="war-readout">${state.evDay ? esc(dayLabel(state.evDay)) : L('Current picture', 'Situation actuelle')}</small></div>
     ${warPanel()}
     <div class="war-legend glass">${Object.entries(TERR_STATUS).map(([k, [l, col]]) => `<span><i style="background:${col}"></i>${esc(l)}</span>`).join('')}<span><i class="ring"></i>${L('Armed-group activity (not control)', 'Activité de groupes armés (pas de contrôle)')}</span></div>
     <div class="war-layers glass" role="group" aria-label="${L('Layers', 'Couches')}">${L2('control', 'Control', 'Contrôle', '#ff3355')}${L2('incidents', 'Incidents', 'Incidents', '#ffc65c')}${L2('activity', 'Activity zones', 'Zones d’activité', '#c99bff')}${L2('claims', 'Unconfirmed seizures', 'Prises non confirmées', '#ffffff')}<button class="war-layer" data-act="war-basemap" aria-pressed="${state.warSatellite}">${state.warSatellite ? L('Dark map', 'Carte sombre') : L('Satellite', 'Satellite')}</button><button class="war-layer" data-act="war-reset">${icon('globe')} ${L('Reset view', 'Recentrer')}</button></div>
@@ -1577,7 +1760,7 @@ function warRoom() {
 }
 
 let warMap = null, warHost = null, warFrame = 0, warMarkers = [], warSig = '', warIntro = false;
-function warStyle() { return state.warSatellite ? 'mapbox://styles/mapbox/satellite-streets-v12' : 'mapbox://styles/mapbox/dark-v11' }
+function warStyle() { return state.warSatellite ? 'mapbox://styles/mapbox/satellite-streets-v12' : state.simple ? 'mapbox://styles/mapbox/light-v11' : 'mapbox://styles/mapbox/dark-v11' }
 async function mountWar() {
   const slot = $('#war-slot');
   if (!slot) { cancelAnimationFrame(warFrame); warFrame = 0; return }
@@ -1636,6 +1819,9 @@ function warLayers() {
       map.addLayer({ id: 'war-events-today', type: 'circle', source: 'war-events', filter: ['==', ['get', 'today'], true], paint: { 'circle-radius': ['get', 'r'], 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 2 } });
     }
     const vis = (ids, on) => ids.forEach(id => map.getLayer(id) && map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
+    // Light map in simple mode: dark labels on a white halo.
+    if (map.getLayer('war-terr-label')) { map.setPaintProperty('war-terr-label', 'text-color', state.simple ? '#5a1a1f' : '#ffd9df'); map.setPaintProperty('war-terr-label', 'text-halo-color', state.simple ? '#ffffff' : '#000000') }
+    if (map.getLayer('war-prov-line')) map.setPaintProperty('war-prov-line', 'line-color', state.simple ? 'rgba(60,50,40,.45)' : 'rgba(150,255,205,.55)');
     vis(['war-terr-fill', 'war-front', 'war-terr-label'], state.warLayers.control);
     vis(['war-events', 'war-events-glow', 'war-events-today'], state.warLayers.incidents);
     vis(['war-activity'], state.warLayers.activity);
@@ -1661,8 +1847,8 @@ const shortPlace = n => n.replace(/\s*\(.*?\)\s*/g, ' ').split('/')[0].trim();
 function warPlaceMarkers() {
   const map = warMap; if (!map) return;
   const places = state.warLayers.control ? controlPlaces() : [];
-  const claims = state.warLayers.claims ? (state.control?.claims || []) : [];
-  const sig = JSON.stringify([places.map(p => [p.name, p.controller, p.status]), claims.map(c => c.id), state.warSel?.name, state.lang]);
+  const claims = state.warLayers.claims && !state.simple ? (state.control?.claims || []) : [];
+  const sig = JSON.stringify([places.map(p => [p.name, p.controller, p.status]), claims.map(c => c.id), state.warSel?.name, state.lang, state.simple]);
   if (sig === warSig) return; warSig = sig;
   warMarkers.forEach(m => m.remove()); warMarkers = [];
   for (const p of places) {
@@ -2552,8 +2738,9 @@ function methodView() {
 // Report detail drawer
 
 async function openDetail(id) {
+  if (state.simple) return openRead(id);
   if (state.items.find(a => a.id === id)?.record_type === 'evidence') { await openEvidence(id); return }
-  state.detailId = id; state.detailTab = 'brief'; state.detail = null; state.modal = 'detail';
+  state.detailId = id; state.detailTab = state.simple ? 'original' : 'brief'; state.detail = null; state.modal = 'detail';
   $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-busy="true" aria-label="${L('Report', 'Article')}"><div class="drawer-top"><span class="muted">${L('Loading…', 'Chargement…')}</span><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div><div class="drawer-body"><div class="loading-line"></div></div></section></div>`;
   $('#overlay [data-act="close"]')?.focus();
   try { const data = await api(`/v1/intelligence/${id}`); if (state.detailId !== id) return; state.detail = data; renderDetail() }
@@ -2578,7 +2765,7 @@ function renderDetail() {
   if (tab === 'evidence') content = `<div class="notice">${L('Single source · unverified', 'Source unique · non corroboré')}</div><dl class="props"><dt>${L('Source', 'Source')}</dt><dd><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a></dd><dt>${L('Byline', 'Signature')}</dt><dd>${esc(a.author || L('Not extracted', 'Non extraite'))} ${a.author_method ? `(${esc(a.author_method)})` : ''}</dd><dt>${L('Published', 'Publié')}</dt><dd>${esc(a.published_at || '—')}</dd><dt>${L('Collected', 'Collecté')}</dt><dd>${esc(a.fetched_at)}</dd><dt>${L('Content SHA-256', 'Empreinte SHA-256')}</dt><dd><code>${esc(a.content_sha256)}</code></dd><dt>HTML SHA-256</dt><dd><code>${esc(a.html_sha256)}</code></dd><dt>${L('Extractor', 'Extracteur')}</dt><dd>${esc(a.extractor_version)}</dd><dt>${L('AI brief', 'Synthèse IA')}</dt><dd>${esc(d.brief.status)} · ${esc(d.brief.model || '—')} · ${esc(d.brief.completed_at || '—')}</dd></dl>`;
   if (tab === 'notes') content = `<form data-form="notes" class="fields"><label>${L('Review status', 'Statut de lecture')}<select id="review">${[['unreviewed', L('Not reviewed', 'Non examiné')], ['reviewed', L('Reviewed', 'Examiné')], ['follow_up', L('Needs follow-up', 'À approfondir')]].map(([v, l]) => `<option value="${v}" ${d.analyst.review === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label>${L('Your research notes', 'Vos notes de recherche')}<textarea id="note" maxlength="10000" placeholder="${L('Record observations, missing context, or sources to check…', 'Consignez vos observations, le contexte manquant ou les sources à consulter…')}">${esc(d.analyst.note)}</textarea></label><div><button class="btn primary" type="submit">${icon('check')}${L('Save notes', 'Enregistrer les notes')}</button></div></form>`;
   const scroller = $('#overlay .drawer'), top = scroller?.scrollTop || 0;
-  const tabs = [['brief', L('AI brief', 'Synthèse IA')], ['original', L('Original · FR', 'Original · FR')], ['english', L('English translation', 'Traduction anglaise')], ['evidence', L('Provenance', 'Traçabilité')], ['notes', L('Analyst notes', 'Notes d’analyse')]];
+  const tabs = [['brief', L('AI brief', 'Synthèse IA')], ['original', L('Original · FR', 'Original · FR')], ['english', L('English translation', 'Traduction anglaise')], ['evidence', L('Provenance', 'Traçabilité')], ['notes', L('Analyst notes', 'Notes d’analyse')]].filter(([k]) => !state.simple || k === 'original');
   $('#overlay').innerHTML = `<div class="shade" data-close><section class="drawer" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div class="drawer-top"><span class="eyebrow">${L('REPORT', 'ARTICLE')} · ${esc(a.source)}</span><div class="actions"><a class="btn sm" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}${L('Original', 'Original')}</a><button class="btn sm" data-act="detail-save">${icon('bookmark')}${d.analyst.saved ? L('Saved', 'Sauvegardé') : L('Save', 'Sauvegarder')}</button><button class="iconbtn" data-act="close" aria-label="${L('Close', 'Fermer')}">${icon('close')}</button></div></div>
     <div class="drawer-body"><div class="report-kicker">${item ? `<span class="badge ${item.rank.band}">${bandLabel(item.rank.band)} · ${item.rank.score}</span>` : ''}<span class="tag"><i class="swatch" style="background:${layerColor(item ? reportLayer(item) : 'other')}"></i>${esc(categoryName(a.category))}</span>${(item?.places || []).map(p => `<span>${icon('pin')} ${esc(p.name)}</span>`).join('')}</div><h1 id="detail-title">${esc(state.lang === 'en' ? (b?.title_en || d.preview?.data?.title_en || a.title) : a.title)}</h1><div class="drawer-meta">${date(a.published_at)} (Kinshasa) · ${L('Single source · unverified', 'Source unique · non corroboré')}</div>${namedActors('report', a.id).length ? `<div class="chips" style="margin-bottom:6px">${actorChips(namedActors('report', a.id), 12)}</div>` : ''}
     <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button data-act="tab" data-arg="${k}" class="${tab === k ? 'active' : ''}" role="tab" aria-selected="${tab === k}">${l}</button>`).join('')}</div><section role="tabpanel">${content}</section></div></section></div>`;
@@ -2942,6 +3129,18 @@ const ACTIONS = {
   'war-clear': () => { state.warSel = null; warSig = ''; render() },
   'control-edit': name => { const p = (state.control?.places || []).find(x => x.name === name); state.controlEdit = { place: name || '', province: p?.province || '', controller: p?.controller || 'AFC/M23 (FRN)', status: p?.status || 'held' }; render(); $('.control-form input[name=place]')?.focus() },
   'control-cancel': () => { state.controlEdit = null; render() },
+  'ui-mode': m => setUiMode(m),
+  'read': id => openRead(id),
+  'read-back': () => { if (history.length > 1 && document.referrer !== undefined) history.back(); else go('today') },
+  'read-lang': l => { state.readLang = l; render() },
+  'simple-section': k => { Object.assign(state, { snTopic: k, snQ: '', snProvince: '', snWhen: 'week', snVisible: 12 }); go('news'); window.scrollTo(0, 0) },
+  'simple-search': () => { Object.assign(state, { snTopic: '' }); go('news'); setTimeout(() => $('#sn-q')?.focus(), 50) },
+  'simple-place': p => { state.snQ = p; state.snTopic = ''; state.snProvince = ''; state.snWhen = 'all'; state.snVisible = 12; go('news') },
+  'simple-topic': k => { state.snTopic = k; state.snVisible = 12; render() },
+  'simple-when': k => { state.snWhen = k; state.snVisible = 12; render() },
+  'simple-more': () => { state.snVisible += 12; render() },
+  'simple-clear': () => { Object.assign(state, { snQ: '', snTopic: '', snProvince: '', snVisible: 12 }); render() },
+  'follow-kind': k => { state.followDraft.kind = k; render(); $('#follow-text')?.focus() },
   'sug-all': () => { state.reviewAll = !state.reviewAll; render() },
   'sug-confirm': async id => {
     const x = state.control?.suggestions?.find(s => s.id === id); if (!x) return;
@@ -3072,9 +3271,9 @@ document.addEventListener('click', async e => {
   const el = e.target.closest('[data-act]');
   if (el && !el.closest('#overlay') && el.closest('#app')) overlayReturn = focusKey(el);
   if (!el) { const shade = e.target.closest('[data-close]'); if (shade && e.target === shade) closeOverlay(); return }
-  if (el.tagName === 'A' && el.dataset.act === 'nav') e.preventDefault();
+  if (el.tagName === 'A' && ['nav', 'read'].includes(el.dataset.act)) { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; e.preventDefault() }
   const fn = ACTIONS[el.dataset.act]; if (!fn) return;
-  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview', 'radio-select', 'radio-play', 'radio-toggle', 'radio-stop', 'radio-open', 'radio-place', 'ev-day', 'ev-type', 'ev-play', 'ev-open', 'watch-new', 'watch-template', 'watch-edit', 'watch-cancel', 'watch-results-close', 'alerts-filter', 'alert-open', 'open-url', 'telegram-pick', 'brief-dl', 'war-layer', 'war-basemap', 'war-reset', 'war-place', 'war-clear', 'control-edit', 'control-cancel', 'sug-all', 'sug-edit'].includes(el.dataset.act);
+  const busy = el.tagName === 'BUTTON' && !['nav', 'lang', 'theme', 'close', 'tab', 'category', 'layer', 'day', 'window', 'expand', 'actor-kind', 'arms-cat', 'actor-mkind', 'show-3d', 'map-mode', 'market', 'market-open', 'geo-close', 'focus', 'focus-exit', 'focus-tour', 'focus-area', 'focus-overview', 'radio-select', 'radio-play', 'radio-toggle', 'radio-stop', 'radio-open', 'radio-place', 'ev-day', 'ev-type', 'ev-play', 'ev-open', 'watch-new', 'watch-template', 'watch-edit', 'watch-cancel', 'watch-results-close', 'alerts-filter', 'alert-open', 'open-url', 'telegram-pick', 'brief-dl', 'war-layer', 'war-basemap', 'war-reset', 'war-place', 'war-clear', 'control-edit', 'control-cancel', 'sug-all', 'sug-edit', 'ui-mode', 'simple-place', 'simple-topic', 'simple-when', 'simple-more', 'simple-clear', 'follow-kind', 'read', 'read-back', 'read-lang', 'simple-section', 'simple-search', 'radio-play'].includes(el.dataset.act);
   if (busy) el.disabled = true;
   try { await fn(el.dataset.arg ?? '', el) } catch (err) { toast(err.message) } finally { if (busy && el.isConnected) el.disabled = false }
 });
@@ -3110,6 +3309,15 @@ document.addEventListener('submit', async e => {
     try{state.aiSettings=await api('/v1/settings/ai',body);if(body.api_key){aiModelLists.delete(body.provider);aiModelErrors.delete(body.provider)}form.querySelector('[name=api_key]')?.value && (form.querySelector('[name=api_key]').value='');render();toast(L('AI settings saved','Paramètres IA enregistrés'))}catch(err){toast(err.message)}finally{button.disabled=false}return;
   }
   if(kind==='team'){const f=new FormData(form),body={email:f.get('email'),role:f.get('role'),active:f.has('active'),daily_requests:Number(f.get('daily_requests')),daily_usd:Number(f.get('daily_usd')),monthly_usd:Number(f.get('monthly_usd'))};try{state.team=await api('/v1/team',body);toast(L('Membership saved','Membre enregistré'));await load()}catch(err){toast(err.message)}return}
+  if (kind === 'simple-follow') {
+    const f = new FormData(form), text = String(f.get('text') || '').trim(), email = String(f.get('email') || '').trim(), k = state.followDraft.kind;
+    if (!text) return;
+    let terms = [text];
+    if (k === 'actor') { const id = actorIdFor(text); if (id) terms = [id]; }
+    const kind = k === 'actor' && !actorIdFor(text) ? 'search' : k;
+    try { await api('/v1/watches', { name: text, kind, terms, options: {}, notify: { email: email || null } }); state.followDraft = { kind: k, text: '', email }; toast(L(`You now follow ${text}`, `Vous suivez maintenant ${text}`)); await refreshWatches() } catch (err) { toast(err.message) }
+    return;
+  }
   if (kind === 'control') {
     const f = new FormData(form), body = Object.fromEntries(f.entries());
     try { await api('/v1/control', body); state.controlEdit = null; state.control = await api('/v1/control'); warSig = ''; toast(L('Control change recorded', 'Changement de contrôle enregistré')); render() } catch (err) { toast(err.message) }

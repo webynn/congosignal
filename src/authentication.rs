@@ -15,6 +15,55 @@ use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
 use std::sync::OnceLock;
 const WORKSPACE: &str = "congo-signal";
+// Only explicitly configured aliases redirect; never trust arbitrary Host values.
+fn canonical_target(host: &str, path: &str, origin: &str, aliases: &str) -> Option<String> {
+    if !aliases
+        .split(',')
+        .any(|alias| !alias.trim().is_empty() && alias.trim().eq_ignore_ascii_case(host))
+    {
+        return None;
+    }
+    let url = reqwest::Url::parse(origin).ok()?;
+    if url.scheme() != "https"
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    Some(format!("{}{}", origin.trim_end_matches('/'), path))
+}
+
+pub async fn canonical_origin(request: Request<axum::body::Body>, next: Next) -> Response {
+    if matches!(
+        *request.method(),
+        axum::http::Method::GET | axum::http::Method::HEAD
+    ) && !matches!(request.uri().path(), "/health" | "/ready")
+    {
+        let host = request
+            .headers()
+            .get("host")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        let path = request
+            .uri()
+            .path_and_query()
+            .map(|p| p.as_str())
+            .unwrap_or("/");
+        if let Some(target) = canonical_target(
+            host,
+            path,
+            &std::env::var("APP_ORIGIN").unwrap_or_default(),
+            &std::env::var("APP_REDIRECT_HOSTS").unwrap_or_default(),
+        ) {
+            return Redirect::temporary(&target).into_response();
+        }
+    }
+    next.run(request).await
+}
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Actor {
     pub user_id: String,
@@ -811,6 +860,37 @@ pub async fn team(State(app): State<App>) -> ApiResult<Json<Value>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn canonical_redirect_only_uses_allowed_hosts_and_trusted_origin() {
+        let origin = "https://virunga.coffee";
+        let aliases = "www.virunga.coffee,old.example";
+        assert_eq!(
+            canonical_target(
+                "www.virunga.coffee",
+                "/auth/login?next=reports",
+                origin,
+                aliases
+            ),
+            Some("https://virunga.coffee/auth/login?next=reports".into())
+        );
+        assert_eq!(canonical_target("evil.example", "/", origin, aliases), None);
+        assert_eq!(
+            canonical_target("virunga.coffee", "/", origin, aliases),
+            None
+        );
+        assert_eq!(
+            canonical_target("old.example", "/", "http://virunga.coffee", aliases),
+            None
+        );
+        assert_eq!(
+            canonical_target("old.example", "/", "https://virunga.coffee/path", aliases),
+            None
+        );
+        assert_eq!(
+            canonical_target("old.example", "//evil.example", origin, aliases),
+            Some("https://virunga.coffee//evil.example".into())
+        );
+    }
     #[test]
     fn local_mode_rejects_public_hosts_and_cross_origin() {
         let mut h = HeaderMap::new();

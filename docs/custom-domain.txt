@@ -1,0 +1,35 @@
+Production domain: https://www.virunga.coffee
+
+Hostinger DNS (2026-10-19):
+ALIAS @ -> 4sioe3i6.up.railway.app, TTL 300
+CNAME www -> 16j9bw6k.up.railway.app, TTL 300
+Railway ownership TXT records at _railway-verify and _railway-verify.www.
+Existing ftp A record preserved. Old root Hostinger A/AAAA removed.
+
+Railway service congo-signal, production, custom domains target port 8080.
+APP_ORIGIN=https://www.virunga.coffee
+APP_REDIRECT_HOSTS=virunga.coffee,congo-signal-production.up.railway.app
+
+GET/HEAD requests on those explicit aliases redirect to the canonical origin,
+preserving path/query. Health endpoints remain available on aliases.
+Password/session CSRF checks continue to require the canonical origin.
+Existing sessions on the old host do not transfer: sign in on the new domain.
+Keep HTTPS certificate validation enabled; DNS/certificate issuance can lag changes.
+
+www HTTPS verified. Root certificate issuance pending at deployment.
+
+Pending replacement requested 2026-10-19: moandainvest.com
+Hostinger nameservers unchanged: artemis/hermes.dns-parking.com.
+ALIAS @ -> fj8gz856.up.railway.app (TTL 300)
+CNAME www -> w8lo252o.up.railway.app (TTL 300)
+Both Railway verification TXT records saved and ownership verified.
+Old root A 46.202.182.187 and AAAA 2a02:4780:2b:1878:0:3b81:f20b:6
+removed; ftp A preserved. No email records were present.
+Root Railway domain ID: 7526d1eb-40af-4188-98aa-ac5644614098
+www Railway domain ID: 50c97d63-0324-4433-8049-a87ed17a53b8
+HTTPS issuance is pending; APP_ORIGIN is intentionally still www.virunga.coffee.
+After HTTPS verifies, set APP_ORIGIN to the working Moanda origin and
+APP_REDIRECT_HOSTS to its other alias, virunga.coffee, www.virunga.coffee,
+and congo-signal-production.up.railway.app. Redeploy existing image with
+railway redeploy --service congo-signal --environment production --yes.
+Do not upload unrelated working tree changes to deploy this environment change.

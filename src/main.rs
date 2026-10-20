@@ -7,8 +7,8 @@ mod arms;
 mod authentication;
 mod brief;
 mod commodities;
-mod control;
 mod comparisons;
+mod control;
 mod costs;
 mod events;
 mod evidence;
@@ -18,6 +18,7 @@ mod fetch;
 mod flights;
 mod images;
 mod intelligence;
+mod news_images;
 mod notify;
 mod password_auth;
 mod quality;
@@ -347,6 +348,7 @@ async fn main() -> Result<()> {
     watch::init(&db).await?;
     events::init(&db).await?;
     control::init(&db).await?;
+    news_images::init(&db).await?;
     let app = App {
         db: db.clone(),
         token,
@@ -367,6 +369,7 @@ async fn main() -> Result<()> {
         .route("/v1/alerts", get(watch::alerts))
         .route("/v1/alerts/read", post(watch::mark_read))
         .route("/v1/events", get(events::list))
+        .route("/v1/news/images", get(news_images::list))
         .route("/v1/control", get(control::get).post(control::update))
         .route("/v1/control/dismiss", post(control::dismiss))
         .route("/v1/brief", get(brief::get))
@@ -526,7 +529,10 @@ async fn main() -> Result<()> {
             "/geo/territories.geo.json",
             get(|| async {
                 (
-                    [("content-type", "application/json"), ("cache-control", "public, max-age=86400")],
+                    [
+                        ("content-type", "application/json"),
+                        ("cache-control", "public, max-age=86400"),
+                    ],
                     include_str!("../dashboard/geo/territories.geo.json"),
                 )
             }),
@@ -541,7 +547,8 @@ async fn main() -> Result<()> {
             }),
         )
         // gzip/brotli for JSON and the dashboard: the report list alone is ~1 MB uncompressed.
-        .layer(tower_http::compression::CompressionLayer::new());
+        .layer(tower_http::compression::CompressionLayer::new())
+        .layer(axum::middleware::from_fn(authentication::canonical_origin));
     let listener = tokio::net::TcpListener::bind(bind).await?;
     tracing::info!(%bind,"API worker listening");
     tokio::select! {
@@ -559,6 +566,7 @@ async fn main() -> Result<()> {
         result = flights::worker(db.clone()) => result?,
         result = watch::worker(db.clone()) => result?,
         result = events::worker(db.clone()) => result?,
+        result = news_images::worker(db.clone()) => result?,
         result = radio::worker(db) => result?,
         result = axum::serve(listener,router).with_graceful_shutdown(shutdown_signal()) => result?,
     }
